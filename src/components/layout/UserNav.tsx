@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import { apiClient } from "@/lib/api/client"
+import { useTaskStore } from "@/lib/store"
 
 interface User {
   id: string
@@ -29,7 +30,7 @@ export function UserNav() {
 
   useEffect(() => {
     setMounted(true)
-    
+
     const loadUser = async () => {
       try {
         const response = await apiClient.get("/api/auth/me")
@@ -41,7 +42,7 @@ export function UserNav() {
 
         const userData = await response.json()
         setUser(userData)
-        
+
         if (userData?.name) {
           const init = userData.name
             .split(" ")
@@ -68,7 +69,17 @@ export function UserNav() {
 
       localStorage.removeItem("accessToken")
       localStorage.removeItem("user")
-      
+
+      // Clear Zustand store to ensure complete user data isolation on logout
+      useTaskStore.setState({
+        userEmail: null,
+        userId: null,
+        projects: [],
+        currentBoardId: null,
+        myBoards: [],
+        teamBoards: []
+      })
+
       window.location.href = "/en/login"
     } catch (error) {
       console.error("Logout error:", error)
@@ -91,7 +102,7 @@ export function UserNav() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
           <Avatar className="h-8 w-8">
-            <AvatarFallback className="bg-primary text-primary-foreground text-xs font-bold">
+            <AvatarFallback className="bg-primary text-xs font-bold text-primary-foreground">
               {initials}
             </AvatarFallback>
           </Avatar>
@@ -109,9 +120,7 @@ export function UserNav() {
             <DropdownMenuSeparator />
           </>
         ) : null}
-        <DropdownMenuItem onClick={handleLogout}>
-          Log Out
-        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleLogout}>Log Out</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

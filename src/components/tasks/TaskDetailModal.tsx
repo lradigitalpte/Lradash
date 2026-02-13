@@ -1,519 +1,473 @@
 "use client"
 
-import { 
-  AlignLeft, 
-  Calendar as CalendarIcon, 
-  CheckSquare, 
-  Clock, 
-  Eye, 
-  Link2, 
-  Loader2, 
-  MessageSquare, 
-  MoreHorizontal, 
-  Paperclip, 
-  Tag, 
-  Trash2, 
-  User, 
+import {
+  AlignLeft,
+  Calendar as CalendarIcon,
+  CheckSquare,
+  Clock,
+  Eye,
+  Link2,
+  Loader2,
+  MessageSquare,
+  MoreHorizontal,
+  Paperclip,
+  Tag,
+  Trash2,
+  User,
   X,
   Plus,
-  Check
+  Check,
+  Activity,
+  UserPlus
 } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { toast } from "sonner"
 
-import { UserAvatar } from "@/components/common"
+import { UserAvatar, ProgressBar } from "@/components/common"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { formatDate, isOverdue } from "@/lib/utils"
+import { apiClient } from "@/lib/api/client"
+import { cn, formatDate, isOverdue } from "@/lib/utils"
 import { Task } from "@/types/dbInterface"
 
-interface ChecklistItem {
-  id: string
-  title: string
-  completed: boolean
-}
+import { CardActivity } from "../kanban/card-detail/CardActivity"
+import { CardChecklist } from "../kanban/card-detail/CardChecklist"
+import { CardDescription } from "../kanban/card-detail/CardDescription"
+import { CardHeader } from "../kanban/card-detail/CardHeader"
+import { CardLabels } from "../kanban/card-detail/CardLabels"
+import { CardSidebar } from "../kanban/card-detail/CardSidebar"
 
-interface TaskTag {
-  id: string
-  name: string
-  color: "red" | "blue" | "green" | "yellow" | "purple" | "pink"
-}
-
-interface TaskComment {
-  id: string
-  author: string
-  text: string
-  mentions: string[]
-  createdAt: Date
-}
+import { MemberPicker } from "./MemberPicker"
 
 interface TaskDetailModalProps {
-  task?: (Task & { projectTitle: string })
+  task?: Task & { projectTitle?: string }
   open: boolean
   onOpenChange: (open: boolean) => void
   onSave?: (task: Task) => void
 }
 
-const tagColors = {
-  red: "bg-red-100 text-red-800 border-red-300",
-  blue: "bg-blue-100 text-blue-800 border-blue-300",
-  green: "bg-green-100 text-green-800 border-green-300",
-  yellow: "bg-yellow-100 text-yellow-800 border-yellow-300",
-  purple: "bg-purple-100 text-purple-800 border-purple-300",
-  pink: "bg-pink-100 text-pink-800 border-pink-300"
-}
-
 export function TaskDetailModal({ task, open, onOpenChange, onSave }: TaskDetailModalProps) {
-  const [editingTitle, setEditingTitle] = useState(false)
-  const [editingDescription, setEditingDescription] = useState(false)
   const [editedTitle, setEditedTitle] = useState(task?.title || "")
   const [editedDescription, setEditedDescription] = useState(task?.description || "")
-  const [checklist, setChecklist] = useState<ChecklistItem[]>([
-    { id: "1", title: "Review design mockups", completed: true },
-    { id: "2", title: "Get stakeholder approval", completed: false },
-    { id: "3", title: "Create implementation plan", completed: false }
-  ])
-  const [newChecklistItem, setNewChecklistItem] = useState("")
-  const [tags, setTags] = useState<TaskTag[]>([
-    { id: "1", name: "Frontend", color: "blue" },
-    { id: "2", name: "Urgent", color: "red" }
-  ])
-  const [newTagName, setNewTagName] = useState("")
-  const [newTagColor, setNewTagColor] = useState<"red" | "blue" | "green" | "yellow" | "purple" | "pink">("blue")
-  const [newComment, setNewComment] = useState("")
-  const [comments, setComments] = useState<TaskComment[]>([
-    {
-      id: "1",
-      author: "Jane Doe",
-      text: "I've started working on the design phase. Will have mockups ready by tomorrow.",
-      mentions: [],
-      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000)
+  const [checklist, setChecklist] = useState<any[]>(task?.checklist || [])
+  const [labels, setLabels] = useState<any[]>(
+    task?.labels || [
+      { name: "Frontend", color: "blue" },
+      { name: "Urgent", color: "red" }
+    ]
+  )
+  const [status, setStatus] = useState(task?.status || "TODO")
+  const [priority, setPriority] = useState(task?.priority || "MEDIUM")
+
+  useEffect(() => {
+    if (task) {
+      setEditedTitle(task.title)
+      setEditedDescription(task.description || "")
+      setChecklist(task.checklist || [])
+      setStatus(task.status)
+      setPriority(task.priority || "MEDIUM")
     }
-  ])
-  const [attachments, setAttachments] = useState<any[]>([])
+  }, [task])
 
-  if (!task) return null
-
-  const taskOverdue = task.dueDate && isOverdue(task.dueDate) && task.status !== "DONE"
-  const checklistCompletion = checklist.length > 0 
-    ? Math.round((checklist.filter(c => c.completed).length / checklist.length) * 100)
-    : 0
-
-  const handleTitleSave = async () => {
-    if (editedTitle.trim()) {
-      await onSave?.({ ...task, title: editedTitle } as Task)
-      setEditingTitle(false)
-    }
+  if (!task) {
+    return null
   }
 
-  const handleDescriptionSave = async () => {
-    await onSave?.({ ...task, description: editedDescription } as Task)
-    setEditingDescription(false)
+  const taskOverdue = task.dueDate && isOverdue(task.dueDate) && status !== "DONE"
+
+  const handleUpdateTitle = (newTitle: string) => {
+    setEditedTitle(newTitle)
+    onSave?.({ ...task, title: newTitle } as Task)
   }
 
-  const handleQuickUpdate = async (field: string, value: any) => {
-    await onSave?.({ ...task, [field]: value } as Task)
+  const handleUpdateDescription = (newDescription: string) => {
+    setEditedDescription(newDescription)
+    onSave?.({ ...task, description: newDescription } as Task)
   }
 
-  const toggleChecklistItem = (id: string) => {
-    setChecklist(checklist.map(item =>
-      item.id === id ? { ...item, completed: !item.completed } : item
-    ))
+  const handleToggleChecklistItem = (index: number) => {
+    const newChecklist = [...checklist]
+    newChecklist[index].completed = !newChecklist[index].completed
+    setChecklist(newChecklist)
+    onSave?.({ ...task, checklist: newChecklist } as Task)
   }
 
-  const addChecklistItem = () => {
-    if (newChecklistItem.trim()) {
-      setChecklist([...checklist, {
-        id: Date.now().toString(),
-        title: newChecklistItem,
-        completed: false
-      }])
-      setNewChecklistItem("")
-    }
+  const handleAddChecklistItem = (text: string) => {
+    const newItem = { text, completed: false }
+    const newChecklist = [...checklist, newItem]
+    setChecklist(newChecklist)
+    onSave?.({ ...task, checklist: newChecklist } as Task)
   }
 
-  const removeChecklistItem = (id: string) => {
-    setChecklist(checklist.filter(item => item.id !== id))
+  const handleDeleteChecklistItem = (index: number) => {
+    const newChecklist = checklist.filter((_, i) => i !== index)
+    setChecklist(newChecklist)
+    onSave?.({ ...task, checklist: newChecklist } as Task)
   }
 
-  const addTag = () => {
-    if (newTagName.trim()) {
-      setTags([...tags, {
-        id: Date.now().toString(),
-        name: newTagName,
-        color: newTagColor
-      }])
-      setNewTagName("")
-    }
+  const handleAddLabel = (label: { name: string; color: string }) => {
+    const newLabels = [...labels, label]
+    setLabels(newLabels)
+    onSave?.({ ...task, labels: newLabels } as any)
   }
 
-  const removeTag = (id: string) => {
-    setTags(tags.filter(tag => tag.id !== id))
+  const handleRemoveLabel = (index: number) => {
+    const newLabels = labels.filter((_, i) => i !== index)
+    setLabels(newLabels)
+    onSave?.({ ...task, labels: newLabels } as any)
   }
 
-  const handleAddComment = () => {
-    if (newComment.trim()) {
-      // Extract mentions (@username)
-      const mentionRegex = /@(\w+)/g
-      const mentions: string[] = []
-      let match
-      while ((match = mentionRegex.exec(newComment)) !== null) {
-        mentions.push(match[1])
+  const handleArchive = async () => {
+    try {
+      const response = await apiClient.patch(`/api/tasks/${task._id}`, {
+        ...task,
+        status: "ARCHIVED"
+      })
+      if (response.ok) {
+        toast.success("Initiative archived")
+        onOpenChange(false)
+        onSave?.({ ...task, status: "ARCHIVED" } as any)
       }
-
-      setComments([...comments, {
-        id: Date.now().toString(),
-        author: "Current User",
-        text: newComment,
-        mentions,
-        createdAt: new Date()
-      }])
-      setNewComment("")
+    } catch (error) {
+      toast.error("Failed to archive initiative")
     }
+  }
+
+  const handleDelete = async () => {
+    if (confirm("Are you sure you want to permanently delete this initiative?")) {
+      try {
+        const response = await apiClient.delete(`/api/tasks/${task._id}`)
+        if (response.ok) {
+          toast.success("Initiative purged from system")
+          onOpenChange(false)
+          // We need a way to tell the parent to remove it from the list
+          onSave?.({ ...task, status: "DELETED" } as any)
+        }
+      } catch (error) {
+        toast.error("Failed to delete initiative")
+      }
+    }
+  }
+
+  const handleChangeCover = (color: string) => {
+    onSave?.({ ...task, coverColor: color } as any)
+  }
+
+  // Adapter for CardSidebar since it expects a Card type
+  const cardAdapter = {
+    ...task,
+    _id: task._id.toString(),
+    listId: status,
+    position: 0,
+    labels: labels,
+    priority: priority as any,
+    checklist: checklist.map((c) => ({ text: c.title || c.text, completed: !!c.completed })),
+    members: task.assignee ? [task.assignee] : [],
+    coverColor: task.coverColor
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent 
-        className="!max-w-[1600px] !w-[98vw] !h-[98vh] !p-0 !gap-0 !overflow-hidden !fixed !top-1/2 !left-1/2 !transform !-translate-x-1/2 !-translate-y-1/2 !rounded-xl"
-        showCloseButton={true}
+      <DialogContent
+        className="flex !h-[90vh] max-h-[90vh] !w-[95vw] !max-w-[95vw] flex-col overflow-hidden rounded-[2.5rem] border-white/20 bg-white/80 p-0 pt-0 shadow-2xl shadow-slate-200/50 backdrop-blur-2xl sm:max-w-[95vw] lg:!max-w-[1100px] dark:border-slate-800/50 dark:bg-slate-900/80 dark:shadow-none"
+        aria-describedby={undefined}
       >
-        <div className="flex h-full overflow-hidden">
-          {/* Main Content - Left Side */}
-          <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-950">
-            <div className="p-10 pb-20">
-              {/* Close Button */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute right-6 top-6 z-10"
-                onClick={() => onOpenChange(false)}
-              >
-                <X className="h-5 w-5" />
-              </Button>
-
-              {/* Project Breadcrumb */}
-              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-                <span>{task.projectTitle}</span>
-                <span>/</span>
-                <span className="text-foreground font-medium">{task._id.toString().slice(-6)}</span>
-              </div>
-
-              {/* Task Title - Editable */}
-              <div className="mb-8">
-                {editingTitle ? (
-                  <div className="space-y-2">
-                    <Input
-                      value={editedTitle}
-                      onChange={(e) => setEditedTitle(e.target.value)}
-                      className="text-3xl font-bold h-auto py-2"
-                      autoFocus
-                      onBlur={handleTitleSave}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleTitleSave()
-                        if (e.key === "Escape") {
-                          setEditedTitle(task.title)
-                          setEditingTitle(false)
-                        }
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <h1
-                    className="text-4xl font-bold cursor-pointer hover:bg-muted/50 px-2 py-1 -mx-2 rounded transition-colors"
-                    onClick={() => {
-                      setEditedTitle(task.title)
-                      setEditingTitle(true)
-                    }}
-                  >
-                    {task.title}
-                  </h1>
-                )}
-              </div>
-
-              {/* Tags */}
-              <div className="mb-8">
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {tags.map(tag => (
-                    <div key={tag.id} className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border ${tagColors[tag.color]}`}>
-                      <Tag className="h-3 w-3" />
-                      <span className="text-sm font-medium">{tag.name}</span>
-                      <button onClick={() => removeTag(tag.id)} className="hover:opacity-70">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Add tag..."
-                    value={newTagName}
-                    onChange={(e) => setNewTagName(e.target.value)}
-                    className="text-sm"
-                  />
-                  <Select value={newTagColor} onValueChange={(v: any) => setNewTagColor(v)}>
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="red">Red</SelectItem>
-                      <SelectItem value="blue">Blue</SelectItem>
-                      <SelectItem value="green">Green</SelectItem>
-                      <SelectItem value="yellow">Yellow</SelectItem>
-                      <SelectItem value="purple">Purple</SelectItem>
-                      <SelectItem value="pink">Pink</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button onClick={addTag} size="sm"><Plus className="h-4 w-4" /></Button>
-                </div>
-              </div>
-
-              {/* Description Section */}
-              <div className="mb-12">
-                <div className="flex items-center gap-2 mb-4">
-                  <AlignLeft className="h-6 w-6 text-muted-foreground" />
-                  <h2 className="font-bold text-xl">Description</h2>
-                </div>
-                {editingDescription ? (
-                  <div className="space-y-2">
-                    <Textarea
-                      value={editedDescription}
-                      onChange={(e) => setEditedDescription(e.target.value)}
-                      placeholder="Add a more detailed description..."
-                      className="min-h-[150px] text-base"
-                      autoFocus
-                    />
-                    <div className="flex gap-2">
-                      <Button onClick={handleDescriptionSave}>Save</Button>
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          setEditedDescription(task.description || "")
-                          setEditingDescription(false)
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div
-                    className="text-base text-muted-foreground leading-relaxed cursor-pointer hover:bg-muted/50 p-4 rounded-lg transition-colors min-h-[100px]"
-                    onClick={() => {
-                      setEditedDescription(task.description || "")
-                      setEditingDescription(true)
-                    }}
-                  >
-                    {task.description || "Click to add a description..."}
-                  </div>
-                )}
-              </div>
-
-              {/* Checklist Section */}
-              <div className="mb-12">
-                <div className="flex items-center gap-2 mb-4">
-                  <CheckSquare className="h-6 w-6 text-muted-foreground" />
-                  <h2 className="font-bold text-xl">Checklist</h2>
-                  <div className="ml-auto text-sm font-semibold text-primary">{checklistCompletion}%</div>
-                </div>
-                
-                {/* Progress Bar */}
-                <div className="mb-4 h-2 bg-muted rounded-full overflow-hidden">
-                  <div className="h-full bg-primary transition-all" style={{ width: `${checklistCompletion}%` }} />
-                </div>
-
-                {/* Checklist Items */}
-                <div className="space-y-2 mb-4">
-                  {checklist.map(item => (
-                    <div key={item.id} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
-                      <button
-                        onClick={() => toggleChecklistItem(item.id)}
-                        className={`flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                          item.completed 
-                            ? "bg-primary border-primary" 
-                            : "border-gray-300 hover:border-primary"
-                        }`}
-                      >
-                        {item.completed && <Check className="h-4 w-4 text-white" />}
-                      </button>
-                      <span className={item.completed ? "line-through text-muted-foreground" : ""}>
-                        {item.title}
-                      </span>
-                      <button
-                        onClick={() => removeChecklistItem(item.id)}
-                        className="ml-auto text-muted-foreground hover:text-foreground"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Add Checklist Item */}
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Add checklist item..."
-                    value={newChecklistItem}
-                    onChange={(e) => setNewChecklistItem(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && addChecklistItem()}
-                  />
-                  <Button onClick={addChecklistItem} size="sm"><Plus className="h-4 w-4" /></Button>
-                </div>
-              </div>
-
-              {/* Comments Section */}
-              <div className="mb-8">
-                <div className="flex items-center gap-2 mb-4">
-                  <MessageSquare className="h-6 w-6 text-muted-foreground" />
-                  <h2 className="font-bold text-xl">Activity & Comments</h2>
-                </div>
-
-                {/* Add Comment */}
-                <div className="mb-6 p-4 border rounded-lg bg-muted/20">
-                  <div className="flex gap-3 mb-3">
-                    <UserAvatar name="Current User" size="md" />
-                    <div className="flex-1">
-                      <Textarea
-                        value={newComment}
-                        onChange={(e) => setNewComment(e.target.value)}
-                        placeholder="Write a comment... Use @name to mention team members"
-                        className="mb-2"
-                        rows={3}
-                      />
-                      <Button onClick={handleAddComment} disabled={!newComment.trim()}>
-                        Add Comment
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Comments List */}
-                <div className="space-y-4">
-                  {comments.map((comment) => (
-                    <div key={comment.id} className="flex gap-3">
-                      <UserAvatar name={comment.author} size="md" />
-                      <div className="flex-1">
-                        <div className="bg-muted rounded-lg p-4">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="font-semibold text-sm">{comment.author}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {formatDate(comment.createdAt)}
-                            </span>
-                          </div>
-                          <p className="text-sm whitespace-pre-wrap">
-                            {comment.text.split(/(@\w+)/g).map((part, idx) =>
-                              part.startsWith("@") ? (
-                                <span key={idx} className="bg-primary/10 text-primary font-semibold px-1 rounded">
-                                  {part}
-                                </span>
-                              ) : (
-                                part
-                              )
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+        <div className="relative flex h-full flex-col overflow-hidden">
+          {/* Cover Color Banner */}
+          {task.coverColor && (
+            <div
+              className="relative h-32 w-full shrink-0 overflow-hidden"
+              style={{ backgroundColor: task.coverColor }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-b from-black/20 to-transparent" />
+              <div className="absolute inset-0 opacity-30 backdrop-blur-[2px]" />
             </div>
+          )}
+
+          {/* Decorative Glows */}
+          <div className="-v-10 pointer-events-none absolute -top-20 -right-20 h-80 w-80 rounded-full bg-blue-500/10 blur-3xl" />
+          <div className="-v-10 pointer-events-none absolute -bottom-20 -left-20 h-80 w-80 rounded-full bg-indigo-500/10 blur-3xl" />
+
+          {/* Header Section */}
+          <div className="relative shrink-0 px-10 pt-12 pb-6">
+            <div className="mb-6 flex items-center gap-3">
+              <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[10px] font-black tracking-[0.2em] text-blue-600 uppercase shadow-sm dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                {task.projectTitle || "Personal Task"}
+              </span>
+              <div className="h-1 w-1 rounded-full bg-slate-200 dark:bg-slate-700" />
+              <span className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase italic">
+                #{task._id.toString().slice(-6)}
+              </span>
+            </div>
+
+            <CardHeader
+              title={editedTitle}
+              onUpdateTitle={handleUpdateTitle}
+              onClose={() =>{  onOpenChange(false); }}
+            />
           </div>
 
-          {/* Sidebar - Right Side */}
-          <div className="w-96 border-l bg-gradient-to-b from-muted/30 to-muted/10 overflow-y-auto">
-            <div className="p-8 space-y-8">
-              <div>
-                <label className="text-sm font-medium text-muted-foreground mb-2 block">Status</label>
-                <Select
-                  value={task.status}
-                  onValueChange={(value) => handleQuickUpdate("status", value)}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="TODO">To Do</SelectItem>
-                    <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-                    <SelectItem value="DONE">Done</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-muted-foreground mb-2 block">Priority</label>
-                <Select
-                  value={task.priority || "medium"}
-                  onValueChange={(value) => handleQuickUpdate("priority", value)}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="urgent">Urgent</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-muted-foreground mb-2 block">Due Date</label>
-                <Input
-                  type="date"
-                  value={task.dueDate ? new Date(task.dueDate).toISOString().split("T")[0] : ""}
-                  onChange={(e) =>
-                    handleQuickUpdate("dueDate", e.target.value ? new Date(e.target.value) : undefined)
-                  }
-                  className={taskOverdue ? "border-red-500" : ""}
-                />
-                {taskOverdue && <p className="text-xs text-red-600 mt-1">Overdue</p>}
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-muted-foreground mb-2 block">Assignee</label>
-                <div className="flex items-center gap-2 p-2 border rounded-lg">
-                  {task.assignee ? (
-                    <>
-                      <UserAvatar name={task.assignee.name} size="sm" />
-                      <span className="text-sm font-medium">{task.assignee.name}</span>
-                    </>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">Unassigned</span>
+          {/* Main Content Area - Scrollable */}
+          <div className="custom-scrollbar relative flex-1 overflow-y-auto px-10 pb-12">
+            <div className="grid grid-cols-1 gap-12 lg:grid-cols-[1fr_300px]">
+              {/* Left Column - Details */}
+              <div className="space-y-12">
+                {/* Meta Information Summary */}
+                <div className="flex flex-wrap items-start gap-8">
+                  {labels.length > 0 && (
+                    <CardLabels
+                      labels={labels}
+                      onAddLabel={handleAddLabel}
+                      onRemoveLabel={handleRemoveLabel}
+                    />
                   )}
+
+                  <div className="space-y-3">
+                    <h3 className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
+                      Assigned To
+                    </h3>
+                    {task.assignee ? (
+                      <div className="group flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 py-2 pr-2 pl-4 shadow-sm dark:border-slate-800/50 dark:bg-slate-800/50">
+                        <UserAvatar name={task.assignee.name} size="sm" />
+                        <span className="flex-1 text-sm font-bold text-slate-700 dark:text-slate-300">
+                          {task.assignee.name}
+                        </span>
+                        <MemberPicker
+                          className="h-8 w-8 rounded-lg border-dashed border-none bg-transparent p-0 text-slate-300 shadow-none hover:bg-white hover:text-blue-600 dark:hover:bg-slate-800"
+                          currentAssigneeId={task.assignee.id}
+                          onSelect={(user) =>
+                            onSave?.({
+                              ...task,
+                              assignee: { id: user._id, name: user.name }
+                            } as any)
+                          }
+                        />
+                      </div>
+                    ) : (
+                      <MemberPicker
+                        onSelect={(user) =>
+                          onSave?.({ ...task, assignee: { id: user._id, name: user.name } } as any)
+                        }
+                      />
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    <h3 className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
+                      Timeline
+                    </h3>
+                    <div
+                      className={cn(
+                        "flex items-center gap-3 rounded-2xl border px-4 py-2 shadow-sm transition-all",
+                        taskOverdue
+                          ? "border-rose-100 bg-rose-50 text-rose-600 dark:border-rose-800 dark:bg-rose-900/20"
+                          : "border-slate-100 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400"
+                      )}
+                    >
+                      <CalendarIcon className="h-4 w-4 stroke-[2.5]" />
+                      <span className="text-sm font-bold">
+                        {task.dueDate ? formatDate(task.dueDate) : "No deadline"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div className="pt-4">
+                  <CardDescription
+                    description={editedDescription}
+                    onUpdateDescription={handleUpdateDescription}
+                  />
+                </div>
+
+                {/* Checklist */}
+                <div className="rounded-[2.5rem] border border-white/20 bg-white/40 p-8 shadow-xl shadow-slate-200/40 dark:border-slate-800/30 dark:bg-slate-900/40 dark:shadow-none">
+                  <CardChecklist
+                    items={checklist.map((c) => ({
+                      text: c.title || c.text,
+                      completed: !!c.completed
+                    }))}
+                    onToggleItem={handleToggleChecklistItem}
+                    onAddItem={handleAddChecklistItem}
+                    onDeleteItem={handleDeleteChecklistItem}
+                  />
+                </div>
+
+                {/* Attachments Section */}
+                <div className="space-y-8">
+                  <div className="flex items-center justify-between px-2">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-500/20">
+                        <Paperclip className="h-5 w-5 stroke-[2.5]" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-black tracking-tight text-slate-900 uppercase dark:text-white">
+                          Data Assets
+                        </h3>
+                        <p className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
+                          Linked resources & intelligence
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const name = prompt("Enter asset name:")
+                        if (name) {
+                          const newAttachment = {
+                            name,
+                            url: "https://via.placeholder.com/150",
+                            type: "image/png",
+                            size: 1024 * 1024,
+                            createdAt: new Date()
+                          }
+                          onSave?.({
+                            ...task,
+                            attachments: [...(task.attachments || []), newAttachment]
+                          } as any)
+                          toast.success("Asset linked to initiative")
+                        }
+                      }}
+                      className="h-10 rounded-xl border-slate-200 px-6 text-[10px] font-black tracking-widest uppercase hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800"
+                    >
+                      <Plus className="mr-2 h-3.5 w-3.5" />
+                      Link Asset
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    {task.attachments && task.attachments.length > 0 ? (
+                      task.attachments.map((file, idx) => (
+                        <div
+                          key={idx}
+                          className="group relative flex items-center gap-4 rounded-2xl border border-slate-100 bg-white/50 p-4 transition-all duration-500 hover:border-blue-500/30 hover:shadow-xl hover:shadow-blue-500/5 dark:border-slate-800 dark:bg-slate-900/50"
+                        >
+                          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 transition-colors group-hover:bg-blue-600 group-hover:text-white dark:bg-slate-800">
+                            <Link2 className="h-5 w-5" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-bold tracking-tight text-slate-900 uppercase dark:text-white">
+                              {file.name}
+                            </p>
+                            <p className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                              {(file.size || 0) / 1024 > 1024
+                                ? `${((file.size || 0) / (1024 * 1024)).toFixed(1)} MB`
+                                : `${((file.size || 0) / 1024).toFixed(1)} KB`}
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              const newAttachments = task.attachments?.filter((_, i) => i !== idx)
+                              onSave?.({ ...task, attachments: newAttachments } as any)
+                            }}
+                            className="text-slate-300 opacity-0 transition-all group-hover:opacity-100 hover:text-rose-600"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="col-span-full flex flex-col items-center justify-center rounded-[2rem] border border-dashed border-slate-200 bg-slate-50/20 py-12 text-slate-400 dark:border-slate-800 dark:bg-slate-900/20">
+                        <Paperclip className="mb-4 h-8 w-8 opacity-20" />
+                        <p className="text-[10px] font-black tracking-[0.2em] uppercase">
+                          Zero linked assets discovered
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Activity Feed */}
+                <div className="border-t border-slate-100 pt-6 dark:border-slate-800">
+                  <div className="mb-8 flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-500/20">
+                      <Activity className="h-5 w-5 stroke-[2.5]" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-black tracking-tight text-slate-900 uppercase dark:text-white">
+                        Audit Log
+                      </h3>
+                      <p className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
+                        Real-time task evolution
+                      </p>
+                    </div>
+                  </div>
+                  <CardActivity cardId={task._id.toString()} />
                 </div>
               </div>
 
-              <div className="pt-4 border-t">
-                <div className="space-y-3 text-sm">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <User className="h-4 w-4" />
-                    <span>Created by {task.creator?.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Clock className="h-4 w-4" />
-                    <span>{formatDate(task.createdAt)}</span>
+              {/* Right Column - Actions & Stats */}
+              <div className="space-y-8">
+                <CardSidebar
+                  card={cardAdapter as any}
+                  onAddLabel={handleAddLabel}
+                  onAddChecklistItem={handleAddChecklistItem}
+                  onChangeCover={handleChangeCover}
+                  onArchive={handleArchive}
+                  onDelete={handleDelete}
+                />
+
+                <div className="group relative overflow-hidden rounded-[2rem] bg-slate-900 p-8 text-white shadow-2xl dark:bg-white dark:text-slate-900">
+                  <div className="absolute top-0 right-0 -mt-16 -mr-16 h-32 w-32 rounded-full bg-white/10 blur-3xl dark:bg-slate-900/5" />
+                  <div className="relative space-y-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 dark:bg-slate-100">
+                        <Clock className="h-6 w-6" />
+                      </div>
+                      <div className="text-right text-[10px] font-black tracking-widest uppercase opacity-60">
+                        System Context
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="text-lg leading-tight font-black tracking-tight uppercase">
+                        Task Integrity
+                      </h4>
+                      <p className="mt-2 text-[11px] font-medium italic opacity-70">
+                        Created {formatDate(task.createdAt)} by {task.creator?.name || "System"}
+                      </p>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      className="h-12 w-full rounded-xl bg-white text-[10px] font-black tracking-widest text-slate-900 uppercase shadow-xl transition-all hover:scale-105 dark:bg-slate-900 dark:text-white"
+                      onClick={() => toast.info("Task synchronized with cloud storage")}
+                    >
+                      Sync Task
+                    </Button>
                   </div>
                 </div>
-              </div>
-
-              <div className="pt-4 border-t space-y-2">
-                <Button variant="outline" className="w-full justify-start" size="sm">
-                  <Link2 className="h-4 w-4 mr-2" />
-                  Copy Link
-                </Button>
-                <Button variant="outline" className="w-full justify-start text-red-600 hover:text-red-700" size="sm">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Task
-                </Button>
               </div>
             </div>
           </div>
         </div>
       </DialogContent>
+
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(148, 163, 184, 0.2);
+          border-radius: 10px;
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(51, 65, 85, 0.4);
+        }
+      `}</style>
     </Dialog>
   )
 }

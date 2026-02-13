@@ -21,12 +21,12 @@ const taskSchema = new mongoose.Schema(
     board: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Board",
-      required: true
+      required: false // Optional for personal tasks
     },
     project: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Project",
-      required: true
+      required: false // Optional for personal tasks
     },
     assignee: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     creator: {
@@ -44,8 +44,38 @@ const taskSchema = new mongoose.Schema(
       enum: ["LOW", "MEDIUM", "HIGH", "URGENT"],
       default: "MEDIUM"
     },
+    checklist: [
+      {
+        text: { type: String, required: true },
+        completed: { type: Boolean, default: false }
+      }
+    ],
+    labels: [
+      {
+        name: { type: String, required: true },
+        color: { type: String, required: true }
+      }
+    ],
+    coverColor: { type: String },
     isArchived: { type: Boolean, default: false },
-    deletedAt: { type: Date, default: null } // Soft delete
+    deletedAt: { type: Date, default: null }, // Soft delete
+    activities: [
+      {
+        user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+        type: { type: String, enum: ["comment", "activity"], required: true },
+        text: { type: String, required: true },
+        createdAt: { type: Date, default: Date.now }
+      }
+    ],
+    attachments: [
+      {
+        name: { type: String, required: true },
+        url: { type: String, required: true },
+        type: { type: String },
+        size: { type: Number },
+        createdAt: { type: Date, default: Date.now }
+      }
+    ]
   },
   {
     timestamps: true
@@ -66,10 +96,7 @@ function isTaskModel(model: any): model is Model<TaskType> {
 }
 
 function getTaskModel(): Model<TaskType> {
-  if (isTaskModel(mongoose.models.Task)) {
-    return mongoose.models.Task
-  }
-  return mongoose.model<TaskType>("Task", taskSchema)
+  return (mongoose.models.Task as Model<TaskType>) || mongoose.model<TaskType>("Task", taskSchema)
 }
 
 const TaskModel = getTaskModel()

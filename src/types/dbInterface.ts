@@ -155,6 +155,29 @@ export interface ProjectModel {
 }
 
 // ========== TASK TYPES ==========
+export interface ChecklistItem {
+  _id?: string
+  text: string
+  completed: boolean
+}
+
+export interface ActivityItem {
+  _id?: string
+  user: UserInfo
+  type: "comment" | "activity"
+  text: string
+  createdAt: string | Date
+}
+
+export interface Attachment {
+  _id?: string
+  name: string
+  url: string
+  type?: string
+  size?: number
+  createdAt?: string | Date
+}
+
 export interface Task {
   _id: string
   title: string
@@ -162,13 +185,52 @@ export interface Task {
   status: TaskStatus
   dueDate?: Date
   organizationId: string
-  board: string
-  project: string
+  board?: string
+  project?: string
   assignee?: UserInfo
   creator: UserInfo
   lastModifier: UserInfo
   priority: TaskPriority
   isArchived: boolean
+  checklist?: ChecklistItem[]
+  labels?: Array<{ name: string; color: string }>
+  activities?: ActivityItem[]
+  attachments?: Attachment[]
+  coverColor?: string
+  createdAt: Date
+  updatedAt: Date
+  deletedAt?: Date
+}
+
+// ========== REPORT TYPES ==========
+export enum ReportStatus {
+  SUBMITTED = "submitted",
+  OVERDUE = "overdue",
+  PENDING = "pending"
+}
+
+export enum ReportFileType {
+  PPT = "ppt",
+  PDF = "pdf",
+  DOC = "doc",
+  LINK = "link"
+}
+
+export interface Report {
+  _id: string
+  title: string
+  description?: string
+  organizationId: string
+  submittedBy: UserInfo
+  submittedAt: Date
+  dueDate: Date
+  weekNumber: number
+  year: number
+  status: ReportStatus
+  fileType?: ReportFileType
+  fileUrl?: string
+  fileName?: string
+  fileSize?: string
   createdAt: Date
   updatedAt: Date
   deletedAt?: Date
@@ -181,13 +243,36 @@ export interface TaskModel {
   status: TaskStatus
   dueDate?: Date
   organizationId: string
-  board: string
-  project: string
+  board?: string
+  project?: string
   assignee?: string
   creator: string
   lastModifier: string
   priority: TaskPriority
   isArchived: boolean
+  createdAt: Date
+  updatedAt: Date
+  deletedAt?: Date
+}
+
+// ========== EVENT TYPES ==========
+export enum EventType {
+  SYNC = "sync",
+  BLOCKED = "blocked",
+  BUFFER = "buffer"
+}
+
+export interface Event {
+  _id: string
+  title: string
+  description?: string
+  startTime: Date | string
+  endTime: Date | string
+  type: EventType
+  organizationId: string
+  creatorId: string
+  members?: string[]
+  isAllDay: boolean
   createdAt: Date
   updatedAt: Date
   deletedAt?: Date

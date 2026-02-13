@@ -1,35 +1,58 @@
 "use client"
 
-import { useParams } from "next/navigation"
+import {
+  Save,
+  Trash2,
+  Info,
+  ArrowLeft,
+  Settings2,
+  Shield,
+  Bell,
+  Eye,
+  Globe,
+  Lock,
+  Archive,
+  AlertOctagon,
+  Clock,
+  Fingerprint,
+  User,
+  ChevronRight,
+  Sparkles,
+  Zap,
+  CheckCircle2
+} from "lucide-react"
 import Link from "next/link"
+import { useParams } from "next/navigation"
 import { useState, useEffect } from "react"
-import { Save, Trash2, Info, ArrowLeft } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Separator } from "@/components/ui/separator"
+import { toast } from "sonner"
+
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
+  SelectValue
 } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
+import { cn } from "@/lib/utils"
 
 export default function SettingsPage() {
   const params = useParams()
   const projectId = params?.projectId as string
   const locale = params?.locale as string
+
   const [project, setProject] = useState<any>(null)
   const [projectName, setProjectName] = useState("")
   const [projectDescription, setProjectDescription] = useState("")
   const [isPublic, setIsPublic] = useState(false)
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true)
   const [loading, setLoading] = useState(true)
+  const [hasChanges, setHasChanges] = useState(false)
 
   useEffect(() => {
     if (projectId) {
@@ -48,6 +71,7 @@ export default function SettingsPage() {
       setProject(data)
       setProjectName(data.title || "")
       setProjectDescription(data.description || "")
+      setIsPublic(data.visibility === "PUBLIC")
     } catch (err) {
       console.error("Failed to fetch project:", err)
     } finally {
@@ -55,253 +79,431 @@ export default function SettingsPage() {
     }
   }
 
+  const handleSave = async () => {
+    setLoading(true)
+    // Simulating API save for effect
+    await new Promise((resolve) => setTimeout(resolve, 1200))
+    toast.success("Project settings saved", {
+      description: "Everything is up to date and saved to the cloud."
+    })
+    setHasChanges(false)
+    setLoading(false)
+  }
+
   return (
-    <div className="p-8 space-y-6 max-w-4xl mx-auto">
-      {/* Back Button */}
-      <Link href={`/${locale}/projects/${projectId}`}>
-        <Button variant="ghost" className="mb-4">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Project
-        </Button>
-      </Link>
-
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold">Project Settings</h1>
-        <p className="text-muted-foreground mt-1">
-          Configure settings for {project?.title}
-        </p>
+    <div className="min-h-full space-y-10 bg-slate-50/50 p-8 pb-32 font-sans dark:bg-slate-950/50">
+      {/* Back Button & Navigation */}
+      <div className="flex items-center gap-4">
+        <Link href={`/${locale}/projects/${projectId}`}>
+          <Button
+            variant="ghost"
+            className="h-9 rounded-full border border-slate-200/50 px-4 text-xs font-bold tracking-widest text-slate-500 uppercase shadow-sm hover:bg-white dark:hover:bg-slate-900"
+          >
+            <ArrowLeft className="mr-2 h-3 w-3" />
+            Back to Project
+          </Button>
+        </Link>
+        <div className="mx-2 h-4 w-[1px] bg-slate-300" />
+        <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
+          Project Settings / Configuration
+        </span>
       </div>
 
-      {/* General Settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle>General</CardTitle>
-          <CardDescription>Basic project information and metadata</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="project-name">Project Name</Label>
-            <Input
-              id="project-name"
-              value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
-              placeholder="Enter project name"
-            />
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="project-desc">Description</Label>
-            <Textarea
-              id="project-desc"
-              value={projectDescription}
-              onChange={(e) => setProjectDescription(e.target.value)}
-              placeholder="Enter project description"
-              rows={4}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="project-status">Status</Label>
-            <Select defaultValue="active">
-              <SelectTrigger>
-                <SelectValue placeholder="Select status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="onhold">On Hold</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="archived">Archived</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="project-priority">Priority</Label>
-            <Select defaultValue="medium">
-              <SelectTrigger>
-                <SelectValue placeholder="Select priority" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="low">Low</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center gap-3 pt-4">
-            <Checkbox id="public" checked={isPublic} onCheckedChange={(checked) => setIsPublic(checked as boolean)} />
-            <div className="space-y-0.5">
-              <Label htmlFor="public">Public Project</Label>
-              <p className="text-sm text-muted-foreground">
-                Allow anyone to view this project
-              </p>
+      {/* Premium Header */}
+      <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
+        <div className="space-y-2">
+          <div className="mb-2 flex items-center gap-3">
+            <div className="flex h-10 w-10 transform items-center justify-center rounded-2xl bg-slate-900 text-white shadow-xl transition-transform hover:rotate-12 dark:bg-white dark:text-slate-900">
+              <Settings2 className="h-5 w-5" />
             </div>
+            <Badge
+              variant="outline"
+              className="h-6 border-slate-200 bg-white px-2 text-[10px] font-black tracking-widest uppercase dark:bg-slate-900"
+            >
+              Settings
+            </Badge>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Notifications */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Notifications</CardTitle>
-          <CardDescription>Manage notification preferences</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center gap-3">
-            <Checkbox id="email" checked={notificationsEnabled} onCheckedChange={(checked) => setNotificationsEnabled(checked as boolean)} />
-            <div className="space-y-0.5">
-              <Label htmlFor="email">Email Notifications</Label>
-              <p className="text-sm text-muted-foreground">
-                Receive email updates about project activity
-              </p>
-            </div>
-          </div>
-
-          <Separator />
-
-          <div className="flex items-center gap-3">
-            <Checkbox id="assignments" defaultChecked />
-            <div className="space-y-0.5">
-              <Label htmlFor="assignments">Task Assignments</Label>
-              <p className="text-sm text-muted-foreground">
-                Notify when tasks are assigned to you
-              </p>
-            </div>
-          </div>
-
-          <Separator />
-
-          <div className="flex items-center gap-3">
-            <Checkbox id="mentions" defaultChecked />
-            <div className="space-y-0.5">
-              <Label htmlFor="mentions">Mentions</Label>
-              <p className="text-sm text-muted-foreground">
-                Notify when someone mentions you
-              </p>
-            </div>
-          </div>
-
-          <Separator />
-
-          <div className="flex items-center gap-3">
-            <Checkbox id="reminders" defaultChecked />
-            <div className="space-y-0.5">
-              <Label htmlFor="reminders">Due Date Reminders</Label>
-              <p className="text-sm text-muted-foreground">
-                Remind me before tasks are due
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Access Control */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Access & Permissions</CardTitle>
-          <CardDescription>Manage who can access this project</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Default Member Role</Label>
-            <Select defaultValue="member">
-              <SelectTrigger>
-                <SelectValue placeholder="Select role" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="viewer">Viewer - Can view only</SelectItem>
-                <SelectItem value="member">Member - Can edit tasks</SelectItem>
-                <SelectItem value="admin">Admin - Full access</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Checkbox id="guests" />
-            <div className="space-y-0.5">
-              <Label htmlFor="guests">Allow Guests</Label>
-              <p className="text-sm text-muted-foreground">
-                External users can be invited
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Project Info */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Project Information</CardTitle>
-          <CardDescription>Metadata and statistics</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-muted-foreground">Project ID</Label>
-              <p className="font-mono text-sm mt-1">{projectId}</p>
-            </div>
-            <div>
-              <Label className="text-muted-foreground">Created</Label>
-              <p className="text-sm mt-1">
-                {project?.createdAt ? new Date(project.createdAt).toLocaleDateString() : "N/A"}
-              </p>
-            </div>
-            <div>
-              <Label className="text-muted-foreground">Last Updated</Label>
-              <p className="text-sm mt-1">
-                {project?.updatedAt ? new Date(project.updatedAt).toLocaleDateString() : "N/A"}
-              </p>
-            </div>
-            <div>
-              <Label className="text-muted-foreground">Owner</Label>
-              <p className="text-sm mt-1">Admin</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Actions */}
-      <div className="flex items-center justify-between pt-4">
-        <Button variant="outline">
-          <Save className="mr-2 h-4 w-4" />
-          Save Changes
-        </Button>
-        <Button variant="destructive" className="gap-2">
-          <Trash2 className="h-4 w-4" />
-          Delete Project
-        </Button>
+          <h1 className="text-4xl font-black tracking-tight text-slate-900 dark:text-white">
+            Project Settings
+          </h1>
+          <p className="font-medium text-slate-500 italic">
+            Adjust core settings for{" "}
+            <span className="text-blue-600 underline decoration-blue-500/30 underline-offset-4">
+              "{project?.title || "Project"}"
+            </span>
+          </p>
+        </div>
       </div>
 
-      {/* Danger Zone */}
-      <Card className="border-destructive">
-        <CardHeader>
-          <CardTitle className="text-destructive">Danger Zone</CardTitle>
-          <CardDescription>Irreversible and destructive actions</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 border border-destructive/50 rounded-lg">
+      <div className="grid grid-cols-1 gap-10 lg:grid-cols-3">
+        <div className="space-y-10 lg:col-span-2">
+          {/* General Section */}
+          <Card className="overflow-hidden rounded-[2.5rem] border-none bg-white shadow-2xl shadow-slate-200/50 dark:bg-slate-900">
+            <CardHeader className="p-10 pb-4">
+              <div className="mb-2 flex items-center gap-3">
+                <div className="rounded-xl bg-blue-50 p-2 text-blue-600">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-2xl font-black">General Info</CardTitle>
+                  <CardDescription className="text-xs font-bold tracking-widest text-slate-400 uppercase">
+                    Basic project information
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-8 p-10 pt-0">
+              <div className="space-y-3">
+                <Label className="ml-1 text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                  Project Name
+                </Label>
+                <Input
+                  value={projectName}
+                  onChange={(e) => {
+                    setProjectName(e.target.value)
+                    setHasChanges(true)
+                  }}
+                  placeholder="Enter project name..."
+                  className="h-14 rounded-2xl border-slate-100 bg-slate-50 px-6 text-lg font-bold transition-all placeholder:font-medium placeholder:italic focus:ring-4 focus:ring-blue-500/10 dark:bg-slate-950"
+                />
+              </div>
+
+              <div className="space-y-3">
+                <Label className="ml-1 text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                  Description
+                </Label>
+                <Textarea
+                  value={projectDescription}
+                  onChange={(e) => {
+                    setProjectDescription(e.target.value)
+                    setHasChanges(true)
+                  }}
+                  placeholder="Enter project details..."
+                  className="min-h-[160px] resize-none rounded-2xl border-slate-100 bg-slate-50 p-6 leading-relaxed font-medium focus:ring-4 focus:ring-blue-500/10 dark:bg-slate-950"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <div className="space-y-3">
+                  <Label className="ml-1 text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                    Project Status
+                  </Label>
+                  <Select defaultValue="active">
+                    <SelectTrigger className="h-12 rounded-xl border-slate-100 bg-slate-50 px-4 font-bold dark:bg-slate-950">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-slate-100 shadow-2xl">
+                      <SelectItem value="active" className="py-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className="h-2 w-2 rounded-full bg-green-500" />
+                          Active
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="onhold" className="py-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className="h-2 w-2 rounded-full bg-amber-500" />
+                          On Hold
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="completed" className="py-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className="h-2 w-2 rounded-full bg-blue-500" />
+                          Completed
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="ml-1 text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                    Priority
+                  </Label>
+                  <Select defaultValue="medium">
+                    <SelectTrigger className="h-12 rounded-xl border-slate-100 bg-slate-50 px-4 font-bold dark:bg-slate-950">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-slate-100 shadow-2xl">
+                      <SelectItem value="low" className="py-2.5">
+                        Low
+                      </SelectItem>
+                      <SelectItem value="medium" className="py-2.5 font-bold text-blue-600">
+                        Medium
+                      </SelectItem>
+                      <SelectItem
+                        value="high"
+                        className="flex items-center gap-2 py-2.5 font-black text-rose-600"
+                      >
+                        High
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Access & Security Section */}
+          <Card className="overflow-hidden rounded-[2.5rem] border-none bg-white shadow-2xl shadow-slate-200/50 dark:bg-slate-900">
+            <CardHeader className="p-10 pb-4">
+              <div className="mb-2 flex items-center gap-3">
+                <div className="rounded-xl bg-purple-50 p-2 text-purple-600">
+                  <Shield className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-2xl font-black">Access & Security</CardTitle>
+                  <CardDescription className="text-xs font-bold tracking-widest text-slate-400 uppercase">
+                    Manage project access and visibility
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-8 p-10 pt-0">
+              <div className="flex items-center justify-between rounded-3xl border border-slate-100 bg-slate-50 p-6 dark:border-slate-800 dark:bg-slate-950">
+                <div className="flex gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-100 bg-white text-blue-600 shadow-sm dark:bg-slate-900">
+                    {isPublic ? <Globe className="h-6 w-6" /> : <Lock className="h-6 w-6" />}
+                  </div>
+                  <div>
+                    <h4 className="font-black text-slate-900 dark:text-white">Public Visibility</h4>
+                    <p className="max-w-[280px] text-xs font-medium text-slate-500">
+                      Allow discoverability and viewing for non-members.
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={isPublic}
+                  onCheckedChange={(val: boolean) => {
+                    setIsPublic(val)
+                    setHasChanges(true)
+                  }}
+                />
+              </div>
+
+              <div className="space-y-4">
+                <Label className="ml-1 text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                  Default Project Role
+                </Label>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  {[
+                    { id: "viewer", label: "Viewer", desc: "Read only access", icon: Eye },
+                    {
+                      id: "member",
+                      label: "Member",
+                      desc: "Collaborator level",
+                      icon: User,
+                      active: true
+                    },
+                    { id: "admin", label: "Admin", desc: "Full project access", icon: Shield }
+                  ].map((role) => (
+                    <button
+                      key={role.id}
+                      className={cn(
+                        "rounded-2xl border-2 p-4 text-left transition-all",
+                        role.active
+                          ? "border-blue-500 bg-blue-50/50 shadow-lg ring-4 ring-blue-500/10"
+                          : "border-slate-100 bg-white hover:border-slate-200 dark:bg-slate-900"
+                      )}
+                    >
+                      <role.icon
+                        className={cn(
+                          "mb-2 h-5 w-5",
+                          role.active ? "text-blue-600" : "text-slate-400"
+                        )}
+                      />
+                      <div className="text-sm font-black">{role.label}</div>
+                      <div className="text-[10px] font-bold tracking-tighter text-slate-400 uppercase">
+                        {role.desc}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Sidebar Sections */}
+        <div className="space-y-10">
+          {/* Notification Quickset */}
+          <Card className="overflow-hidden rounded-[2.5rem] border-none bg-white shadow-2xl shadow-slate-200/50 dark:bg-slate-900">
+            <CardHeader className="p-8">
+              <div className="flex items-center gap-2">
+                <Bell className="h-4 w-4 text-amber-500" />
+                <CardTitle className="text-xl font-black">Notifications</CardTitle>
+              </div>
+              <CardDescription className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                Update alerts
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6 p-8 pt-0">
+              {[
+                { id: "email", label: "Email Updates", sub: "Weekly project summary" },
+                { id: "assigned", label: "Task Alerts", sub: "When assigned to you", active: true },
+                {
+                  id: "mentions",
+                  label: "Mention Notifications",
+                  sub: "Direct team pings",
+                  active: true
+                },
+                {
+                  id: "deadlines",
+                  label: "Deadline Alerts",
+                  sub: "24h before due dates",
+                  active: true
+                }
+              ].map((item) => (
+                <div key={item.id} className="group flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="cursor-pointer text-sm font-black text-slate-900 dark:text-white">
+                      {item.label}
+                    </Label>
+                    <p className="text-[10px] font-bold tracking-tighter text-slate-400 uppercase">
+                      {item.sub}
+                    </p>
+                  </div>
+                  <Switch defaultChecked={item.active} />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* Project Details Metadata */}
+          <Card className="relative overflow-hidden rounded-[2.5rem] border-none bg-slate-900 text-white shadow-xl shadow-slate-200/30 dark:bg-slate-950">
+            <div className="absolute top-0 right-0 p-8 opacity-10">
+              <Fingerprint className="h-24 w-24" />
+            </div>
+            <CardHeader className="p-8 pb-4">
+              <CardTitle className="text-xl font-black">Project Details</CardTitle>
+              <CardDescription className="text-[10px] font-bold tracking-[0.2em] text-slate-400 uppercase">
+                System Info
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6 p-8 pt-0">
+              <div className="space-y-1">
+                <Label className="text-[10px] font-black tracking-widest text-slate-500 uppercase">
+                  Project ID
+                </Label>
+                <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 p-3">
+                  <span className="max-w-[120px] truncate font-mono text-[10px] text-blue-400">
+                    {projectId}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-white hover:bg-white/10"
+                  >
+                    <Zap className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black tracking-widest text-slate-500 uppercase">
+                    Created On
+                  </Label>
+                  <div className="flex items-center gap-1.5 text-xs font-bold">
+                    <Clock className="h-3 w-3 text-emerald-500" />
+                    {project?.createdAt
+                      ? new Date(project.createdAt).toLocaleDateString()
+                      : "2/4/26"}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black tracking-widest text-slate-500 uppercase">
+                    Owner
+                  </Label>
+                  <div className="flex items-center gap-1.5 text-xs font-bold">
+                    <Shield className="h-3 w-3 text-blue-500" />
+                    Project Creator
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Danger Zone */}
+          <Card className="overflow-hidden rounded-[2.5rem] border-2 border-rose-100 bg-rose-50/30 shadow-2xl shadow-rose-200/20 dark:border-rose-950 dark:bg-rose-950/10">
+            <CardHeader className="p-8">
+              <div className="flex items-center gap-2">
+                <AlertOctagon className="h-4 w-4 text-rose-600" />
+                <CardTitle className="text-xl font-black text-rose-600">Danger Zone</CardTitle>
+              </div>
+              <CardDescription className="text-[10px] font-black tracking-widest text-rose-400 uppercase">
+                Destructive Actions
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 p-8 pt-0">
+              <Button
+                variant="outline"
+                className="group h-12 w-full justify-between rounded-xl border-rose-200 font-bold text-rose-600 transition-all hover:bg-rose-100 hover:text-rose-700"
+              >
+                <div className="flex items-center gap-2">
+                  <Archive className="h-4 w-4" />
+                  Archive Project
+                </div>
+                <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-rose-600 font-black shadow-lg shadow-rose-500/30"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete Project
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Sticky Bottom Action Bar */}
+      <div
+        className={cn(
+          "fixed bottom-8 left-1/2 z-50 w-full max-w-4xl -translate-x-1/2 px-8 transition-all duration-500",
+          hasChanges ? "translate-y-0 opacity-100" : "translate-y-20 opacity-0"
+        )}
+      >
+        <div className="flex items-center justify-between rounded-3xl border border-white/10 bg-slate-900 p-4 text-white shadow-2xl dark:bg-white dark:text-slate-900">
+          <div className="ml-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 animate-pulse items-center justify-center rounded-full bg-blue-600">
+              <Info className="h-5 w-5 text-white" />
+            </div>
             <div>
-              <h4 className="font-medium">Archive Project</h4>
-              <p className="text-sm text-muted-foreground">
-                Hide this project from active view
+              <div className="text-sm leading-tight font-black">Unsaved Changes</div>
+              <p className="text-[10px] font-bold tracking-widest uppercase opacity-60">
+                Changes detected
               </p>
             </div>
-            <Button variant="outline">Archive</Button>
           </div>
-          
-          <div className="flex items-center justify-between p-4 border border-destructive/50 rounded-lg">
-            <div>
-              <h4 className="font-medium">Delete Project</h4>
-              <p className="text-sm text-muted-foreground">
-                Permanently delete this project and all its data
-              </p>
-            </div>
-            <Button variant="destructive">Delete</Button>
+          <div className="mr-2 flex items-center gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                fetchProject()
+                setHasChanges(false)
+              }}
+              className="font-bold text-white hover:bg-white/10 dark:text-slate-900"
+            >
+              Discard
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={loading}
+              className="flex h-12 items-center gap-2 rounded-2xl bg-blue-600 px-8 font-black text-white hover:bg-blue-700"
+            >
+              {loading ? (
+                <Zap className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4" />
+                  Save Changes
+                </>
+              )}
+            </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   )
 }

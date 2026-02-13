@@ -18,19 +18,24 @@ interface StatCardProps {
 }
 
 const variantStyles = {
-  default: "bg-card border",
-  primary: "bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800",
-  success: "bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800",
-  warning: "bg-yellow-50 border-yellow-200 dark:bg-yellow-950 dark:border-yellow-800",
-  danger: "bg-red-50 border-red-200 dark:bg-red-950 dark:border-red-800"
+  default:
+    "bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border-white/20 dark:border-slate-800/50 shadow-xl shadow-slate-200/40 dark:shadow-none",
+  primary:
+    "bg-blue-50/50 dark:bg-blue-900/10 backdrop-blur-md border-blue-200/30 dark:border-blue-500/20 shadow-xl shadow-blue-500/10",
+  success:
+    "bg-emerald-50/50 dark:bg-emerald-900/10 backdrop-blur-md border-emerald-200/30 dark:border-emerald-500/20 shadow-xl shadow-emerald-500/10",
+  warning:
+    "bg-amber-50/50 dark:bg-amber-900/10 backdrop-blur-md border-amber-200/30 dark:border-amber-500/20 shadow-xl shadow-amber-500/10",
+  danger:
+    "bg-rose-50/50 dark:bg-rose-900/10 backdrop-blur-md border-rose-200/30 dark:border-rose-500/20 shadow-xl shadow-rose-500/10"
 }
 
 const iconVariantStyles = {
-  default: "bg-muted text-muted-foreground",
-  primary: "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-400",
-  success: "bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-400",
-  warning: "bg-yellow-100 text-yellow-600 dark:bg-yellow-900 dark:text-yellow-400",
-  danger: "bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-400"
+  default: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+  primary: "bg-blue-600 text-white shadow-lg shadow-blue-500/30",
+  success: "bg-emerald-600 text-white shadow-lg shadow-emerald-500/30",
+  warning: "bg-amber-600 text-white shadow-lg shadow-amber-500/30",
+  danger: "bg-rose-600 text-white shadow-lg shadow-rose-500/30"
 }
 
 export function StatCard({
@@ -43,25 +48,53 @@ export function StatCard({
   variant = "default"
 }: StatCardProps) {
   return (
-    <div className={cn("rounded-xl border p-6 transition-all hover:shadow-md", variantStyles[variant], className)}>
-      <div className="flex items-start justify-between">
-        <div className="space-y-1">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <p className="text-3xl font-bold tracking-tight">{value}</p>
-          {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+    <div
+      className={cn(
+        "group rounded-3xl border p-8 transition-all duration-500 hover:-translate-y-1.5",
+        variantStyles[variant],
+        className
+      )}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-3">
+          <p className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase transition-colors group-hover:text-slate-500">
+            {title}
+          </p>
+          <p className="origin-left text-4xl font-black tracking-tighter text-slate-900 tabular-nums transition-transform duration-500 group-hover:scale-105 dark:text-white">
+            {value}
+          </p>
+          {subtitle && (
+            <p className="text-xs leading-relaxed font-semibold text-slate-500/70 italic dark:text-slate-400/70">
+              {subtitle}
+            </p>
+          )}
           {trend && (
-            <div className="flex items-center gap-1 pt-1">
-              <span className={cn("text-xs font-medium", trend.isPositive ? "text-green-600" : "text-red-600")}>
+            <div className="flex items-center gap-2 pt-1">
+              <span
+                className={cn(
+                  "rounded-lg px-2 py-0.5 text-[10px] font-black tracking-wider uppercase",
+                  trend.isPositive
+                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                    : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
+                )}
+              >
                 {trend.isPositive ? "+" : "-"}
                 {Math.abs(trend.value)}%
               </span>
-              <span className="text-xs text-muted-foreground">from last week</span>
+              <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+                Since last month
+              </span>
             </div>
           )}
         </div>
         {Icon && (
-          <div className={cn("rounded-lg p-3", iconVariantStyles[variant])}>
-            <Icon className="h-5 w-5" />
+          <div
+            className={cn(
+              "rounded-2xl p-4 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-12",
+              iconVariantStyles[variant]
+            )}
+          >
+            <Icon className="h-6 w-6 stroke-[2.5]" />
           </div>
         )}
       </div>

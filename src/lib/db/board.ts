@@ -13,41 +13,22 @@ export async function fetchBoardsFromDb(userEmail: string): Promise<Board[]> {
   try {
     await connectToDatabase()
     const user = await getUserByEmail(userEmail)
+
     if (!user) {
       console.warn(`User not found for email: ${userEmail}. Returning empty board list.`)
       return []
     }
 
     const boardsFromDb = await BoardModel.find({
-      $or: [{ owner: user.id }, { members: user.id }]
+      $or: [{ owner: user._id }, { members: user._id }]
     })
       .populate("owner", "name")
       .populate("members", "name")
-      .populate({
-        path: "projects",
-        populate: {
-          path: "owner members",
-          select: "name" // Only select name for nested owner/members
-        }
-      })
       .lean()
 
-    const allUserIds = new Set<string>()
-    boardsFromDb.forEach((board) => {
-      const ownerId = typeof board.owner === "string" ? board.owner : board.owner.id
-      allUserIds.add(ownerId)
-
-      // Handle member IDs
-      ;(board.members || []).forEach((member) => {
-        const memberId = typeof member === "string" ? member : member.id
-        allUserIds.add(memberId)
-      })
-    })
-
-    const userMap = await getUserMap(Array.from(allUserIds))
-    return boardsFromDb.map((board) => convertBoardToPlainObject(board as BoardDocument, userMap))
+    return boardsFromDb.map((board) => convertBoardToPlainObject(board as BoardDocument, new Map()))
   } catch (error) {
-    console.error("Error in getBoardsFromDb:", error)
+    console.error("Error in fetchBoardsFromDb:", error)
     return []
   }
 }
@@ -73,10 +54,13 @@ const getObjectIdString = (id: any): string => {
   return String(id)
 }
 
-function convertBoardToPlainObject(boardDoc: BoardDocument, userMap: Map<string, string>): Board {
+function convertBoardToPlainObject(
+  boardDoc: BoardDocument,
+  userMap: Map<string, string> = new Map()
+): Board {
   const owner = boardDoc.owner as any
   const ownerId = owner._id ? owner._id.toString() : getObjectIdString(boardDoc.owner)
-  const ownerName = owner.name || userMap.get(ownerId) || "Unknown User"
+  const ownerName = owner.name || "Unknown User"
 
   return {
     _id: boardDoc._id.toString(),
@@ -86,64 +70,15 @@ function convertBoardToPlainObject(boardDoc: BoardDocument, userMap: Map<string,
       id: ownerId,
       name: ownerName
     },
-    members: boardDoc.members.filter(Boolean).map((member: any) => {
+    members: (boardDoc.members || []).filter(Boolean).map((member: any) => {
       const id = member._id ? member._id.toString() : getObjectIdString(member)
-      const name = member.name || userMap.get(id) || "Unknown User"
+      const name = member.name || "Unknown User"
       return {
         id,
         name
       }
     }),
-    projects: (boardDoc.projects || [])
-      .filter(Boolean)
-      .map((p: any): Project => {
-        const projectDoc = p as {
-          _id: Types.ObjectId
-          title: string
-          description?: string
-          board?: Types.ObjectId | { toString(): string }
-          owner: { _id: Types.ObjectId; name: string }
-          members: { _id: Types.ObjectId; name: string }[]
-          createdAt: Date | string
-          updatedAt: Date | string
-        }
-
-        // Safely handle the board reference
-        let boardId = ""
-        if (projectDoc.board) {
-          boardId =
-            typeof projectDoc.board === "object"
-              ? projectDoc.board.toString()
-              : String(projectDoc.board)
-        }
-
-        return {
-          _id: projectDoc._id?.toString() || "",
-          title: projectDoc.title || "Untitled Project",
-          description: projectDoc.description || "",
-          board: boardId,
-          owner: projectDoc.owner
-            ? {
-                id: projectDoc.owner?._id?.toString() || "",
-                name: projectDoc.owner?.name || "Unknown"
-              }
-            : { id: "", name: "Unknown" },
-          members: (projectDoc.members || [])
-            .filter(Boolean)
-            .map((m: { _id: Types.ObjectId | string; name: string }) => ({
-              id: typeof m._id === "object" ? m._id.toString() : String(m._id || ""),
-              name: m.name || "Unknown"
-            })),
-          tasks: [],
-          createdAt: projectDoc.createdAt
-            ? new Date(projectDoc.createdAt).toISOString()
-            : new Date().toISOString(),
-          updatedAt: projectDoc.updatedAt
-            ? new Date(projectDoc.updatedAt).toISOString()
-            : new Date().toISOString()
-        }
-      })
-      .filter(Boolean),
+    projects: [], // Boards don't have a projects array in the schema
     createdAt: new Date(boardDoc.createdAt),
     updatedAt: new Date(boardDoc.updatedAt)
   }
@@ -165,15 +100,24 @@ export async function createBoardInDb({
       throw new Error("User not found")
     }
 
+    // For personal boards, we need organizationId
+    const organizationId = user.defaultOrganizationId
+    if (!organizationId) {
+      throw new Error("User has no organization")
+    }
+
+    // For personal boards, create with organizationId but no specific projectId
+    // This makes it a personal workspace board
     const newBoard = await BoardModel.create({
       title,
       description,
-      owner: user.id,
-      members: [user.id],
-      projects: []
+      organizationId,
+      owner: user._id,
+      projectId: null, // Personal boards don't belong to a specific project
+      members: [user._id]
     })
 
-    const userMap = new Map([[user.id, user.name]])
+    const userMap = new Map([[user._id.toString(), user.name]])
     return convertBoardToPlainObject(newBoard.toObject(), userMap)
   } catch (error) {
     console.error("Error in createBoardInDb:", error)
@@ -243,7 +187,8 @@ export async function deleteBoardInDb(boardId: string, userEmail: string): Promi
     }
 
     const boardOwnerId = getObjectIdString(board.owner)
-    if (boardOwnerId !== user.id) {
+    const userId = getObjectIdString(user._id)
+    if (boardOwnerId !== userId) {
       throw new Error("Unauthorized: Only board owner can delete the board")
     }
 

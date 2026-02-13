@@ -56,10 +56,16 @@ export function BoardForm({ defaultValues, onSubmit, children }: BoardFormProps)
           control={form.control}
           name="title"
           render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("boardTitleLabel")}</FormLabel>
+            <FormItem className="space-y-1">
+              <FormLabel className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                Board Headline
+              </FormLabel>
               <FormControl>
-                <Input placeholder={t("boardTitlePlaceholder")} {...field} />
+                <Input
+                  placeholder="e.g. My Personal Research"
+                  className="h-12 rounded-xl border-none bg-slate-50 font-bold placeholder:text-slate-300 dark:bg-slate-800/50"
+                  {...field}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -69,12 +75,14 @@ export function BoardForm({ defaultValues, onSubmit, children }: BoardFormProps)
           control={form.control}
           name="description"
           render={({ field }) => (
-            <FormItem>
-              <FormLabel>{t("descriptionLabel")}</FormLabel>
+            <FormItem className="space-y-1">
+              <FormLabel className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                Context/Notes
+              </FormLabel>
               <FormControl>
                 <Textarea
-                  placeholder={t("descriptionPlaceholder")}
-                  className="resize-none"
+                  placeholder="What is this board for?"
+                  className="h-24 w-full resize-none rounded-xl border-none bg-slate-50 p-4 font-bold placeholder:text-slate-300 dark:bg-slate-800/50"
                   {...field}
                 />
               </FormControl>

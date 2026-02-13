@@ -29,7 +29,11 @@ export async function generateMetadata({ params }: Omit<Props, "children">): Pro
 
   return {
     title: t("title"),
-    description: t("description")
+    description: t("description"),
+    icons: {
+      icon: "/LRA-website-favicon-3.1-2048x1133.png",
+      apple: "/LRA-website-favicon-3.1-2048x1133.png"
+    }
   }
 }
 

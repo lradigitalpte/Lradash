@@ -9,7 +9,8 @@ const boardSchema = new mongoose.Schema(
     projectId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Project",
-      required: true
+      required: false,
+      default: null
     },
     organizationId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -21,6 +22,12 @@ const boardSchema = new mongoose.Schema(
       ref: "User",
       required: true
     },
+    members: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User"
+      }
+    ],
     isArchived: { type: Boolean, default: false },
     deletedAt: { type: Date, default: null } // Soft delete
   },

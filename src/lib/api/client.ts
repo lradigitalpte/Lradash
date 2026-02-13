@@ -4,7 +4,9 @@ let isRefreshing = false
 let refreshPromise: Promise<string | null> | null = null
 
 const getAccessToken = (): string | null => {
-  if (typeof window === "undefined") return null
+  if (typeof window === "undefined") {
+    return null
+  }
   return localStorage.getItem("accessToken")
 }
 
@@ -49,10 +51,7 @@ const refreshToken = async (): Promise<string | null> => {
   return refreshPromise
 }
 
-const makeRequest = async (
-  url: string,
-  options: RequestInit = {}
-): Promise<Response> => {
+const makeRequest = async (url: string, options: RequestInit = {}): Promise<Response> => {
   const token = getAccessToken()
   const headers = new Headers(options.headers)
 
@@ -75,21 +74,27 @@ const makeRequest = async (
 }
 
 export const apiClient = {
-  get: (url: string) => makeRequest(url, { method: "GET" }),
+  get:  async (url: string) => makeRequest(url, { method: "GET" }),
 
-  post: (url: string, body: unknown) =>
+  post:  async (url: string, body: unknown) =>
     makeRequest(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
     }),
 
-  put: (url: string, body: unknown) =>
+  put:  async (url: string, body: unknown) =>
     makeRequest(url, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
     }),
 
-  delete: (url: string) => makeRequest(url, { method: "DELETE" })
+  delete:  async (url: string) => makeRequest(url, { method: "DELETE" }),
+  patch:  async (url: string, body: unknown) =>
+    makeRequest(url, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    })
 }

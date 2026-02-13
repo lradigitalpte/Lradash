@@ -168,5 +168,22 @@
     "light": "Light",
     "dark": "Dark",
     "system": "System"
+  },
+  "marketing": {
+    "title": "Marketing Overview",
+    "seo": {
+      "title": "Search Engine Optimization",
+      "recommendations": "SEO Recommendations",
+      "authority": "Ranking Authority",
+      "topics": "Topic Suggestions"
+    },
+    "content": {
+      "title": "Content Strategy",
+      "clusters": "Topic Clusters"
+    },
+    "reporting": {
+      "title": "Performance Reports",
+      "analytics": "Marketing Analytics"
+    }
   }
 }

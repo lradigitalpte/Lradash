@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware"
 
 import { Board, Project } from "@/types/dbInterface"
 
+import { apiClient } from "./api/client"
 // oxlint-disable-next-line no-unused-vars
 import { createBoardInDb, deleteBoardInDb, updateBoardInDb } from "./db/board"
 import {
@@ -80,7 +81,14 @@ export const useTaskStore = create<State>()(
             console.error("User not found")
             return
           }
-          set({ userEmail: email, userId: user.id })
+          // Use user._id (MongoDB ObjectId) converted to string, not user.id which is undefined
+          console.log("[setUserInfo] Setting userId:", user._id)
+          set({
+            userEmail: email,
+            userId: (user._id as any).toString(),
+            projects: [],
+            currentBoardId: null
+          })
         } catch (error) {
           console.error("Error in setUserInfo:", error)
         }
@@ -369,14 +377,8 @@ export const useTaskStore = create<State>()(
           throw new Error("User email not found")
         }
         try {
-          const baseUrl = typeof window === "undefined" ? "http://localhost:3000" : ""
-          const response = await fetch(`${baseUrl}/api/boards`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ title, description })
-          })
+          // Use apiClient instead of raw fetch to handle tokens and base configuration automatically
+          const response = await apiClient.post("/api/boards", { title, description })
 
           if (!response.ok) {
             const errorData = await response.json()

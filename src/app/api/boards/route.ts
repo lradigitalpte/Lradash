@@ -1,13 +1,46 @@
 import { NextRequest, NextResponse } from "next/server"
 
-import { auth } from "@/lib/auth"
-import { createBoardInDb } from "@/lib/db/board"
+import { verifyAccessToken } from "@/lib/auth/tokens"
+import { fetchBoardsFromDb, createBoardInDb } from "@/lib/db/board"
+
+export async function GET(request: NextRequest) {
+  try {
+    // Verify Bearer token
+    const authHeader = request.headers.get("authorization")
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const token = authHeader.substring(7)
+    const decoded = verifyAccessToken(token)
+
+    if (!decoded || !decoded.email) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+    }
+
+    // Use email directly from token (same pattern as tasks API)
+    const boards = await fetchBoardsFromDb(decoded.email)
+
+    return NextResponse.json({ success: true, boards })
+  } catch (error) {
+    console.error("Error fetching boards:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth()
-    if (!session?.user) {
+    // Verify Bearer token
+    const authHeader = request.headers.get("authorization")
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const token = authHeader.substring(7)
+    const decoded = verifyAccessToken(token)
+    if (!decoded || !decoded.email) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
     const body = await request.json()
@@ -17,9 +50,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Title is required" }, { status: 400 })
     }
 
+    // Use email directly from token (same pattern as tasks API)
     const board = await createBoardInDb({
       title,
-      userEmail: session.user.email,
+      userEmail: decoded.email,
       description
     })
 

@@ -1,40 +1,43 @@
 "use client"
 
-// Assuming Board type is needed for setMyBoards/setTeamBoards
 import { useCallback, useEffect, useState } from "react"
 
-import { fetchBoardsFromDb } from "@/lib/db/board"
+import { apiClient } from "@/lib/api/client"
 import { useTaskStore } from "@/lib/store"
 import { Board } from "@/types/dbInterface"
 
 export function useBoards() {
   const [loading, setLoading] = useState(true)
-  const {
-    userEmail,
-    userId,
-    myBoards, // Zustand state
-    teamBoards, // Zustand state
-    setMyBoards, // Zustand action
-    setTeamBoards // Zustand action
-  } = useTaskStore()
+  const userId = useTaskStore((state) => state.userId)
+  const myBoards = useTaskStore((state) => state.myBoards)
+  const teamBoards = useTaskStore((state) => state.teamBoards)
+  const setMyBoards = useTaskStore((state) => state.setMyBoards)
+  const setTeamBoards = useTaskStore((state) => state.setTeamBoards)
 
+  // Memoize fetchBoards so it doesn't change reference every render
   const fetchBoards = useCallback(async () => {
-    if (!userEmail || !userId) {
-      setMyBoards([]) // If no userEmail or userId, clear boards
+    if (!userId) {
+      setMyBoards([])
       setTeamBoards([])
-      setLoading(false) // And set loading to false
+      setLoading(false)
       return
     }
+
     setLoading(true)
-    let boardsFromDB: Board[] = []
     try {
-      boardsFromDB = await fetchBoardsFromDb(userEmail)
+      const response = await apiClient.get("/api/boards")
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch boards: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      const boardsFromDB: Board[] = data.boards || []
 
       const userMyBoards: Board[] = []
       const userTeamBoards: Board[] = []
 
       boardsFromDB.forEach((board) => {
-        // Ensure board.owner and board.owner.id exist before comparing
         if (board.owner && typeof board.owner !== "string" && board.owner.id === userId) {
           userMyBoards.push(board)
         } else {
@@ -46,16 +49,17 @@ export function useBoards() {
       setTeamBoards(userTeamBoards)
     } catch (error) {
       console.error("Failed to fetch boards:", error)
-      setMyBoards([]) // Clear boards on error
+      setMyBoards([])
       setTeamBoards([])
     } finally {
       setLoading(false)
     }
-  }, [userEmail, userId, setMyBoards, setTeamBoards])
+  }, [userId, setMyBoards, setTeamBoards])
 
+  // Only fetch when userId changes
   useEffect(() => {
-    fetchBoards().catch(console.error)
-  }, [fetchBoards])
+    fetchBoards()
+  }, [userId]) // Only depend on userId, not fetchBoards
 
   return { myBoards, teamBoards, loading, fetchBoards }
 }

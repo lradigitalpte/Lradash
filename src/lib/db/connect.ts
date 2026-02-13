@@ -23,6 +23,9 @@ const getClientOptions = (): ConnectOptions => {
     connectTimeoutMS: DB_CONNECT_TIMEOUT_MS, // 10 seconds
     socketTimeoutMS: DB_SOCKET_TIMEOUT_MS, // 45 seconds
     serverSelectionTimeoutMS: DB_SERVER_SELECTION_TIMEOUT_MS, // 10 seconds
+    // Force TLS 1.2+ for MongoDB Atlas
+    tls: true,
+    tlsAllowInvalidCertificates: false,
     ...(isProduction || process.env.CI
       ? {
           serverApi: {
@@ -79,11 +82,38 @@ export async function connectToDatabase() {
       // Provide more specific error messages based on error type
       if (error.name === "MongoServerSelectionError") {
         console.error("MongoDB connection failed: Database server not running or unreachable")
+
+        // Check if it's an SSL/TLS error
+        if (
+          error.message.includes("SSL") ||
+          error.message.includes("ssl3") ||
+          error.message.includes("tlsv1")
+        ) {
+          console.error("⚠️  SSL/TLS Error detected:")
+          console.error("1. If using MongoDB Atlas, check IP Whitelist:")
+          console.error("   - Go to https://cloud.mongodb.com/")
+          console.error("   - Network Access > IP Whitelist")
+          console.error("   - Add your current IP address (0.0.0.0/0 for development only)")
+          console.error("2. Verify your DATABASE_URL includes: ?ssl=true&retryWrites=false")
+          console.error(
+            "3. Ensure connection string format: mongodb+srv://user:pass@cluster.mongodb.net/db"
+          )
+        }
+
         throw new Error(
           "Database server is not running or unreachable. Please verify MongoDB service is running properly."
         )
       } else if (error.name === "MongoNetworkError") {
         console.error("MongoDB network error: Unable to connect to the database")
+
+        if (
+          error.message.includes("SSL") ||
+          error.message.includes("ssl3") ||
+          error.message.includes("tlsv1")
+        ) {
+          console.error("⚠️  SSL/TLS Network Error - Check MongoDB Atlas IP Whitelist")
+        }
+
         throw new Error(
           "Database network connection error. Please check network settings and database address."
         )
