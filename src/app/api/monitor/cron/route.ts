@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
+import { verifyAccessToken, extractTokenFromHeader } from "@/lib/auth/tokens"
 import { connectToDatabase } from "@/lib/db/connect"
 import { checkWebsite, checkPort, getSSLExpiry } from "@/lib/monitor/checker"
 import { checkSMTP } from "@/lib/monitor/smtp-checker"
@@ -12,15 +13,20 @@ export async function GET(request: NextRequest) {
   const key = searchParams.get("key")
   const cronSecret = process.env.CRON_SECRET
 
-  // In production, always require the key
+  // Also check for valid authentication (for UI manual triggers)
+  const authHeader = request.headers.get("Authorization") || request.headers.get("authorization")
+  const token = extractTokenFromHeader(authHeader)
+  const isAuthenticated = token ? !!verifyAccessToken(token) : false
+
+  // In production, require either the key or a valid authenticated session
   if (process.env.NODE_ENV === "production") {
-    if (!cronSecret || key !== cronSecret) {
-      console.error("Cron Unauthorized: Key mismatch or missing secret")
+    if (!isAuthenticated && (!cronSecret || key !== cronSecret)) {
+      console.error("Cron Unauthorized: Key mismatch and no valid session")
       return new Response("Unauthorized", { status: 401 })
     }
   } else {
-    // In dev, allow skip if no secret is set, but if set, validate
-    if (cronSecret && key !== cronSecret) {
+    // In dev, allow skip if no secret is set, but if set, validate (unless authenticated)
+    if (!isAuthenticated && cronSecret && key !== cronSecret) {
       return new Response("Unauthorized", { status: 401 })
     }
   }
