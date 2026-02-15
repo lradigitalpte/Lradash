@@ -1,12 +1,14 @@
 "use server"
 
+import type { TokenPayload } from "./tokens"
+
 import { connectToDatabase } from "@/lib/db/connect"
-import { UserModel } from "@/models/user.model"
-import { RefreshTokenModel } from "@/models/refreshToken.model"
 import { OrganizationModel } from "@/models/organization.model"
+import { RefreshTokenModel } from "@/models/refreshToken.model"
+import { UserModel } from "@/models/user.model"
+
 import { hashPassword, verifyPassword } from "./password"
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from "./tokens"
-import type { TokenPayload } from "./tokens"
 
 export interface SignUpData {
   email: string
@@ -55,7 +57,7 @@ export async function registerUser(data: SignUpData): Promise<AuthResponse> {
       name,
       passwordHash,
       status: "ACTIVE"
-    })
+    } as any)
 
     // Serialize user ID immediately and convert to plain object
     const userId = user._id.toString()
@@ -121,7 +123,7 @@ export async function loginUser(data: SignInData): Promise<AuthResponse> {
     const { email, password } = data
 
     // Find user (use lean() to get plain object)
-    const user = await UserModel.findOne({ email: email.toLowerCase() }).lean()
+    const user = (await UserModel.findOne({ email: email.toLowerCase() }).lean()) as any
     if (!user) {
       return { success: false, error: "Invalid email or password" }
     }
@@ -261,14 +263,13 @@ export async function refreshAccessToken(refreshToken: string): Promise<AuthResp
 /**
  * Logout user by revoking refresh token
  */
-export async function logoutUser(refreshToken: string): Promise<{ success: boolean; error?: string }> {
+export async function logoutUser(
+  refreshToken: string
+): Promise<{ success: boolean; error?: string }> {
   try {
     await connectToDatabase()
 
-    await RefreshTokenModel.updateOne(
-      { token: refreshToken },
-      { revokedAt: new Date() }
-    )
+    await RefreshTokenModel.updateOne({ token: refreshToken }, { revokedAt: new Date() })
 
     return { success: true }
   } catch (error) {

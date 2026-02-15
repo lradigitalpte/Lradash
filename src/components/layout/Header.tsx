@@ -92,7 +92,9 @@ export default function Header() {
                   type="text"
                   placeholder="Search projects..."
                   className="h-10 w-full rounded-2xl border-none bg-slate-50 pr-6 pl-12 text-xs font-bold shadow-inner transition-all placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 dark:bg-slate-900"
-                  onBlur={() =>{  setSearchOpen(false); }}
+                  onBlur={() => {
+                    setSearchOpen(false)
+                  }}
                 />
               </div>
             ) : (
@@ -100,7 +102,9 @@ export default function Header() {
                 variant="ghost"
                 size="icon"
                 className="h-10 w-10 rounded-xl text-slate-400 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20"
-                onClick={() =>{  setSearchOpen(true); }}
+                onClick={() => {
+                  setSearchOpen(true)
+                }}
               >
                 <Search className="h-4.5 w-4.5 stroke-[2.5]" />
                 <span className="sr-only">Search</span>
@@ -191,7 +195,6 @@ export default function Header() {
 
           {/* Core Access Matrix */}
           <div className="ml-2 flex items-center gap-1.5 rounded-2xl border border-slate-200/50 bg-slate-100/50 p-1.5 dark:border-slate-800/50 dark:bg-slate-900/50">
-            <LanguageSwitcher />
             <ThemeToggle />
             <Separator orientation="vertical" className="mx-1 h-6 opacity-30" />
             <UserNav />

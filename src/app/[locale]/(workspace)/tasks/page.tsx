@@ -141,9 +141,15 @@ export default function TasksPage() {
   // Handle task update
   const handleTaskUpdate = async (updatedTask: Task) => {
     try {
+      // Check if this update has already been patched (contains updatedAt from server)
+      // If it came from a direct API response, just update the state without patching again
       const response = await apiClient.patch(`/api/tasks/${updatedTask._id}`, updatedTask)
       if (response.ok) {
+        const updatedTaskData = await response.json()
         toast.success("Initiative parameters synchronized")
+        // Update selectedTask with the fresh data so modal shows updated info
+        setSelectedTask(updatedTaskData)
+        // Refetch all tasks to keep list in sync
         fetchTasks()
       } else {
         toast.error("Data synchronization failure")
@@ -152,6 +158,14 @@ export default function TasksPage() {
       console.error("Update task error:", error)
       toast.error("Network error during task update")
     }
+  }
+
+  // Handle task update that was already patched (from modal direct updates)
+  const handleTaskUpdated = (updatedTask: Task) => {
+    // Just update the state without doing another patch
+    setSelectedTask(updatedTask)
+    // Refetch all tasks to keep list in sync
+    fetchTasks()
   }
 
   return (
@@ -261,21 +275,27 @@ export default function TasksPage() {
                 </TabsTrigger>
                 <TabsTrigger
                   value="todo"
-                  onClick={() =>{  setStatusFilter("TODO"); }}
+                  onClick={() => {
+                    setStatusFilter("TODO")
+                  }}
                   className="rounded-2xl px-10 text-[11px] font-black tracking-[0.2em] uppercase transition-all duration-300 data-[state=active]:bg-blue-600 data-[state=active]:text-white"
                 >
                   To Do
                 </TabsTrigger>
                 <TabsTrigger
                   value="in-progress"
-                  onClick={() =>{  setStatusFilter("IN_PROGRESS"); }}
+                  onClick={() => {
+                    setStatusFilter("IN_PROGRESS")
+                  }}
                   className="rounded-2xl px-10 text-[11px] font-black tracking-[0.2em] uppercase transition-all duration-300 data-[state=active]:bg-indigo-600 data-[state=active]:text-white"
                 >
                   In Progress
                 </TabsTrigger>
                 <TabsTrigger
                   value="done"
-                  onClick={() =>{  setStatusFilter("DONE"); }}
+                  onClick={() => {
+                    setStatusFilter("DONE")
+                  }}
                   className="rounded-2xl px-10 text-[11px] font-black tracking-[0.2em] uppercase transition-all duration-300 data-[state=active]:bg-emerald-600 data-[state=active]:text-white"
                 >
                   Completed
@@ -303,31 +323,41 @@ export default function TasksPage() {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator className="mx-2 mb-2 opacity-50" />
                   <DropdownMenuItem
-                    onClick={() =>{  setPriorityFilter(null); }}
+                    onClick={() => {
+                      setPriorityFilter(null)
+                    }}
                     className="m-1 gap-4 rounded-xl py-4 font-bold transition-colors"
                   >
                     Default Stream
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={() =>{  setPriorityFilter("URGENT"); }}
+                    onClick={() => {
+                      setPriorityFilter("URGENT")
+                    }}
                     className="m-1 gap-4 rounded-xl bg-rose-50/50 py-4 font-bold text-rose-600"
                   >
                     Urgent Breach
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={() =>{  setPriorityFilter("HIGH"); }}
+                    onClick={() => {
+                      setPriorityFilter("HIGH")
+                    }}
                     className="m-1 gap-4 rounded-xl bg-amber-50/50 py-4 font-bold text-amber-600"
                   >
                     High Vulnerability
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={() =>{  setPriorityFilter("MEDIUM"); }}
+                    onClick={() => {
+                      setPriorityFilter("MEDIUM")
+                    }}
                     className="m-1 gap-4 rounded-xl bg-blue-50/50 py-4 font-bold text-blue-600"
                   >
                     Standard Protocol
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={() =>{  setPriorityFilter("LOW"); }}
+                    onClick={() => {
+                      setPriorityFilter("LOW")
+                    }}
                     className="m-1 gap-4 rounded-xl bg-slate-50 py-4 font-bold text-slate-500"
                   >
                     Low Priority
@@ -354,7 +384,9 @@ export default function TasksPage() {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator className="mx-2 mb-2 opacity-50" />
                   <DropdownMenuItem
-                    onClick={() =>{  setAssigneeFilter(null); }}
+                    onClick={() => {
+                      setAssigneeFilter(null)
+                    }}
                     className="m-1 gap-4 rounded-xl py-4 font-bold"
                   >
                     All Operators
@@ -363,7 +395,9 @@ export default function TasksPage() {
                     (name) => (
                       <DropdownMenuItem
                         key={name}
-                        onClick={() =>{  setAssigneeFilter(name as string); }}
+                        onClick={() => {
+                          setAssigneeFilter(name!)
+                        }}
                         className="m-1 gap-4 rounded-xl py-4 font-bold hover:bg-slate-50"
                       >
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-[11px] font-black dark:bg-slate-800">
@@ -433,7 +467,11 @@ export default function TasksPage() {
         onOpenChange={setModalOpen}
         onSave={(task) => {
           handleTaskUpdate(task)
-          setModalOpen(false)
+          // Keep modal open - only close via explicit close button or delete/archive
+        }}
+        onTaskUpdated={(task) => {
+          // For updates that already patched (like status changes)
+          handleTaskUpdated(task)
         }}
       />
     </div>
@@ -572,7 +610,9 @@ export function TaskTable({ tasks, onTaskClick }: TaskTableProps) {
       header: ({ column }) => (
         <button
           className="flex items-center gap-3 text-[11px] font-black tracking-[0.3em] text-slate-400 uppercase transition-all hover:text-slate-600"
-          onClick={() =>{  column.toggleSorting(column.getIsSorted() === "asc"); }}
+          onClick={() => {
+            column.toggleSorting(column.getIsSorted() === "asc")
+          }}
         >
           Timeline
           <ArrowUpDown className="h-4 w-4 stroke-[3]" />

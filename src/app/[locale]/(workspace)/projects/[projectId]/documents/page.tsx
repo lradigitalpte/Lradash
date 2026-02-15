@@ -26,7 +26,8 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
+import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -52,7 +53,7 @@ import { cn } from "@/lib/utils"
 
 export default function DocumentsPage() {
   const params = useParams()
-  const projectId = params?.projectId as string
+  const projectId = (params?.projectId || params?.boardId) as string
   const locale = params?.locale as string
   const [project, setProject] = useState<any>(null)
   const [searchQuery, setSearchQuery] = useState("")
@@ -80,57 +81,106 @@ export default function DocumentsPage() {
     }
   }
 
-  // Sample documents
-  const documents = [
-    {
-      id: "1",
-      name: "Project Requirements.pdf",
-      type: "PDF",
-      size: "2.4 MB",
-      date: "2026-02-01",
-      folder: "Requirements"
-    },
-    {
-      id: "2",
-      name: "Design Mockups.fig",
-      type: "Figma",
-      size: "15.8 MB",
-      date: "2026-02-03",
-      folder: "Design"
-    },
-    {
-      id: "3",
-      name: "API Documentation.md",
-      type: "Markdown",
-      size: "124 KB",
-      date: "2026-02-04",
-      folder: "Documentation"
-    },
-    {
-      id: "4",
-      name: "Sprint Report.xlsx",
-      type: "Excel",
-      size: "856 KB",
-      date: "2026-02-05",
-      folder: "Reports"
-    },
-    {
-      id: "5",
-      name: "Team Photo.png",
-      type: "Image",
-      size: "4.2 MB",
-      date: "2026-02-06",
-      folder: "Media"
-    },
-    {
-      id: "6",
-      name: "Database Schema.sql",
-      type: "SQL",
-      size: "12 KB",
-      date: "2026-02-07",
-      folder: "Technical"
+  const [documents, setDocuments] = useState<any[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const fetchDocuments = async () => {
+    if (!projectId) {
+      return
     }
-  ]
+    try {
+      setLoading(true)
+      const response = await apiClient.get(`/api/projects/${projectId}/documents`)
+      if (response.ok) {
+        const data = await response.json()
+        setDocuments(data)
+      }
+    } catch (error) {
+      console.error("Failed to fetch documents:", error)
+      toast.error("Failed to load documents")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchDocuments()
+  }, [projectId])
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) {
+      return
+    }
+
+    // checking file size (e.g. 5MB limit)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File is too large (max 5MB)")
+      return
+    }
+
+    // mapping mime types to our "types" logic roughly
+    let type = "File"
+    if (file.type.includes("pdf")) {
+      type = "PDF"
+    } else if (file.type.includes("image")) {
+      type = "Image"
+    } else if (file.type.includes("sheet") || file.type.includes("excel")) {
+      type = "Excel"
+    } else if (file.name.endsWith(".md")) {
+      type = "Markdown"
+    } else if (file.name.endsWith(".fig")) {
+      type = "Figma"
+    } // unlikely from browser but possible
+    else if (file.name.endsWith(".sql")) {
+      type = "SQL"
+    }
+
+    const sizeMB = (file.size / (1024 * 1024)).toFixed(2) + " MB"
+
+    try {
+      // In a real app, we would upload to S3 here and get a URL
+      // For now, we just create the metadata record
+      const response = await apiClient.post(`/api/projects/${projectId}/documents`, {
+        name: file.name,
+        type: type,
+        size: sizeMB,
+        folder: "General", // Default folder for now
+        url: "" // No actual URL for now
+      })
+
+      if (response.ok) {
+        const newDoc = await response.json()
+        setDocuments([newDoc, ...documents])
+        toast.success("File uploaded successfully")
+      } else {
+        throw new Error("Failed to upload")
+      }
+    } catch (error) {
+      console.error("Upload error:", error)
+      toast.error("Failed to upload file")
+    } finally {
+      // Reset input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""
+      }
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    try {
+      const response = await apiClient.delete(`/api/projects/${projectId}/documents/${id}`)
+      if (response.ok) {
+        setDocuments(documents.filter((d) => d._id !== id))
+        toast.success("Document deleted")
+      } else {
+        throw new Error("Failed to delete")
+      }
+    } catch (error) {
+      console.error("Delete error:", error)
+      toast.error("Failed to delete document")
+    }
+  }
 
   const filteredDocs = useMemo(() => {
     return documents.filter(
@@ -202,8 +252,12 @@ export default function DocumentsPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
           <Button
             variant="outline"
+            onClick={() => {
+              fileInputRef.current?.click()
+            }}
             className="h-12 gap-2 rounded-2xl border-slate-200 bg-white px-6 font-bold"
           >
             <Upload className="h-4 w-4" />
@@ -324,7 +378,9 @@ export default function DocumentsPage() {
               placeholder="Find a resource by name or type..."
               className="h-12 rounded-2xl border-none bg-slate-50 pl-11 text-sm focus:ring-2 focus:ring-blue-500/20"
               value={searchQuery}
-              onChange={(e) =>{  setSearchQuery(e.target.value); }}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+              }}
             />
           </div>
 
@@ -394,7 +450,7 @@ export default function DocumentsPage() {
               ) : (
                 filteredDocs.map((doc) => (
                   <TableRow
-                    key={doc.id}
+                    key={doc._id}
                     className="group h-20 border-b border-slate-50 transition-colors hover:bg-slate-50/50 dark:border-slate-800/50 dark:hover:bg-slate-800/30"
                   >
                     <TableCell className="text-center">
@@ -432,7 +488,7 @@ export default function DocumentsPage() {
                     <TableCell className="text-right">
                       <div className="flex flex-col items-end">
                         <span className="text-xs font-bold text-slate-900 dark:text-white">
-                          {new Date(doc.date).toLocaleDateString("en-US", {
+                          {new Date(doc.createdAt).toLocaleDateString("en-US", {
                             month: "short",
                             day: "numeric",
                             year: "numeric"
@@ -486,7 +542,10 @@ export default function DocumentsPage() {
                             </div>
                           </DropdownMenuItem>
                           <DropdownMenuSeparator className="my-2" />
-                          <DropdownMenuItem className="gap-3 rounded-xl bg-red-50/50 py-3 text-red-600 hover:bg-red-50">
+                          <DropdownMenuItem
+                            className="gap-3 rounded-xl bg-red-50/50 py-3 text-red-600 hover:bg-red-50"
+                            onClick={async () => handleDelete(doc._id)}
+                          >
                             <Trash2 className="h-4 w-4" />
                             <div className="flex flex-col">
                               <span className="text-sm font-bold">Delete Forever</span>

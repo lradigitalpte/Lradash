@@ -2,13 +2,16 @@
 
 import { OrganizationModel } from "@/models/organization.model"
 import { UserModel } from "@/models/user.model"
-import { connectToDatabase } from "./connect"
 import { Organization, UserRole, SubscriptionPlan, SubscriptionStatus } from "@/types/dbInterface"
 
+import { connectToDatabase } from "./connect"
+
 // ========== CREATE ORGANIZATION ==========
-export async function createOrganization(
-  data: { name: string; slug: string; owner: string }
-): Promise<Organization | null> {
+export async function createOrganization(data: {
+  name: string
+  slug: string
+  owner: string
+}): Promise<Organization | null> {
   try {
     await connectToDatabase()
 
@@ -53,10 +56,7 @@ export async function createOrganization(
     })
 
     // Update user's default organization
-    await UserModel.updateOne(
-      { _id: ownerId },
-      { defaultOrganizationId: organization._id }
-    )
+    await UserModel.updateOne({ _id: owner }, { defaultOrganizationId: organization._id })
 
     return organization.toObject()
   } catch (error) {
@@ -194,7 +194,10 @@ export async function updateMemberRole(
 }
 
 // ========== REMOVE MEMBER FROM ORGANIZATION ==========
-export async function removeMemberFromOrganization(orgId: string, userId: string): Promise<boolean> {
+export async function removeMemberFromOrganization(
+  orgId: string,
+  userId: string
+): Promise<boolean> {
   try {
     await connectToDatabase()
 
@@ -238,7 +241,7 @@ export async function getMemberRole(orgId: string, userId: string): Promise<User
       return null
     }
 
-    return org.members[0].role as UserRole
+    return org.members[0].role
   } catch (error) {
     console.error("Error fetching member role:", error)
     return null
@@ -255,9 +258,11 @@ export async function hasPermission(
     const roleHierarchy = { OWNER: 3, ADMIN: 2, MEMBER: 1 }
     const memberRole = await getMemberRole(orgId, userId)
 
-    if (!memberRole) return false
+    if (!memberRole) {
+      return false
+    }
 
-    return roleHierarchy[memberRole as UserRole] >= roleHierarchy[requiredRole]
+    return roleHierarchy[memberRole] >= roleHierarchy[requiredRole]
   } catch (error) {
     console.error("Error checking permission:", error)
     return false
@@ -293,10 +298,7 @@ export async function softDeleteOrganization(orgId: string): Promise<boolean> {
   try {
     await connectToDatabase()
 
-    const result = await OrganizationModel.updateOne(
-      { _id: orgId },
-      { deletedAt: new Date() }
-    )
+    const result = await OrganizationModel.updateOne({ _id: orgId }, { deletedAt: new Date() })
 
     return result.modifiedCount > 0
   } catch (error) {
@@ -323,7 +325,9 @@ export async function updateSubscription(
           "subscription.plan": plan,
           "subscription.status": SubscriptionStatus.ACTIVE,
           ...(stripeCustomerId && { "subscription.stripeCustomerId": stripeCustomerId }),
-          ...(stripeSubscriptionId && { "subscription.stripeSubscriptionId": stripeSubscriptionId }),
+          ...(stripeSubscriptionId && {
+            "subscription.stripeSubscriptionId": stripeSubscriptionId
+          }),
           ...(currentPeriodEnd && { "subscription.currentPeriodEnd": currentPeriodEnd })
         }
       }

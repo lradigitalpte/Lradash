@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { verifyAccessToken } from "@/lib/auth/tokens"
+import { connectToDatabase } from "@/lib/db/connect"
+import { BoardModel } from "@/models/board.model"
+import { ListModel } from "@/models/list.model"
+import { TaskModel } from "@/models/task.model"
+import { UserModel } from "@/models/user.model"
 
 export async function GET(
   request: NextRequest,
@@ -18,7 +23,7 @@ export async function GET(
     const token = authHeader.substring(7)
     const decoded = verifyAccessToken(token)
 
-    if (!decoded) {
+    if (!decoded || !decoded.organizationId) {
       return NextResponse.json(
         { error: "Invalid token" },
         { status: 401, headers: { "Content-Type": "application/json" } }
@@ -27,111 +32,71 @@ export async function GET(
 
     const { boardId } = await params
 
-    // TODO: Fetch from database when models are ready
-    // For now, return mock data with Trello-like structure
-    const mockBoard = {
+    await connectToDatabase()
+
+    // Fetch board and ensure it exists and belongs to the organization
+    const board = await BoardModel.findOne({
       _id: boardId,
-      title: "Project Board",
-      description: "Main project kanban board",
-      lists: [
-        {
-          _id: "list-1",
-          title: "To Do",
-          position: 0,
-          cards: [
-            {
-              _id: "card-1",
-              title: "Design new landing page",
-              description: "Create mockups and wireframes for the new landing page",
-              listId: "list-1",
-              position: 0,
-              labels: [
-                { name: "Design", color: "#61BD4F" },
-                { name: "High Priority", color: "#EB5A46" }
-              ],
-              members: [{ _id: "user-1", name: "John Doe", avatar: "" }],
-              dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-              priority: "HIGH",
-              checklist: [
-                { text: "Research competitors", completed: true },
-                { text: "Create wireframes", completed: false },
-                { text: "Design mockups", completed: false }
-              ],
-              attachments: [],
-              coverColor: "#0079BF"
-            },
-            {
-              _id: "card-2",
-              title: "Setup authentication system",
-              description: "",
-              listId: "list-1",
-              position: 1,
-              labels: [{ name: "Backend", color: "#C377E0" }],
-              members: [],
-              priority: "URGENT",
-              checklist: [],
-              attachments: []
-            }
-          ]
-        },
-        {
-          _id: "list-2",
-          title: "In Progress",
-          position: 1,
-          cards: [
-            {
-              _id: "card-3",
-              title: "Implement user dashboard",
-              description: "Build the main user dashboard with charts and statistics",
-              listId: "list-2",
-              position: 0,
-              labels: [{ name: "Frontend", color: "#00C2E0" }],
-              members: [{ _id: "user-2", name: "Jane Smith", avatar: "" }],
-              dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-              priority: "MEDIUM",
-              checklist: [
-                { text: "Create components", completed: true },
-                { text: "Add charts", completed: true },
-                { text: "Connect to API", completed: false },
-                { text: "Add responsive design", completed: false }
-              ],
-              attachments: [{ name: "dashboard-mockup.png", url: "#" }]
-            }
-          ]
-        },
-        {
-          _id: "list-3",
-          title: "Testing",
-          position: 2,
-          cards: []
-        },
-        {
-          _id: "list-4",
-          title: "Done",
-          position: 3,
-          cards: [
-            {
-              _id: "card-4",
-              title: "Setup project repository",
-              description: "Initialize Git repository and setup CI/CD",
-              listId: "list-4",
-              position: 0,
-              labels: [{ name: "DevOps", color: "#F2D600" }],
-              members: [],
-              priority: "LOW",
-              checklist: [
-                { text: "Create repo", completed: true },
-                { text: "Setup CI/CD", completed: true },
-                { text: "Add README", completed: true }
-              ],
-              attachments: []
-            }
-          ]
-        }
-      ]
+      organizationId: decoded.organizationId,
+      deletedAt: null
+    }).lean()
+
+    if (!board) {
+      return NextResponse.json(
+        { error: "Board not found" },
+        { status: 404, headers: { "Content-Type": "application/json" } }
+      )
     }
 
-    return NextResponse.json(mockBoard, {
+    // Fetch lists for this board
+    const lists = await ListModel.find({
+      boardId: boardId,
+      organizationId: decoded.organizationId,
+      deletedAt: null
+    })
+      .sort({ position: 1 })
+      .populate({
+        path: "cardIds",
+        model: TaskModel,
+        populate: [
+          { path: "assignee", model: UserModel, select: "name email avatar" },
+          { path: "creator", model: UserModel, select: "name email avatar" }
+        ]
+      })
+      .lean()
+
+    // Format the response to match the frontend expectations
+    const formattedBoard = {
+      _id: board._id.toString(),
+      title: board.title,
+      description: board.description,
+      projectId:
+        (board as any).projectId?.toString() || (board as any).projects?.[0]?._id?.toString(),
+      lists: lists.map((list: any) => ({
+        _id: list._id.toString(),
+        title: list.title,
+        position: list.position,
+        cards: (list.cardIds || []).map((card: any) => ({
+          _id: card._id.toString(),
+          title: card.title,
+          description: card.description,
+          status: card.status,
+          dueDate: card.dueDate,
+          priority: card.priority,
+          listId: list._id.toString(),
+          labels: card.labels || [],
+          members: card.assignee ? [card.assignee] : [],
+          checklist: card.checklist || [],
+          attachments: card.attachments || [],
+          coverColor: card.coverColor,
+          workPackage: card.workPackage?.toString(),
+          creator: card.creator,
+          createdAt: card.createdAt
+        }))
+      }))
+    }
+
+    return NextResponse.json(formattedBoard, {
       status: 200,
       headers: { "Content-Type": "application/json" }
     })

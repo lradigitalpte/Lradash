@@ -104,9 +104,9 @@ export function TaskActions({
     assignee: assigneeInfo ?? undefined
   }
 
-  const handleSubmit = (values: z.infer<typeof TaskFormSchema>) => {
+  const handleSubmit = async (values: z.infer<typeof TaskFormSchema>) => {
     const assigneeId = values.assignee?._id
-    updateTask(
+    await updateTask(
       id,
       values.title,
       values.status ?? "TODO",

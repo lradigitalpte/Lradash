@@ -86,7 +86,7 @@ type ModalType = "NONE" | "TASK" | "WORK_PACKAGE" | "EVENT"
 
 export default function ProjectCalendarPage() {
   const params = useParams()
-  const projectId = params?.projectId as string
+  const projectId = (params?.projectId || params?.boardId) as string
   const locale = params?.locale as string
 
   // State
@@ -252,15 +252,21 @@ export default function ProjectCalendarPage() {
   const monthName = format(currentDate, "MMMM")
   const year = format(currentDate, "yyyy")
 
-  const goToPreviousMonth = () => setCurrentDate(addDays(monthStart, -1))
-  const goToNextMonth = () => setCurrentDate(addDays(monthEnd, 1))
-  const goToToday = () => setCurrentDate(new Date())
+  const goToPreviousMonth = () => {
+    setCurrentDate(addDays(monthStart, -1))
+  }
+  const goToNextMonth = () => {
+    setCurrentDate(addDays(monthEnd, 1))
+  }
+  const goToToday = () => {
+    setCurrentDate(new Date())
+  }
 
-  const getE{ ventsForDate = (date: Date) => {
-    ret; }urn events.filter((event) => {
-{       if (event.type === "WORK_PACKAG; }E") {
+  const getEventsForDate = (date: Date) => {
+    return events.filter((event) => {
+      if (event.type === "WORK_PACKAGE") {
         return (
-    {       isWithinInterval(date; }, { start: event.start, end: event.end }) ||
+          isWithinInterval(date, { start: event.start, end: event.end }) ||
           isSameDay(date, event.start) ||
           isSameDay(date, event.end)
         )
@@ -320,10 +326,12 @@ export default function ProjectCalendarPage() {
       calendarDays.push(
         <div
           key={cloneDay.toString()}
-          onClick={() => handleCellClick(cloneDay)}
+          onClick={() => {
+            handleCellClick(cloneDay)
+          }}
           className={cn(
-            "group relative min-h-[120px] cursor-pointer border-r border-b bg-background p-2 transition-all duration-300 h{ over:z-10",
-            !i; }sCurrentMonth && "bg-slate-50/50 text-muted-foreground/30 dark:bg-slate-900/20",
+            "group relative min-h-[120px] cursor-pointer border-r border-b bg-background p-2 transition-all duration-300 hover:z-10",
+            !isCurrentMonth && "bg-slate-50/50 text-muted-foreground/30 dark:bg-slate-900/20",
             isToday && "bg-blue-50/20 dark:bg-blue-900/10",
             isSelected &&
               "bg-blue-50/40 shadow-inner ring-1 ring-blue-500/50 ring-inset dark:bg-blue-900/20"
@@ -479,9 +487,11 @@ export default function ProjectCalendarPage() {
             <Search className="absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-blue-500" />
             <input
               type="text"
-           {    placeholder="Quick search...; }"
+              placeholder="Quick search..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+              }}
               className="w-48 rounded-xl border-none bg-slate-100 py-2 pr-4 pl-9 text-sm transition-all outline-none focus:w-64 focus:ring-2 focus:ring-blue-500/50 dark:bg-slate-900"
             />
           </div>
@@ -522,23 +532,27 @@ export default function ProjectCalendarPage() {
                 <Plus className="h-4 w-4 transition-transform group-hover:rotate-90" />
                 <span className="font-bold">Add</span>
               </Button>
-            </{ DropdownMenuTrigger>
-  ; }          <DropdownMenuContent align="end" className="w-56 rounded-xl p-2">
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 rounded-xl p-2">
               <DropdownMenuLabel className="p-2 text-[10px] font-black text-slate-400 uppercase">
                 Organization
               </DropdownMenuLabel>
               <DropdownMenuItem
-                onClick={() => setActiveModal("TASK")}
+                onClick={() => {
+                  setActiveModal("TASK")
+                }}
                 className="gap-3 rounded-lg py-2"
               >
-                <CheckCircle2 className="h{ -4 w-4 text-blue-500" />
-      ; }          <div className="flex flex-col">
+                <CheckCircle2 className="h-4 w-4 text-blue-500" />
+                <div className="flex flex-col">
                   <span className="text-sm font-semibold">Create Task</span>
                   <span className="text-[10px] text-muted-foreground">Actionable items</span>
                 </div>
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => setActiveModal("WORK_PACKAGE")}
+                onClick={() => {
+                  setActiveModal("WORK_PACKAGE")
+                }}
                 className="gap-3 rounded-lg py-2"
               >
                 <Package className="h-4 w-4 text-purple-500" />
@@ -589,7 +603,7 @@ export default function ProjectCalendarPage() {
           {/* Empty State Overlay */}
           {events.length === 0 && searchQuery && (
             <div className="absolute inset-x-0 top-20 bottom-0 z-20 flex flex-col items-center justify-center bg-white/60 p-12 text-center backdrop-blur-sm dark:bg-slate-950/60">
-              <di{ v className="mb-4 f; }lex h-20 w-20 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-900">
+              <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-900">
                 <Search className="h-8 w-8 text-slate-400" />
               </div>
               <h3 className="text-xl font-bold">No matches found</h3>
@@ -598,7 +612,9 @@ export default function ProjectCalendarPage() {
               </p>
               <Button
                 variant="link"
-                onClick={() => setSearchQuery("")}
+                onClick={() => {
+                  setSearchQuery("")
+                }}
                 className="mt-4 text-blue-600"
               >
                 Clear search filters
@@ -662,7 +678,7 @@ export default function ProjectCalendarPage() {
       />
 
       {/* 2. Create { Work Package Dialog */}
-; }      <CreateWorkPackageDialog
+      <CreateWorkPackageDialog
         projectId={projectId}
         onWorkPackageCreated={() => {
           fetchData()
@@ -679,7 +695,9 @@ export default function ProjectCalendarPage() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setIsSidebarOpen(false)}
+                onClick={() => {
+                  setIsSidebarOpen(false)
+                }}
                 className="rounded-full"
               >
                 <X className="h-4 w-4" />
@@ -687,7 +705,7 @@ export default function ProjectCalendarPage() {
             </div>
             <div className="mb-2 flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-3xl bg-blue-600 text-white shadow-lg">
-                <CalendarDay{ s className="h-6 w-6" /; }>
+                <CalendarDays className="h-6 w-6" />
               </div>
               <div>
                 <SheetTitle className="text-2xl font-black">
@@ -704,7 +722,9 @@ export default function ProjectCalendarPage() {
             {/* Quick Actions */}
             <div className="grid grid-cols-2 gap-3">
               <Button
-                onClick={() => setActiveModal("TASK")}
+                onClick={() => {
+                  setActiveModal("TASK")
+                }}
                 className="flex h-24 flex-col gap-2 rounded-2xl border-2 border-transparent bg-slate-50 text-foreground transition-all hover:border-blue-500/50 hover:bg-white dark:bg-slate-900"
               >
                 <div className="rounded-lg bg-blue-100 p-2 text-blue-600 dark:bg-blue-900/40">

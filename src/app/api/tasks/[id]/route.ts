@@ -7,14 +7,14 @@ import { updateTaskInDb, deleteTaskInDb, getTaskById } from "@/lib/db/task"
  * GET /api/tasks/[id]
  * Get task details
  */
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const authHeader = request.headers.get("authorization")
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const taskId = params.id
+    const { id: taskId } = await params
     const task = await getTaskById(taskId)
 
     return NextResponse.json(task)
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
  * PATCH /api/tasks/[id]
  * Update a task
  */
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const authHeader = request.headers.get("authorization")
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -37,14 +37,27 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const token = authHeader.substring(7)
     const decoded = verifyAccessToken(token)
 
-    if (!decoded || !decoded.email) {
+    if (!decoded) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    const body = await request.json()
-    const taskId = params.id
+    let userEmail = decoded.email
+    if (!userEmail) {
+      const { UserModel } = await import("@/models/user.model")
+      const user = await UserModel.findById(decoded.userId).lean()
+      if (user) {
+        userEmail = user.email
+      }
+    }
 
-    const updatedTask = await updateTaskInDb(taskId, decoded.email, body)
+    if (!userEmail) {
+      return NextResponse.json({ error: "User email not found" }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const { id: taskId } = await params
+
+    const updatedTask = await updateTaskInDb(taskId, userEmail, body)
 
     return NextResponse.json(updatedTask)
   } catch (error: any) {
@@ -57,7 +70,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
  * DELETE /api/tasks/[id]
  * Delete a task
  */
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     const authHeader = request.headers.get("authorization")
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -67,11 +83,11 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     const token = authHeader.substring(7)
     const decoded = verifyAccessToken(token)
 
-    if (!decoded || !decoded.email) {
+    if (!decoded) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    const taskId = params.id
+    const { id: taskId } = await params
     await deleteTaskInDb(taskId)
 
     return NextResponse.json({ success: true })

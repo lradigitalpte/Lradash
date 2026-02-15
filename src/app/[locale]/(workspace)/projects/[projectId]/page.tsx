@@ -34,7 +34,7 @@ import { cn } from "@/lib/utils"
 
 export default function ProjectPage() {
   const params = useParams()
-  const projectId = params?.projectId as string
+  const projectId = (params?.projectId || params?.boardId) as string
   const locale = params?.locale as string
   const [project, setProject] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -115,7 +115,7 @@ export default function ProjectPage() {
   }
 
   return (
-    <div className="min-h-full space-y-10 bg-slate-50/30 p-8 pb-32 font-sans dark:bg-slate-950/30">
+    <div className="space-y-10 p-8 pb-32 font-sans">
       {/* 1. Project Header */}
       <div className="flex flex-col justify-between gap-8 lg:flex-row lg:items-end">
         <div className="space-y-3">
@@ -360,7 +360,7 @@ export default function ProjectPage() {
                 <div className="space-y-4">
                   {recentTasks.map((task) => (
                     <div
-                      key={(task)._id}
+                      key={task._id}
                       className="group relative flex cursor-pointer items-center justify-between rounded-[2rem] border border-transparent bg-slate-50/50 p-6 transition-all hover:border-blue-500/20 hover:bg-white dark:bg-slate-950/20 dark:hover:bg-slate-900"
                     >
                       <div className="flex flex-1 items-center gap-6">
@@ -406,7 +406,7 @@ export default function ProjectPage() {
                               /
                             </span>
                             <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
-                              Modified {new Date((task).updatedAt).toLocaleDateString()}
+                              Modified {new Date(task.updatedAt).toLocaleDateString()}
                             </span>
                           </div>
                         </div>

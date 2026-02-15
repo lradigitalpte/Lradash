@@ -18,9 +18,10 @@ import { useGoogleSearchConsole } from "@/lib/hooks/useGoogleSearchConsole"
 import { useSEOData } from "@/lib/hooks/useSEOData"
 
 export default function MarketingOverviewPage() {
-  const { projectId } = useParams()
-  const { score, recommendations, loading: seoLoading } = useSEOData(projectId as string)
-  const { searchData, loading: googleLoading } = useGoogleSearchConsole(projectId as string)
+  const { projectId, boardId } = useParams()
+  const id = (projectId || boardId) as string
+  const { score, recommendations, loading: seoLoading } = useSEOData(id)
+  const { searchData, loading: googleLoading } = useGoogleSearchConsole(id)
 
   const loading = seoLoading || googleLoading
 

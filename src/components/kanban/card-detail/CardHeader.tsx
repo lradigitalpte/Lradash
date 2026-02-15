@@ -33,12 +33,16 @@ export function CardHeader({ title, onUpdateTitle, onClose }: CardHeaderProps) {
         {isEditing ? (
           <Input
             value={editedTitle}
-            onChange={(e) => setEditedTitle(e.target.value)}
+            onChange={(e) => {
+              setEditedTitle(e.target.value)
+            }}
             onBlur={handleSave}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
-     {            handleSave()
-       ; }       }
+                {
+                  handleSave()
+                }
+              }
               if (e.key === "Escape") {
                 setEditedTitle(title)
                 setIsEditing(false)
@@ -51,7 +55,9 @@ export function CardHeader({ title, onUpdateTitle, onClose }: CardHeaderProps) {
           <div>
             <h2
               className="cursor-pointer truncate text-2xl font-bold tracking-tight text-slate-900 transition-colors hover:text-blue-600 dark:text-white dark:hover:text-blue-400"
-              onClick={() => setIsEditing(true)}
+              onClick={() => {
+                setIsEditing(true)
+              }}
             >
               {title}
             </h2>
@@ -59,7 +65,7 @@ export function CardHeader({ title, onUpdateTitle, onClose }: CardHeaderProps) {
               <span className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
                 in list
               </span>
-              <span className="cursor-pointer rou{ nded-md bg-blue-50 ; }px-2 py-0.5 text-[10px] font-black tracking-[0.2em] text-blue-600 uppercase transition-colors hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50">
+              <span className="rou{ nded-md ; }px-2 cursor-pointer bg-blue-50 py-0.5 text-[10px] font-black tracking-[0.2em] text-blue-600 uppercase transition-colors hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50">
                 To Do
               </span>
             </div>

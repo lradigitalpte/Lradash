@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
+
+import { verifyAccessToken } from "@/lib/auth/tokens"
 import { connectToDatabase } from "@/lib/db/connect"
 import { ProjectModel } from "@/models/project.model"
-import { verifyAccessToken } from "@/lib/auth/tokens"
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,24 +17,37 @@ export async function GET(request: NextRequest) {
     const token = authHeader.substring(7)
     const decoded = verifyAccessToken(token)
 
-    if (!decoded || !decoded.organizationId) {
+    if (!decoded) {
       return NextResponse.json(
-        { error: "Invalid token or missing organization" },
+        { error: "Invalid token" },
         { status: 401, headers: { "Content-Type": "application/json" } }
       )
     }
 
     await connectToDatabase()
 
+    let organizationId = decoded.organizationId
+    if (!organizationId) {
+      const { UserModel } = await import("@/models/user.model")
+      const user = await UserModel.findById(decoded.userId).lean()
+      if (user && user.defaultOrganizationId) {
+        organizationId = user.defaultOrganizationId.toString()
+      }
+    }
+
+    if (!organizationId) {
+      return NextResponse.json({ error: "Organization not found" }, { status: 401 })
+    }
+
     const projects = await ProjectModel.find({
-      organizationId: decoded.organizationId,
+      organizationId: organizationId,
       deletedAt: null
     })
       .populate("owner", "name email")
       .lean()
 
     return NextResponse.json(
-      projects.map(p => ({
+      projects.map((p) => ({
         id: p._id.toString(),
         title: p.title,
         description: p.description,
@@ -70,15 +84,30 @@ export async function POST(request: NextRequest) {
     const token = authHeader.substring(7)
     const decoded = verifyAccessToken(token)
 
-    if (!decoded || !decoded.organizationId) {
+    if (!decoded) {
       return NextResponse.json(
-        { error: "Invalid token or missing organization" },
+        { error: "Invalid token" },
         { status: 401, headers: { "Content-Type": "application/json" } }
       )
     }
 
+    await connectToDatabase()
+
+    let organizationId = decoded.organizationId
+    if (!organizationId) {
+      const { UserModel } = await import("@/models/user.model")
+      const user = await UserModel.findById(decoded.userId).lean()
+      if (user && user.defaultOrganizationId) {
+        organizationId = user.defaultOrganizationId.toString()
+      }
+    }
+
+    if (!organizationId) {
+      return NextResponse.json({ error: "Organization not found" }, { status: 401 })
+    }
+
     const body = await request.json()
-    const { title, description } = body
+    const { title, description, dueDate, memberIds } = body
 
     if (!title) {
       return NextResponse.json(
@@ -87,20 +116,37 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    await connectToDatabase()
-
-    const project = await ProjectModel.create({
+    // Build project data
+    const projectData: any = {
       title,
       description: description || "",
-      organizationId: decoded.organizationId,
-      owner: decoded.userId
-    })
+      organizationId: organizationId,
+      owner: decoded.userId,
+      members: [decoded.userId] // Owner is always a member
+    }
+
+    // Add dueDate if provided
+    if (dueDate) {
+      projectData.dueDate = new Date(dueDate)
+    }
+
+    // Add additional members if provided
+    if (Array.isArray(memberIds) && memberIds.length > 0) {
+      // Use unique IDs to avoid duplicates (ensure strings are compared correctly)
+      const allMemberIds = [decoded.userId, ...memberIds].map((id) => id.toString())
+      const uniqueMemberIds = Array.from(new Set(allMemberIds))
+      projectData.members = uniqueMemberIds
+    }
+
+    const project: any = await ProjectModel.create(projectData)
 
     return NextResponse.json(
       {
         id: project._id.toString(),
         title: project.title,
         description: project.description,
+        dueDate: project.dueDate,
+        members: project.members,
         organizationId: project.organizationId.toString(),
         owner: decoded.userId
       },
@@ -117,4 +163,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-

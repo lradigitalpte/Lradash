@@ -11,7 +11,13 @@ import {
 // This file is used in both server and client components
 // We need to be careful about what we import/use here
 
-let isConnected = false
+// Use a global variable to cache the connection across hot reloads and serverless invocations
+let cached = (global as any).mongoose
+
+if (!cached) {
+  cached = (global as any).mongoose = { conn: null, promise: null }
+}
+
 let dbUrl: string | undefined
 
 // MongoDB connection options
@@ -39,8 +45,8 @@ const getClientOptions = (): ConnectOptions => {
 }
 
 export async function connectToDatabase() {
-  if (isConnected) {
-    return
+  if (cached.conn) {
+    return cached.conn
   }
 
   // Only try to access process.env in Node.js environment
@@ -53,30 +59,29 @@ export async function connectToDatabase() {
       if (process.env.NODE_ENV !== "production") {
         throw new Error("DATABASE_URL is required. Please check your .env file.")
       }
-    } else {
-      console.log("\x1b[32mDatabase URL configured successfully\x1b[0m")
     }
   }
 
-  try {
+  if (!cached.promise) {
+    const options = getClientOptions()
     console.log("Connecting to MongoDB...")
 
-    const options = getClientOptions()
-    await connect(dbUrl || "", options)
+    cached.promise = connect(dbUrl || "", options).then((mongoose) => {
+      console.log("MongoDB connected successfully")
+      return mongoose
+    })
+  }
 
-    // Only verify connection in production
-    if (process.env.NODE_ENV === "production") {
-      if (connection.db) {
-        await connection.db.admin().command({ ping: 1 })
-      } else {
-        throw new Error("Database connection not established")
-      }
+  try {
+    cached.conn = await cached.promise
+
+    // Only verify connection in production if it's the first time
+    if (process.env.NODE_ENV === "production" && connection.db) {
+      await connection.db.admin().command({ ping: 1 })
     }
-
-    isConnected = true
-    console.log("MongoDB connected successfully")
   } catch (error: unknown) {
-    isConnected = false
+    cached.promise = null
+    cached.conn = null
 
     if (error instanceof Error) {
       // Provide more specific error messages based on error type

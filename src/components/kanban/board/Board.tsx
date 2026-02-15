@@ -68,7 +68,7 @@ export function Board() {
       }
     }
     const tasksInProject = project.tasks.filter(
-      (task: Task) => task.project.toString() === projectId
+      (task: Task) => task.project?.toString() === projectId
     )
     const taskPosition = tasksInProject.findIndex((task: { _id: string }) => task._id === taskId)
     return {
@@ -153,11 +153,11 @@ export function Board() {
     if (over.data.current!.type === "Task") {
       const overTask = over.data.current!.task
       const overProject = updatedProjects.find(
-        (project: Project) => project._id.toString() === overTask.project.toString()
+        (project: Project) => project._id.toString() === overTask.project?.toString()
       )
       const overTaskIdx = overProject!.tasks.findIndex((task: Task) => task._id === overTask._id)
       // move task to a different project
-      if (overTask.project !== activeTask.project) {
+      if (overTask.project && overTask.project !== activeTask.project) {
         dragTaskOnProject(activeTask._id, overTask.project)
           .then(() => {
             activeTask.project = overTask.project
@@ -232,10 +232,10 @@ export function Board() {
           startProjectIdx + 1
         } of ${projectsId.length}`
       } else if (active.data.current?.type === "Task") {
-        pickedUpTaskProject.current = active.data.current.task.project.toString()
+        pickedUpTaskProject.current = active.data.current.task.project?.toString() || ""
         const { tasksInProject, taskPosition, project } = getDraggingTaskData(
           active.data.current.task._id,
-          active.data.current.task.project.toString()
+          active.data.current.task.project?.toString() || ""
         )
         return `Picked up Task ${active.data.current.task.title} at position: ${
           taskPosition + 1
@@ -254,7 +254,7 @@ export function Board() {
       } else if (active.data.current?.type === "Task" && over.data.current?.type === "Task") {
         const { tasksInProject, taskPosition, project } = getDraggingTaskData(
           over.data.current.task._id,
-          over.data.current.task.project.toString()
+          over.data.current.task.project?.toString() || ""
         )
         if (over.data.current.task.project !== pickedUpTaskProject.current) {
           return `Task ${
@@ -282,7 +282,7 @@ export function Board() {
       } else if (active.data.current?.type === "Task" && over.data.current?.type === "Task") {
         const { tasksInProject, taskPosition, project } = getDraggingTaskData(
           over.data.current.task._id,
-          over.data.current.task.project.toString()
+          over.data.current.task.project?.toString() || ""
         )
         if (over.data.current.task.project !== pickedUpTaskProject.current) {
           return `Task was dropped into project ${project?.title} in position ${

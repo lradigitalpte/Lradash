@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { verifyAccessToken } from "@/lib/auth/tokens"
 import { connectToDatabase } from "@/lib/db/connect"
+import { getTasksByProjectId } from "@/lib/db/task"
 import { ProjectModel } from "@/models/project.model"
 
 export async function GET(
@@ -20,11 +21,24 @@ export async function GET(
     const token = authHeader.substring(7)
     const decoded = verifyAccessToken(token)
 
-    if (!decoded || !decoded.organizationId) {
+    if (!decoded) {
       return NextResponse.json(
-        { error: "Invalid token or missing organization" },
+        { error: "Invalid token" },
         { status: 401, headers: { "Content-Type": "application/json" } }
       )
+    }
+
+    let organizationId = decoded.organizationId
+    if (!organizationId) {
+      const { UserModel } = await import("@/models/user.model")
+      const user = await UserModel.findById(decoded.userId).lean()
+      if (user && user.defaultOrganizationId) {
+        organizationId = user.defaultOrganizationId.toString()
+      }
+    }
+
+    if (!organizationId) {
+      return NextResponse.json({ error: "Organization not found" }, { status: 401 })
     }
 
     const { projectId } = await params
@@ -32,10 +46,11 @@ export async function GET(
 
     const project = await ProjectModel.findOne({
       _id: projectId,
-      organizationId: decoded.organizationId,
+      organizationId: organizationId,
       deletedAt: null
     })
-      .populate("owner", "name email")
+      .populate("owner", "name email avatar")
+      .populate("members", "name email avatar")
       .lean()
 
     if (!project) {
@@ -45,6 +60,9 @@ export async function GET(
       )
     }
 
+    // Fetch tasks for the project
+    const tasks = await getTasksByProjectId(projectId)
+
     return NextResponse.json(
       {
         _id: project._id.toString(),
@@ -53,7 +71,8 @@ export async function GET(
         owner: project.owner,
         organizationId: project.organizationId.toString(),
         isArchived: project.isArchived,
-        tasks: [], // TODO: Fetch tasks from database when task model is ready
+        members: project.members,
+        tasks: tasks,
         createdAt: project.createdAt,
         updatedAt: project.updatedAt
       },

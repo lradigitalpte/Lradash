@@ -20,11 +20,11 @@ const roboto = Roboto({
 
 interface Props {
   children: React.ReactNode
-  params: { locale: string }
+  params: Promise<{ locale: string }>
 }
 
 export async function generateMetadata({ params }: Omit<Props, "children">): Promise<Metadata> {
-  const { locale } = await Promise.resolve(params)
+  const { locale } = await params
   const t = await getTranslations({ locale, namespace: "metadata" })
 
   return {
@@ -38,7 +38,7 @@ export async function generateMetadata({ params }: Omit<Props, "children">): Pro
 }
 
 export default async function LocaleLayout({ children, params }: Readonly<Props>) {
-  const { locale } = await Promise.resolve(params)
+  const { locale } = await params
   if (!hasLocale(routing.locales, locale)) {
     notFound()
   }

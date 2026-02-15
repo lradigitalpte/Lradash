@@ -236,15 +236,13 @@ export const useTaskStore = create<State>()(
         }
 
         try {
-          const updatedTask = await updateTaskInDb(
-            taskId,
+          const updatedTask = await updateTaskInDb(taskId, userEmail, {
             title,
-            userEmail,
-            status,
+            status: status as any,
             description,
             dueDate,
-            assigneeId
-          )
+            assignee: assigneeId
+          } as any)
 
           if (!updatedTask) {
             throw new Error("Failed to update task")

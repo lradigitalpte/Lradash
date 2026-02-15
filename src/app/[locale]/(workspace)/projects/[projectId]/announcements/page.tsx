@@ -23,7 +23,7 @@ import {
   Users
 } from "lucide-react"
 import { useParams } from "next/navigation"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useCallback } from "react"
 import { toast } from "sonner"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -55,124 +55,191 @@ import {
   SelectValue
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { apiClient } from "@/lib/api/client"
 import { useTaskStore } from "@/lib/store"
 import { formatDate, cn } from "@/lib/utils"
 
 type AnnouncementType = "GENERAL" | "ALERT" | "MILESTONE" | "TEAM" | "SYSTEM"
 
 interface Announcement {
-  id: string
+  _id: string
   title: string
   content: string
   author: {
+    _id: string
     name: string
     avatar?: string
-    role: string
+    role?: string
   }
   createdAt: Date
   isPinned: boolean
   type: AnnouncementType
   tags?: string[]
+  views?: string[]
 }
 
 export default function ProjectAnnouncementsPage() {
   const params = useParams()
-  const projectId = params?.projectId as string
+  const projectId = (params?.projectId || params?.boardId) as string
   const projects = useTaskStore((state) => state.projects)
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [activeType, setActiveType] = useState<AnnouncementType | "ALL">("ALL")
 
-  const [announcements, setAnnouncements] = useState<Announcement[]>([
-    {
-      id: "1",
-      title: "Quarterly Roadmap Update 🚀",
-      content:
-        "We've finalized the Q1 roadmap! High priority focus on performance optimization and the new mobile view components. Check the Gantt chart for detailed timelines.\n\nKey focuses:\n- Backend API latency reduction\n- WebSocket stability improvements\n- UI/UX refinements in Dashboard",
-      author: {
-        name: "Alex Thompson",
-        role: "Project Lead",
-        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alex"
-      },
-      createdAt: new Date(Date.now() - 3600000 * 24),
-      isPinned: true,
-      type: "MILESTONE",
-      tags: ["Roadmap", "Q1", "Priority"]
-    },
-    {
-      id: "2",
-      title: "URGENT: Database Migration Window ⚠️",
-      content:
-        "Scheduled maintenance tonight at 11:00 PM EST. The platform will be in read-only mode for approximately 45 minutes as we migrate to the new cluster. Please ensure all active work is saved.",
-      author: {
-        name: "Systems Bot",
-        role: "DevOps"
-      },
-      createdAt: new Date(Date.now() - 3600000 * 5),
-      isPinned: false,
-      type: "ALERT",
-      tags: ["Infrastructure", "Maintenance"]
-    },
-    {
-      id: "3",
-      title: "Welcoming 2 New Members to the Creative Team!",
-      content:
-        "Please join me in welcoming Sarah and Michael to our design sprint! They'll be focusing on the brand refresh and component library documentation. Say hi in the general channel! 👋",
-      author: {
-        name: "Jessica Chen",
-        role: "Creative Director",
-        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Jessica"
-      },
-      createdAt: new Date(Date.now() - 3600000 * 48),
-      isPinned: false,
-      type: "TEAM",
-      tags: ["Hiring", "Company Culture"]
+  const [announcements, setAnnouncements] = useState<Announcement[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const fetchAnnouncements = useCallback(async () => {
+    if (!projectId) {
+      return
     }
-  ])
+    try {
+      setLoading(true)
+      const response = await apiClient.get(`/api/projects/${projectId}/announcements`)
+      if (response.ok) {
+        const data = await response.json()
+        // Map data to match interface if needed, or update interface
+        setAnnouncements(
+          data.map((a: any) => ({
+            ...a,
+            createdAt: new Date(a.createdAt),
+            // Fallback for role as it might not be in user model in same way
+            author: { ...a.author, role: "Member" }
+          }))
+        )
+      }
+    } catch (error) {
+      console.error("Failed to fetch announcements:", error)
+      toast.error("Failed to load announcements")
+    } finally {
+      setLoading(false)
+    }
+  }, [projectId])
+
+  useEffect(() => {
+    fetchAnnouncements()
+  }, [fetchAnnouncements])
 
   const [formData, setFormData] = useState({
     title: "",
     content: "",
     type: "GENERAL" as AnnouncementType
   })
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   const project = projects.find((p) => (p as any)._id === projectId)
 
-  const handleCreate = () => {
+  const handleSave = async () => {
     if (!formData.title.trim() || !formData.content.trim()) {
       toast.error("Please fill in all fields")
       return
     }
 
-    const newAnnouncement: Announcement = {
-      id: Date.now().toString(),
-      title: formData.title,
-      content: formData.content,
-      author: {
-        name: "Admin",
-        role: "Project Manager"
-      },
-      createdAt: new Date(),
-      isPinned: false,
-      type: formData.type
+    try {
+      let response
+      if (editingId) {
+        response = await apiClient.patch(`/api/projects/${projectId}/announcements/${editingId}`, {
+          title: formData.title,
+          content: formData.content,
+          type: formData.type
+        })
+      } else {
+        response = await apiClient.post(`/api/projects/${projectId}/announcements`, {
+          title: formData.title,
+          content: formData.content,
+          type: formData.type,
+          tags: [],
+          isPinned: false
+        })
+      }
+
+      if (!response.ok) {
+        throw new Error(editingId ? "Failed to update announcement" : "Failed to post announcement")
+      }
+
+      toast.success(editingId ? "Announcement updated!" : "Announcement posted successfully!")
+      setFormData({ title: "", content: "", type: "GENERAL" })
+      setEditingId(null)
+      setDialogOpen(false)
+      fetchAnnouncements()
+    } catch (error) {
+      console.error("Save announcement error:", error)
+      toast.error(editingId ? "Failed to update announcement" : "Failed to post announcement")
     }
-
-    setAnnouncements([newAnnouncement, ...announcements])
-    setFormData({ title: "", content: "", type: "GENERAL" })
-    setDialogOpen(false)
-    toast.success("Announcement posted successfully!")
   }
 
-  const togglePin = (id: string) => {
-    setAnnouncements(announcements.map((a) => (a.id === id ? { ...a, isPinned: !a.isPinned } : a)))
-    toast.info("Pinned status updated")
+  const handleEdit = (announcement: Announcement) => {
+    setFormData({
+      title: announcement.title,
+      content: announcement.content,
+      type: announcement.type
+    })
+    setEditingId(announcement._id)
+    setDialogOpen(true)
   }
 
-  const deleteAnnouncement = (id: string) => {
-    setAnnouncements(announcements.filter((a) => a.id !== id))
-    toast.success("Announcement deleted")
+  const togglePin = async (id: string, currentStatus: boolean) => {
+    try {
+      const response = await apiClient.patch(`/api/projects/${projectId}/announcements/${id}`, {
+        isPinned: !currentStatus
+      })
+      if (response.ok) {
+        setAnnouncements(
+          announcements.map((a) => (a._id === id ? { ...a, isPinned: !currentStatus } : a))
+        )
+        toast.success(currentStatus ? "Unpinned announcement" : "Pinned announcement to top")
+      } else {
+        throw new Error("Failed to update pin status")
+      }
+    } catch (error) {
+      console.error("Pin error:", error)
+      toast.error("Failed to update pin status")
+    }
   }
+
+  const deleteAnnouncement = async (id: string) => {
+    try {
+      const response = await apiClient.delete(`/api/projects/${projectId}/announcements/${id}`)
+      if (response.ok) {
+        setAnnouncements(announcements.filter((a) => a._id !== id))
+        toast.success("Announcement deleted")
+      } else {
+        throw new Error("Failed to delete announcement")
+      }
+    } catch (error) {
+      console.error("Delete error:", error)
+      toast.error("Failed to delete announcement")
+    }
+  }
+
+  const markAsViewed = useCallback(
+    async (id: string) => {
+      try {
+        // Optimistically update views locally if not already viewed?
+        // Or just fire and forget.
+        // Ideally we check if `views` includes current user, but we don't have current user ID easily available here without context.
+        // API handles duplication check, so just fire it.
+        await apiClient.patch(`/api/projects/${projectId}/announcements/${id}`, {
+          action: "view"
+        })
+      } catch (error) {
+        console.error("View tracking error", error)
+      }
+    },
+    [projectId]
+  )
+
+  useEffect(() => {
+    // Mark visible announcements as viewed?
+    // For simplicity, let's just mark the top unread ones or rely on user interaction (like expanding/hovering).
+    // Or maybe just fetch counts. The requirement "seen by x" implies we just need to show the count.
+    // But if we want to increment it, we should do it when loaded.
+    if (announcements.length > 0) {
+      // Mark all loaded announcements as viewed by current user (backend handles dedup)
+      announcements.forEach(async (a) => markAsViewed(a._id))
+    }
+  }, [announcements, markAsViewed])
 
   const filteredAnnouncements = useMemo(() => {
     return announcements
@@ -251,7 +318,16 @@ export default function ProjectAnnouncementsPage() {
           </p>
         </div>
 
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog
+          open={dialogOpen}
+          onOpenChange={(open) => {
+            setDialogOpen(open)
+            if (!open) {
+              setFormData({ title: "", content: "", type: "GENERAL" })
+              setEditingId(null)
+            }
+          }}
+        >
           <DialogTrigger asChild>
             <Button className="h-12 gap-2 rounded-2xl bg-blue-600 px-8 font-black text-white shadow-2xl shadow-blue-500/30 transition-all hover:-translate-y-1 hover:bg-blue-700">
               <Plus className="h-5 w-5" />
@@ -263,7 +339,9 @@ export default function ProjectAnnouncementsPage() {
               <div className="absolute top-0 right-0 translate-x-12 -translate-y-8 scale-150 transform p-8 opacity-10">
                 <Megaphone className="h-48 w-48" />
               </div>
-              <DialogTitle className="mb-1 text-2xl font-black">Create Announcement</DialogTitle>
+              <DialogTitle className="mb-1 text-2xl font-black">
+                {editingId ? "Edit Announcement" : "Create Announcement"}
+              </DialogTitle>
               <DialogDescription className="font-medium text-blue-100 opacity-80">
                 Keep your team aligned and informed.
               </DialogDescription>
@@ -277,7 +355,9 @@ export default function ProjectAnnouncementsPage() {
                   </Label>
                   <Input
                     value={formData.title}
-                    onChange={(e) =>{  setFormData({ ...formData, title: e.target.value }); }}
+                    onChange={(e) => {
+                      setFormData({ ...formData, title: e.target.value })
+                    }}
                     placeholder="Catchy headline..."
                     className="h-12 rounded-xl border-slate-200 bg-slate-50 focus:ring-2 focus:ring-blue-500/20 dark:bg-slate-900"
                   />
@@ -289,7 +369,9 @@ export default function ProjectAnnouncementsPage() {
                   </Label>
                   <Select
                     value={formData.type}
-                    onValueChange={(val: any) =>{  setFormData({ ...formData, type: val }); }}
+                    onValueChange={(val: any) => {
+                      setFormData({ ...formData, type: val })
+                    }}
                   >
                     <SelectTrigger className="h-12 rounded-xl border-slate-200 bg-slate-50 dark:bg-slate-900">
                       <SelectValue />
@@ -319,7 +401,9 @@ export default function ProjectAnnouncementsPage() {
                   </Label>
                   <Textarea
                     value={formData.content}
-                    onChange={(e) =>{  setFormData({ ...formData, content: e.target.value }); }}
+                    onChange={(e) => {
+                      setFormData({ ...formData, content: e.target.value })
+                    }}
                     placeholder="Details of the announcement..."
                     className="min-h-[150px] resize-none rounded-2xl border-slate-200 bg-slate-50 p-4 focus:ring-2 focus:ring-blue-500/20 dark:bg-slate-900"
                   />
@@ -329,17 +413,19 @@ export default function ProjectAnnouncementsPage() {
               <div className="flex justify-end gap-3 border-t pt-4">
                 <Button
                   variant="ghost"
-                  onClick={() =>{  setDialogOpen(false); }}
+                  onClick={() => {
+                    setDialogOpen(false)
+                  }}
                   className="h-12 rounded-xl px-6 font-bold"
                 >
                   Cancel
                 </Button>
                 <Button
-                  onClick={handleCreate}
+                  onClick={handleSave}
                   className="flex h-12 items-center gap-2 rounded-xl bg-blue-600 px-8 font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-700"
                 >
                   <Send className="h-4 w-4" />
-                  Post Broadcast
+                  {editingId ? "Save Changes" : "Post Broadcast"}
                 </Button>
               </div>
             </div>
@@ -355,7 +441,9 @@ export default function ProjectAnnouncementsPage() {
             placeholder="Search announcements..."
             className="h-12 rounded-2xl border-none bg-slate-50 pl-11 text-sm focus:ring-2 focus:ring-blue-500/20"
             value={searchQuery}
-            onChange={(e) =>{  setSearchQuery(e.target.value); }}
+            onChange={(e) => {
+              setSearchQuery(e.target.value)
+            }}
           />
         </div>
 
@@ -364,7 +452,9 @@ export default function ProjectAnnouncementsPage() {
             <Button
               key={t}
               variant={activeType === t ? "default" : "ghost"}
-              onClick={() =>{  setActiveType(t as any); }}
+              onClick={() => {
+                setActiveType(t as any)
+              }}
               className={cn(
                 "h-10 shrink-0 rounded-2xl px-6 text-[10px] font-black tracking-widest uppercase transition-all",
                 activeType === t
@@ -403,7 +493,7 @@ export default function ProjectAnnouncementsPage() {
         ) : (
           filteredAnnouncements.map((announcement) => (
             <Card
-              key={announcement.id}
+              key={announcement._id}
               className={cn(
                 "group relative overflow-hidden rounded-[2.5rem] border-none bg-white shadow-2xl shadow-slate-200/50 transition-all duration-500 hover:scale-[1.01] dark:bg-slate-900 dark:shadow-none",
                 announcement.isPinned && "ring-2 ring-blue-500/30"
@@ -463,7 +553,9 @@ export default function ProjectAnnouncementsPage() {
                       className="w-56 rounded-2xl border-slate-100 p-2 shadow-2xl"
                     >
                       <DropdownMenuItem
-                        onClick={() =>{  togglePin(announcement.id); }}
+                        onClick={() => {
+                          togglePin(announcement._id, announcement.isPinned)
+                        }}
                         className="gap-3 rounded-xl py-3"
                       >
                         <Pin className="h-4 w-4 text-blue-500" />
@@ -476,7 +568,12 @@ export default function ProjectAnnouncementsPage() {
                           </span>
                         </div>
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="gap-3 rounded-xl py-3">
+                      <DropdownMenuItem
+                        className="gap-3 rounded-xl py-3"
+                        onClick={() => {
+                          handleEdit(announcement)
+                        }}
+                      >
                         <Edit2 className="h-4 w-4 text-slate-400" />
                         <div className="flex flex-col">
                           <span className="text-sm font-bold">Edit Content</span>
@@ -487,7 +584,9 @@ export default function ProjectAnnouncementsPage() {
                       </DropdownMenuItem>
                       <DropdownMenuSeparator className="my-2" />
                       <DropdownMenuItem
-                        onClick={() =>{  deleteAnnouncement(announcement.id); }}
+                        onClick={() => {
+                          deleteAnnouncement(announcement._id)
+                        }}
                         className="gap-3 rounded-xl bg-red-50/50 py-3 text-red-600 hover:bg-red-50"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -548,7 +647,7 @@ export default function ProjectAnnouncementsPage() {
                       className="gap-2 rounded-full font-bold text-slate-400 transition-colors hover:text-blue-600"
                     >
                       <Users className="h-4 w-4" />
-                      <span className="text-xs">Seen by 24</span>
+                      <span className="text-xs">Seen by {announcement.views?.length || 0}</span>
                     </Button>
                     <Button
                       variant="ghost"

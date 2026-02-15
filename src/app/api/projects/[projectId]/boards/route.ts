@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
+
+import { verifyAccessToken } from "@/lib/auth/tokens"
 import { connectToDatabase } from "@/lib/db/connect"
 import { BoardModel } from "@/models/board.model"
-import { verifyAccessToken } from "@/lib/auth/tokens"
 
 export async function GET(
   request: NextRequest,
@@ -39,11 +40,11 @@ export async function GET(
       .lean()
 
     return NextResponse.json(
-      boards.map(b => ({
+      boards.map((b) => ({
         id: b._id.toString(),
         title: b.title,
         description: b.description,
-        projectId: b.projectId.toString(),
+        projectId: b.projectId?.toString(),
         owner: b.owner,
         isArchived: b.isArchived,
         createdAt: b.createdAt,
@@ -106,14 +107,14 @@ export async function POST(
       projectId: projectId,
       organizationId: decoded.organizationId,
       owner: decoded.userId
-    })
+    } as any)
 
     return NextResponse.json(
       {
         id: board._id.toString(),
         title: board.title,
         description: board.description,
-        projectId: board.projectId.toString(),
+        projectId: board.projectId?.toString(),
         owner: decoded.userId
       },
       {

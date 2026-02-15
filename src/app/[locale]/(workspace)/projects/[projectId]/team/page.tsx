@@ -21,7 +21,7 @@ import {
   MoreVertical
 } from "lucide-react"
 import { useParams } from "next/navigation"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 
 import { InviteMemberDialog } from "@/components/team/InviteMemberDialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -41,60 +41,63 @@ import { cn } from "@/lib/utils"
 
 export default function ProjectTeamPage() {
   const params = useParams()
-  const projectId = params?.projectId as string
-  const projects = useTaskStore((state) => state.projects)
+  const projectId = (params?.projectId || params?.boardId) as string
+  const [projectMembers, setProjectMembers] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [projectData, setProjectData] = useState<any>(null)
 
-  // UI State
+  useEffect(() => {
+    const fetchProjectData = async () => {
+      if (!projectId) {
+        return
+      }
+      try {
+        setLoading(true)
+        const { apiClient } = await import("@/lib/api/client")
+        const response = await apiClient.get(`/api/projects/${projectId}`)
+        if (response.ok) {
+          const data = await response.json()
+          setProjectData(data)
+
+          const members = (data.members || []) as any[]
+          const owner = data.owner
+
+          // Ensure owner is in the list
+          if (owner && typeof owner === "object") {
+            const ownerExists = members.find((m) => (m._id || m.id) === (owner._id || owner.id))
+            if (!ownerExists) {
+              members.unshift(owner)
+            }
+          }
+
+          setProjectMembers(members)
+        }
+      } catch (error) {
+        console.error("Failed to fetch project members:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchProjectData()
+  }, [projectId])
+
+  const projectTitle = projectData?.title || "Loading..."
+  const tasks = projectData?.tasks || []
   const [searchQuery, setSearchQuery] = useState("")
   const [roleFilter, setRoleFilter] = useState<string>("ALL")
   const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false)
 
-  const project = projects.find((p) => (p as any)._id === projectId)
-  const tasks = project?.tasks || []
+  const actualMembers = projectMembers.map((m) => ({
+    id: m._id || m.id,
+    name: m.name,
+    email: m.email,
+    role: m._id === projectData?.owner?._id || m._id === projectData?.owner ? "ADMIN" : "MEMBER",
+    avatar: m.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${m.name}`,
+    joined: m.createdAt || "2024-02-01",
+    status: "Active"
+  }))
 
-  // Mock Members for "WOW" effect if none exist or just to populate for demo
-  const mockMembers = [
-    {
-      id: "m-1",
-      name: "Alex Thompson",
-      email: "alex.t@example.com",
-      role: "ADMIN",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alex",
-      joined: "2023-11-12",
-      status: "Active"
-    },
-    {
-      id: "m-2",
-      name: "Sarah Chen",
-      email: "s.chen@example.com",
-      role: "MEMBER",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah",
-      joined: "2023-12-05",
-      status: "Away"
-    },
-    {
-      id: "m-3",
-      name: "Michael Rodriguez",
-      email: "m.rod@example.com",
-      role: "VIEWER",
-      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Michael",
-      joined: "2024-01-20",
-      status: "Active"
-    }
-  ]
-
-  const actualMembers =
-    project?.members?.map((m) => ({
-      id: (m as any).id || (m as any)._id,
-      name: m.name,
-      email: (m as any).email || `${m.name.toLowerCase().replace(" ", ".")}@example.com`,
-      role: "MEMBER",
-      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${m.name}`,
-      joined: "2024-02-01",
-      status: "Active"
-    })) || []
-
-  const allMembers = [...actualMembers, ...mockMembers]
+  const allMembers = [...actualMembers]
 
   // Filter members
   const filteredMembers = useMemo(() => {
@@ -109,13 +112,13 @@ export default function ProjectTeamPage() {
 
   // Calculate stats for each member
   const getMemberStats = (memberName: string) => {
-    const memberTasks = tasks.filter((t) => t.assignee?.name === memberName)
+    const memberTasks = tasks.filter((t: any) => t.assignee?.name === memberName)
     const total = memberTasks.length
-    const done = memberTasks.filter((t) => t.status === "DONE").length
+    const done = memberTasks.filter((t: any) => t.status === "DONE").length
     const inProgress = memberTasks.filter(
       (t: any) => t.status === "IN_PROGRESS" || t.status === "DOING"
     ).length
-    const todo = memberTasks.filter((t) => t.status === "TODO").length
+    const todo = memberTasks.filter((t: any) => t.status === "TODO").length
     const completionRate = total > 0 ? Math.round((done / total) * 100) : 0
 
     return { total, done, inProgress, todo, completionRate }
@@ -141,7 +144,7 @@ export default function ProjectTeamPage() {
           <p className="font-medium text-slate-500 italic">
             Managing and collaborating on{" "}
             <span className="text-blue-600 underline decoration-blue-500/30 underline-offset-4">
-              "{project?.title}"
+              "{projectTitle}"
             </span>
           </p>
         </div>
@@ -155,7 +158,9 @@ export default function ProjectTeamPage() {
             Directory
           </Button>
           <Button
-            onClick={() =>{  setIsInviteDialogOpen(true); }}
+            onClick={() => {
+              setIsInviteDialogOpen(true)
+            }}
             className="group h-12 gap-2 rounded-2xl bg-blue-600 px-6 font-bold text-white shadow-xl shadow-blue-500/25 transition-all hover:bg-blue-700"
           >
             <UserPlus2 className="h-5 w-5 transition-transform group-hover:rotate-12" />
@@ -170,13 +175,13 @@ export default function ProjectTeamPage() {
           { label: "Total Members", value: allMembers.length, icon: Users, color: "blue" },
           {
             label: "Active Tasks",
-            value: tasks.filter((t) => t.status !== "DONE").length,
+            value: tasks.filter((t: any) => t.status !== "DONE").length,
             icon: Target,
             color: "orange"
           },
           {
             label: "Complete Projects",
-            value: tasks.filter((t) => t.status === "DONE").length,
+            value: tasks.filter((t: any) => t.status === "DONE").length,
             icon: CheckCircle2,
             color: "green"
           },
@@ -226,7 +231,9 @@ export default function ProjectTeamPage() {
             placeholder="Search by name, email or role..."
             className="h-12 rounded-2xl border-none bg-slate-50 pl-11 text-sm focus:ring-2 focus:ring-blue-500/20"
             value={searchQuery}
-            onChange={(e) =>{  setSearchQuery(e.target.value); }}
+            onChange={(e) => {
+              setSearchQuery(e.target.value)
+            }}
           />
         </div>
         <div className="flex items-center gap-2">
@@ -244,25 +251,33 @@ export default function ProjectTeamPage() {
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-48 rounded-2xl border-slate-100 p-2 shadow-2xl">
               <DropdownMenuItem
-                onClick={() =>{  setRoleFilter("ALL"); }}
+                onClick={() => {
+                  setRoleFilter("ALL")
+                }}
                 className="rounded-xl px-3 py-2 font-bold"
               >
                 All Roles
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() =>{  setRoleFilter("ADMIN"); }}
+                onClick={() => {
+                  setRoleFilter("ADMIN")
+                }}
                 className="rounded-xl px-3 py-2 font-bold text-blue-600"
               >
                 Admin Only
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() =>{  setRoleFilter("MEMBER"); }}
+                onClick={() => {
+                  setRoleFilter("MEMBER")
+                }}
                 className="rounded-xl px-3 py-2 font-bold"
               >
                 Members Only
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() =>{  setRoleFilter("VIEWER"); }}
+                onClick={() => {
+                  setRoleFilter("VIEWER")
+                }}
                 className="rounded-xl px-3 py-2 font-bold"
               >
                 Viewers Only
@@ -323,7 +338,7 @@ export default function ProjectTeamPage() {
                           <AvatarFallback className="bg-blue-600 text-2xl font-black text-white uppercase">
                             {member.name
                               .split(" ")
-                              .map((n) => n[0])
+                              .map((n: string) => n[0])
                               .join("")}
                           </AvatarFallback>
                         </Avatar>
@@ -461,6 +476,26 @@ export default function ProjectTeamPage() {
         projectId={projectId}
         open={isInviteDialogOpen}
         onOpenChange={setIsInviteDialogOpen}
+        onInviteSent={() => {
+          // Refresh data
+          const fetchProjectData = async () => {
+            if (!projectId) {
+              return
+            }
+            try {
+              const { apiClient } = await import("@/lib/api/client")
+              const response = await apiClient.get(`/api/projects/${projectId}`)
+              if (response.ok) {
+                const data = await response.json()
+                setProjectData(data)
+                setProjectMembers(data.members || [])
+              }
+            } catch (error) {
+              console.error("Failed to refresh members:", error)
+            }
+          }
+          fetchProjectData()
+        }}
       />
     </div>
   )

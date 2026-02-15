@@ -28,6 +28,13 @@ const boardSchema = new mongoose.Schema(
         ref: "User"
       }
     ],
+    listIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "List"
+      }
+    ],
+    isPrivate: { type: Boolean, default: true }, // Personal boards are private by default
     isArchived: { type: Boolean, default: false },
     deletedAt: { type: Date, default: null } // Soft delete
   },

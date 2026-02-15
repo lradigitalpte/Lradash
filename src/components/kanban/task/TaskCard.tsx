@@ -67,7 +67,7 @@ export function TaskCard({ task, isOverlay = false }: TaskCardProps) {
     <Card
       ref={setNodeRef}
       style={cardStyle}
-      className={cn("mb-3", cardVariants({ dragging: dragState, status: task.status as TaskStatus }))}
+      className={cn("mb-3", cardVariants({ dragging: dragState, status: task.status }))}
       data-testid="task-card"
     >
       <div className="p-4">
@@ -78,7 +78,7 @@ export function TaskCard({ task, isOverlay = false }: TaskCardProps) {
             <button
               {...attributes}
               {...listeners}
-              className="mt-0.5 cursor-grab rounded p-1 text-muted-foreground/50 opacity-0 transition-opacity hover:bg-muted hover:text-muted-foreground group-hover:opacity-100"
+              className="mt-0.5 cursor-grab rounded p-1 text-muted-foreground/50 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-muted hover:text-muted-foreground"
               aria-label={t("moveTask")}
               data-testid="task-card-drag-button"
             >
@@ -87,7 +87,7 @@ export function TaskCard({ task, isOverlay = false }: TaskCardProps) {
 
             {/* Title */}
             <div className="flex-1">
-              <h3 className="font-medium leading-tight text-foreground">{task.title}</h3>
+              <h3 className="leading-tight font-medium text-foreground">{task.title}</h3>
             </div>
           </div>
 
@@ -104,7 +104,10 @@ export function TaskCard({ task, isOverlay = false }: TaskCardProps) {
 
         {/* Description */}
         {task.description && (
-          <p className="mb-3 text-sm text-muted-foreground line-clamp-2" data-testid="task-card-description">
+          <p
+            className="mb-3 line-clamp-2 text-sm text-muted-foreground"
+            data-testid="task-card-description"
+          >
             {task.description}
           </p>
         )}
@@ -138,18 +141,14 @@ export function TaskCard({ task, isOverlay = false }: TaskCardProps) {
             </div> */}
 
             {/* Assignee Avatar */}
-            {task.assignee && (
-              <UserAvatar name={task.assignee.name} size="xs" />
-            )}
+            {task.assignee && <UserAvatar name={task.assignee.name} size="xs" />}
           </div>
         </div>
 
         {/* Creator info - subtle */}
         {task.creator && (
           <div className="mt-3 border-t pt-2">
-            <p className="text-xs text-muted-foreground">
-              Created by {task.creator.name}
-            </p>
+            <p className="text-xs text-muted-foreground">Created by {task.creator.name}</p>
           </div>
         )}
       </div>

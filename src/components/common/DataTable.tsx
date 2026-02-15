@@ -22,7 +22,14 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 
 interface DataTableProps<TData, TValue> {
@@ -75,7 +82,9 @@ export function DataTable<TData, TValue>({
         <Input
           placeholder={searchPlaceholder}
           value={globalFilter}
-          onChange={(e) => setGlobalFilter(e.target.value)}
+          onChange={(e) => {
+            setGlobalFilter(e.target.value)
+          }}
           className="max-w-xs"
         />
 
@@ -96,7 +105,9 @@ export function DataTable<TData, TValue>({
                     key={column.id}
                     className="capitalize"
                     checked={column.getIsVisible()}
-                    onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                    onCheckedChange={(value) => {
+                      column.toggleVisibility(!!value)
+                    }}
                   >
                     {column.id}
                   </DropdownMenuCheckboxItem>
@@ -119,7 +130,9 @@ export function DataTable<TData, TValue>({
                         onClick={header.column.getToggleSortingHandler()}
                         className={cn(
                           "flex items-center gap-2",
-                          header.column.getCanSort() ? "cursor-pointer select-none hover:text-foreground" : "",
+                          header.column.getCanSort()
+                            ? "cursor-pointer select-none hover:text-foreground"
+                            : "",
                           "text-muted-foreground"
                         )}
                       >
@@ -160,7 +173,10 @@ export function DataTable<TData, TValue>({
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground">
+                <TableCell
+                  colSpan={columns.length}
+                  className="h-24 text-center text-muted-foreground"
+                >
                   No results found.
                 </TableCell>
               </TableRow>
@@ -181,7 +197,9 @@ export function DataTable<TData, TValue>({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => table.previousPage()}
+            onClick={() => {
+              table.previousPage()
+            }}
             disabled={!table.getCanPreviousPage()}
           >
             <ChevronLeft className="h-4 w-4" />
@@ -195,7 +213,9 @@ export function DataTable<TData, TValue>({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => table.nextPage()}
+            onClick={() => {
+              table.nextPage()
+            }}
             disabled={!table.getCanNextPage()}
           >
             Next

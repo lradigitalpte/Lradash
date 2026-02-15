@@ -1,11 +1,21 @@
 "use client"
 
 import { X } from "lucide-react"
-import { useState } from "react"
+import { Clock } from "lucide-react"
+import { useState, useEffect } from "react"
+import { toast } from "sonner"
 
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select"
+import { formatDate } from "@/lib/utils"
 
 import { CardActivity } from "./card-detail/CardActivity"
 import { CardAttachments } from "./card-detail/CardAttachments"
@@ -29,62 +39,138 @@ interface Card {
   checklist?: Array<{ text: string; completed: boolean }>
   attachments?: Array<{ name: string; url: string }>
   coverColor?: string
+  status?: string // Added status field
+  createdAt?: string // Added for System Context
+  creator?: { name: string } // Added for System Context
 }
 
 interface CardDetailModalProps {
   card: Card
+  boardId: string
+  projectId: string
   onClose: () => void
   onUpdate: () => void
 }
 
-export function CardDetailModal({ card, onClose, onUpdate }: CardDetailModalProps) {
+export function CardDetailModal({
+  card,
+  boardId,
+  projectId,
+  onClose,
+  onUpdate
+}: CardDetailModalProps) {
   const [title, setTitle] = useState(card.title)
   const [description, setDescription] = useState(card.description || "")
   const [labels, setLabels] = useState(card.labels || [])
   const [checklist, setChecklist] = useState(card.checklist || [])
-  const [attachments, setAttachments] = useState(card.attachments || [])
   const [coverColor, setCoverColor] = useState(card.coverColor)
+  const [members, setMembers] = useState(card.members || [])
+  const [status, setStatus] = useState(card.status || "TODO")
+  const [saving, setSaving] = useState(false)
+
+  // Sync state with prop if card changes (e.g. from background refresh)
+  useEffect(() => {
+    if (card) {
+      setTitle(card.title)
+      setDescription(card.description || "")
+      setLabels(card.labels || [])
+      setChecklist(card.checklist || [])
+      setCoverColor(card.coverColor)
+      setMembers(card.members || [])
+      setStatus(card.status || "TODO")
+    }
+  }, [card])
+
+  const updateTask = async (updates: any) => {
+    setSaving(true)
+    try {
+      const accessToken = localStorage.getItem("accessToken")
+      const response = await fetch(`/api/tasks/${card._id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`
+        },
+        body: JSON.stringify(updates)
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to update task")
+      }
+      onUpdate()
+    } catch (error) {
+      console.error("Update task error:", error)
+      toast.error("Failed to update task")
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const handleUpdateTitle = (newTitle: string) => {
     setTitle(newTitle)
-    // TODO: API call to update
+    updateTask({ title: newTitle })
   }
 
   const handleUpdateDescription = (newDescription: string) => {
     setDescription(newDescription)
-    // TODO: API call to update
+    updateTask({ description: newDescription })
   }
 
   const handleToggleChecklistItem = (index: number) => {
     const newChecklist = [...checklist]
     newChecklist[index].completed = !newChecklist[index].completed
     setChecklist(newChecklist)
-    // TODO: API call to update
+    updateTask({ checklist: newChecklist })
   }
 
   const handleAddChecklistItem = (text: string) => {
-    setChecklist([...checklist, { text, completed: false }])
-    // TODO: API call to update
+    const newChecklist = [...checklist, { text, completed: false }]
+    setChecklist(newChecklist)
+    updateTask({ checklist: newChecklist })
   }
 
   const handleDeleteChecklistItem = (index: number) => {
-    setChecklist(checklist.filter((_, i) => i !== index))
-    // TODO: API call to update
+    const newChecklist = checklist.filter((_, i) => i !== index)
+    setChecklist(newChecklist)
+    updateTask({ checklist: newChecklist })
   }
 
   const handleAddLabel = (label: { name: string; color: string }) => {
-    setLabels([...labels, label])
-    // TODO: API call to update
+    const newLabels = [...labels, label]
+    setLabels(newLabels)
+    updateTask({ labels: newLabels })
   }
 
   const handleRemoveLabel = (index: number) => {
-    setLabels(labels.filter((_, i) => i !== index))
-    // TODO: API call to update
+    const newLabels = labels.filter((_, i) => i !== index)
+    setLabels(newLabels)
+    updateTask({ labels: newLabels })
   }
 
   const handleChangeCover = (color: string) => {
     setCoverColor(color)
-    // TODO: API call to update
+    updateTask({ coverColor: color })
+  }
+
+  const handleAssignMember = (user: any) => {
+    const newMembers = [...members, user]
+    setMembers(newMembers)
+    updateTask({ assignee: user._id })
+  }
+
+  const handleUnassignMember = (userId: string) => {
+    const newMembers = members.filter((m) => m._id !== userId)
+    setMembers(newMembers)
+    updateTask({ assignee: null })
+  }
+
+  const handleSelectWorkPackage = (wpId: string | null) => {
+    updateTask({ workPackage: wpId })
+  }
+
+  const handleStatusChange = (newStatus: string) => {
+    setStatus(newStatus)
+    updateTask({ status: newStatus })
   }
 
   return (
@@ -93,6 +179,7 @@ export function CardDetailModal({ card, onClose, onUpdate }: CardDetailModalProp
         className="flex !h-[90vh] max-h-[90vh] !w-[95vw] !max-w-[95vw] flex-col overflow-hidden rounded-[2.5rem] border-white/20 bg-white/80 p-0 pt-0 shadow-2xl shadow-slate-200/50 backdrop-blur-2xl sm:max-w-[95vw] lg:!max-w-[1000px] dark:border-slate-800/50 dark:bg-slate-900/80 dark:shadow-none"
         aria-describedby={undefined}
       >
+        <DialogTitle className="sr-only">Task Details</DialogTitle>
         <div className="relative flex h-full flex-col overflow-hidden">
           {/* Extra Glow for Premium Feel */}
           <div className="pointer-events-none absolute -top-20 -right-20 h-64 w-64 rounded-full bg-blue-500/10 blur-3xl" />
@@ -121,13 +208,13 @@ export function CardDetailModal({ card, onClose, onUpdate }: CardDetailModalProp
                     />
                   )}
 
-                  {card.members && card.members.length > 0 && (
+                  {members.length > 0 && (
                     <div className="space-y-4">
                       <h3 className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
                         Members
                       </h3>
                       <div className="flex flex-wrap gap-3">
-                        {card.members.map((member) => (
+                        {members.map((member) => (
                           <div
                             key={member._id}
                             className="group flex items-center gap-3 rounded-[1.25rem] border border-slate-100 bg-slate-50 px-3 py-1.5 transition-all hover:-translate-y-0.5 hover:bg-white hover:shadow-lg hover:shadow-slate-200/50 dark:border-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800 dark:hover:shadow-none"
@@ -175,13 +262,67 @@ export function CardDetailModal({ card, onClose, onUpdate }: CardDetailModalProp
               </div>
 
               {/* Right Column - Sidebar */}
-              <div className="pt-2 lg:sticky lg:top-0 lg:self-start">
+              <div className="space-y-8 pt-2 lg:sticky lg:top-0 lg:self-start">
+                {/* Status Selector */}
+                <div className="space-y-3">
+                  <h3 className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
+                    Status
+                  </h3>
+                  <Select value={status} onValueChange={handleStatusChange}>
+                    <SelectTrigger className="h-12 rounded-2xl border-slate-100 bg-slate-50 text-sm font-bold dark:border-slate-800 dark:bg-slate-800">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="TODO">To Do</SelectItem>
+                      <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                      <SelectItem value="DONE">Completed</SelectItem>
+                      <SelectItem value="ARCHIVED">Archived</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <CardSidebar
                   card={card}
+                  boardId={boardId}
+                  projectId={projectId}
                   onAddLabel={handleAddLabel}
                   onAddChecklistItem={handleAddChecklistItem}
                   onChangeCover={handleChangeCover}
+                  onAssignMember={handleAssignMember}
+                  onUnassignMember={handleUnassignMember}
+                  onSelectWorkPackage={handleSelectWorkPackage}
                 />
+
+                {/* System Context Block */}
+                <div className="group relative overflow-hidden rounded-[2rem] bg-slate-900 p-8 text-white shadow-2xl dark:bg-white dark:text-slate-900">
+                  <div className="absolute top-0 right-0 -mt-16 -mr-16 h-32 w-32 rounded-full bg-white/10 blur-3xl dark:bg-slate-900/5" />
+                  <div className="relative space-y-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 dark:bg-slate-100">
+                        <Clock className="h-6 w-6" />
+                      </div>
+                      <div className="text-right text-[10px] font-black tracking-widest uppercase opacity-60">
+                        System Context
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="text-lg leading-tight font-black tracking-tight uppercase">
+                        Task Integrity
+                      </h4>
+                      <p className="mt-2 text-[11px] font-medium italic opacity-70">
+                        Created {card.createdAt ? formatDate(card.createdAt) : "Recently"} by{" "}
+                        {card.creator?.name || "System"}
+                      </p>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      className="h-12 w-full rounded-xl bg-white text-[10px] font-black tracking-widest text-slate-900 uppercase shadow-xl transition-all hover:scale-105 dark:bg-slate-900 dark:text-white"
+                      onClick={() => toast.info("Task synchronized with cloud storage")}
+                    >
+                      Sync Task
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

@@ -51,114 +51,6 @@ interface Board {
   lists: List[]
 }
 
-// Mock data for demo
-const getMockBoard = (boardId: string): Board => {
-  return {
-    _id: boardId,
-    title: "Project Kanban Board",
-    description: "Organize your work with this high-performance workflow board",
-    lists: [
-      {
-        _id: "list-1",
-        title: "To Do",
-        position: 0,
-        cards: [
-          {
-            _id: "card-1",
-            title: "Design new landing page",
-            description:
-              "Create mockups and wireframes for the new landing page with modern design principles",
-            listId: "list-1",
-            position: 0,
-            labels: [
-              { name: "Design", color: "#61BD4F" },
-              { name: "High Priority", color: "#EB5A46" }
-            ],
-            members: [{ _id: "user-1", name: "John Doe", avatar: "" }],
-            dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-            priority: "HIGH",
-            checklist: [
-              { text: "Research competitors", completed: true },
-              { text: "Create wireframes", completed: false },
-              { text: "Design mockups", completed: false }
-            ],
-            attachments: [],
-            coverColor: "#2563eb"
-          },
-          {
-            _id: "card-2",
-            title: "Setup authentication system",
-            description: "Implement OAuth 2.0 and JWT authentication with refresh tokens",
-            listId: "list-1",
-            position: 1,
-            labels: [{ name: "Backend", color: "#C377E0" }],
-            members: [],
-            priority: "URGENT",
-            checklist: [],
-            attachments: []
-          }
-        ]
-      },
-      {
-        _id: "list-2",
-        title: "In Progress",
-        position: 1,
-        cards: [
-          {
-            _id: "card-3",
-            title: "Implement user dashboard",
-            description:
-              "Build the main user dashboard with charts, statistics, and real-time updates",
-            listId: "list-2",
-            position: 0,
-            labels: [{ name: "Frontend", color: "#00C2E0" }],
-            members: [{ _id: "user-2", name: "Jane Smith", avatar: "" }],
-            dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-            priority: "MEDIUM",
-            checklist: [
-              { text: "Create components", completed: true },
-              { text: "Add charts", completed: true },
-              { text: "Connect to API", completed: false },
-              { text: "Add responsive design", completed: false }
-            ],
-            attachments: [{ name: "dashboard-mockup.png", url: "#" }]
-          }
-        ]
-      },
-      {
-        _id: "list-3",
-        title: "Testing",
-        position: 2,
-        cards: []
-      },
-      {
-        _id: "list-4",
-        title: "Done",
-        position: 3,
-        cards: [
-          {
-            _id: "card-4",
-            title: "Setup project repository",
-            description:
-              "Initialize Git repository, setup CI/CD pipeline, and configure deployment",
-            listId: "list-4",
-            position: 0,
-            labels: [{ name: "DevOps", color: "#F2D600" }],
-            members: [],
-            priority: "LOW",
-            checklist: [
-              { text: "Create repo", completed: true },
-              { text: "Setup CI/CD", completed: true },
-              { text: "Add README", completed: true }
-            ],
-            attachments: []
-          }
-        ]
-      }
-    ]
-  }
-}
-
 export default function KanbanBoardPage() {
   const params = useParams()
   const boardId = params?.boardId as string
@@ -183,17 +75,40 @@ export default function KanbanBoardPage() {
     loadBoard()
   }, [boardId])
 
-  const loadBoard = async () => {
+  const loadBoard = async (silent = false) => {
     try {
-      setLoading(true)
+      if (!silent) {
+        setLoading(true)
+      }
+      const accessToken = localStorage.getItem("accessToken")
+      if (!accessToken) {
+        toast.error("You must be logged in")
+        return
+      }
 
-      // Simulate API delay for realistic feel
-      await new Promise((resolve) => setTimeout(resolve, 500))
+      const response = await fetch(`/api/boards/${boardId}`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      })
 
-      // Use mock data (you can switch to real API later)
-      setBoard(getMockBoard(boardId))
+      if (!response.ok) {
+        throw new Error("Failed to fetch board")
+      }
 
-      toast.success("Board loaded! 🎉 (Using demo data)")
+      const data = await response.json()
+      setBoard(data)
+
+      // Sync selected card with updated board data
+      if (selectedCard) {
+        for (const list of data.lists) {
+          const found = list.cards.find((c: Card) => c._id === selectedCard._id)
+          if (found) {
+            setSelectedCard(found)
+            break
+          }
+        }
+      }
     } catch (error) {
       console.error("Failed to load board:", error)
       toast.error("Failed to load board")
@@ -208,7 +123,7 @@ export default function KanbanBoardPage() {
     setActiveCard(card)
   }
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
     setActiveCard(null)
 
@@ -219,8 +134,11 @@ export default function KanbanBoardPage() {
     const cardId = active.id as string
     const overId = over.id as string
 
-    // Handle card movement logic here
-    moveCard(cardId, overId)
+    if (cardId === overId) {
+      return
+    }
+
+    await moveCard(cardId, overId)
   }
 
   const findCard = (cardId: string): Card | null => {
@@ -236,15 +154,133 @@ export default function KanbanBoardPage() {
     return null
   }
 
-  const moveCard = async (cardId: string, targetId: string) => {
-    // TODO: Implement card movement logic
-    toast.success("Card moved! (Demo mode - not persisted)")
+  const moveCard = async (cardId: string, overId: string) => {
+    if (!board) {
+      return
+    }
+
+    let sourceList: List | null = null
+    let targetList: List | null = null
+    let activeCard: Card | null = null
+
+    // Find source list and card
+    for (const list of board.lists) {
+      const card = list.cards.find((c) => c._id === cardId)
+      if (card) {
+        sourceList = list
+        activeCard = card
+        break
+      }
+    }
+
+    if (!sourceList || !activeCard) {
+      return
+    }
+
+    // Find target list and index
+    let newIndex = 0
+    targetList = board.lists.find((l) => l._id === overId) || null
+
+    if (!targetList) {
+      // Over a card
+      for (const list of board.lists) {
+        const cardIndex = list.cards.findIndex((c) => c._id === overId)
+        if (cardIndex !== -1) {
+          targetList = list
+          newIndex = cardIndex
+          break
+        }
+      }
+    } else {
+      // Over a list, add to the end
+      newIndex = targetList.cards.length
+    }
+
+    if (!targetList) {
+      return
+    }
+
+    // Optimistic Update
+    const oldBoard = JSON.parse(JSON.stringify(board))
+    const newBoard = JSON.parse(JSON.stringify(board))
+
+    // Remove from source list
+    const sList = newBoard.lists.find((l: List) => l._id === sourceList._id)
+    if (!sList) {
+      return
+    }
+
+    // Filter out the card to ensure no duplicates in source
+    const cardToMove = { ...activeCard, listId: targetList._id }
+    sList.cards = sList.cards.filter((c: Card) => c._id !== cardId)
+
+    // Add to target list
+    const tList = newBoard.lists.find((l: List) => l._id === targetList._id)
+    if (!tList) {
+      return
+    }
+
+    // Ensure we don't duplicate if moving to same list (already removed above)
+    // or if for some reason it's already there (though filter removed it from source)
+
+    // If we're moving within the same list, we need to be careful with indices
+    // but since we removed it first, the new index should be relative to the list without the card
+
+    tList.cards.splice(newIndex, 0, cardToMove)
+
+    setBoard(newBoard)
+
+    try {
+      const accessToken = localStorage.getItem("accessToken")
+      const response = await fetch(`/api/boards/${boardId}/tasks/move`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+          taskId: cardId,
+          sourceListId: sourceList._id,
+          targetListId: targetList._id,
+          newPosition: newIndex
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to move card")
+      }
+
+      toast.success("Card moved!")
+    } catch (error) {
+      console.error("Move card error:", error)
+      toast.error("Failed to move card")
+      setBoard(oldBoard) // Rollback
+    }
   }
 
   const handleAddList = async (title: string) => {
-    toast.success(`List "${title}" created! (Demo mode - not persisted)`)
-    setShowAddList(false)
-    // In real implementation, this would call the API and refresh
+    try {
+      const accessToken = localStorage.getItem("accessToken")
+      const response = await fetch(`/api/boards/${boardId}/lists`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({ title, projectId })
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to create list")
+      }
+
+      toast.success(`List "${title}" created!`)
+      setShowAddList(false)
+      loadBoard()
+    } catch (error) {
+      console.error("Add list error:", error)
+      toast.error("Failed to create list")
+    }
   }
 
   if (loading) {
@@ -339,7 +375,9 @@ export default function KanbanBoardPage() {
                 <KanbanList
                   key={list._id}
                   list={list}
-                  onCardClick={(card) =>{  setSelectedCard(card); }}
+                  onCardClick={(card) => {
+                    setSelectedCard(card)
+                  }}
                   onRefresh={loadBoard}
                 />
               ))}
@@ -347,10 +385,17 @@ export default function KanbanBoardPage() {
 
             {/* Add List Button */}
             {showAddList ? (
-              <AddListForm onAdd={handleAddList} onCancel={() =>{  setShowAddList(false); }} />
+              <AddListForm
+                onAdd={handleAddList}
+                onCancel={() => {
+                  setShowAddList(false)
+                }}
+              />
             ) : (
               <button
-                onClick={() =>{  setShowAddList(true); }}
+                onClick={() => {
+                  setShowAddList(true)
+                }}
                 className="group relative h-32 w-80 flex-shrink-0 rounded-[2rem] border-2 border-dashed border-slate-200 bg-white/40 backdrop-blur transition-all duration-300 hover:border-blue-500/50 hover:bg-white/60 dark:border-slate-800 dark:bg-slate-900/40 dark:hover:bg-slate-900/60"
               >
                 <div className="flex h-full flex-col items-center justify-center gap-2 p-6">
@@ -379,8 +424,12 @@ export default function KanbanBoardPage() {
       {selectedCard && (
         <CardDetailModal
           card={selectedCard}
-          onClose={() =>{  setSelectedCard(null); }}
-          onUpdate={loadBoard}
+          boardId={boardId}
+          projectId={projectId}
+          onClose={() => {
+            setSelectedCard(null)
+          }}
+          onUpdate={async () => loadBoard(true)}
         />
       )}
     </div>

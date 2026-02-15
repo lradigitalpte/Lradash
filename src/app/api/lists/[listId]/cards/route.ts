@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { verifyAccessToken } from "@/lib/auth/tokens"
+import { connectToDatabase } from "@/lib/db/connect"
+import { ListModel } from "@/models/list.model"
+import { TaskModel } from "@/models/task.model"
 
 export async function POST(
   request: NextRequest,
@@ -18,7 +21,7 @@ export async function POST(
     const token = authHeader.substring(7)
     const decoded = verifyAccessToken(token)
 
-    if (!decoded) {
+    if (!decoded || !decoded.organizationId) {
       return NextResponse.json(
         { error: "Invalid token" },
         { status: 401, headers: { "Content-Type": "application/json" } }
@@ -27,21 +30,59 @@ export async function POST(
 
     const { listId } = await params
     const body = await request.json()
+    const { title } = body
 
-    // TODO: Create card in database when models are ready
-    // For now, return mock response
+    if (!title) {
+      return NextResponse.json({ error: "Title is required" }, { status: 400 })
+    }
+
+    await connectToDatabase()
+
+    // Find the list to get projectId and boardId
+    const list = await ListModel.findOne({
+      _id: listId,
+      organizationId: decoded.organizationId
+    })
+
+    if (!list) {
+      return NextResponse.json({ error: "List not found" }, { status: 404 })
+    }
+
+    // Create the task
+    const taskDoc = await TaskModel.create({
+      title,
+      description: "",
+      status:
+        list.title.toUpperCase().replace(/\s+/g, "_") === "DONE"
+          ? "DONE"
+          : list.title.toUpperCase().replace(/\s+/g, "_") === "IN_PROGRESS"
+            ? "IN_PROGRESS"
+            : "TODO",
+      organizationId: decoded.organizationId,
+      board: list.boardId,
+      project: list.projectId,
+      creator: decoded.userId,
+      lastModifier: decoded.userId,
+      priority: "MEDIUM"
+    } as any)
+
+    const task = taskDoc.toObject ? taskDoc.toObject() : taskDoc
+
+    // Add task to list
+    await ListModel.updateOne({ _id: listId }, { $push: { cardIds: (task as any)._id } })
+
     return NextResponse.json(
       {
-        _id: "card-" + Date.now(),
-        title: body.title,
-        description: body.description || "",
-        listId,
+        _id: (task as any)._id.toString(),
+        title: (task as any).title,
+        description: (task as any).description,
+        listId: listId,
         position: 999,
         labels: [],
         members: [],
         checklist: [],
         attachments: [],
-        createdAt: new Date().toISOString()
+        createdAt: (task as any).createdAt
       },
       {
         status: 201,

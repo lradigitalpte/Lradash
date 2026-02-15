@@ -23,6 +23,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
 
@@ -40,13 +41,15 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import { apiClient } from "@/lib/api/client"
 import { cn } from "@/lib/utils"
 
 export default function SettingsPage() {
   const params = useParams()
-  const projectId = params?.projectId as string
+  const projectId = (params?.projectId || params?.boardId) as string
   const locale = params?.locale as string
 
+  const router = useRouter()
   const [project, setProject] = useState<any>(null)
   const [projectName, setProjectName] = useState("")
   const [projectDescription, setProjectDescription] = useState("")
@@ -63,7 +66,7 @@ export default function SettingsPage() {
   const fetchProject = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`/api/projects/${projectId}`)
+      const response = await apiClient.get(`/api/projects/${projectId}`)
       if (!response.ok) {
         return
       }
@@ -74,6 +77,7 @@ export default function SettingsPage() {
       setIsPublic(data.visibility === "PUBLIC")
     } catch (err) {
       console.error("Failed to fetch project:", err)
+      toast.error("Failed to load project settings")
     } finally {
       setLoading(false)
     }
@@ -81,13 +85,48 @@ export default function SettingsPage() {
 
   const handleSave = async () => {
     setLoading(true)
-    // Simulating API save for effect
-    await new Promise((resolve) => setTimeout(resolve, 1200))
-    toast.success("Project settings saved", {
-      description: "Everything is up to date and saved to the cloud."
-    })
-    setHasChanges(false)
-    setLoading(false)
+    try {
+      const response = await apiClient.patch(`/api/projects/${projectId}`, {
+        title: projectName,
+        description: projectDescription,
+        visibility: isPublic ? "PUBLIC" : "PRIVATE"
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to update project")
+      }
+
+      const updatedProject = await response.json()
+      setProject(updatedProject)
+      toast.success("Project settings saved", {
+        description: "Everything is up to date and saved to the cloud."
+      })
+      setHasChanges(false)
+    } catch (error) {
+      console.error("Update error:", error)
+      toast.error("Failed to save settings")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!confirm("Are you sure you want to delete this project? This action cannot be undone.")) {
+      return
+    }
+
+    try {
+      const response = await apiClient.delete(`/api/projects/${projectId}`)
+      if (response.ok) {
+        toast.success("Project deleted")
+        router.push(`/${locale}/projects`)
+      } else {
+        throw new Error("Failed to delete")
+      }
+    } catch (error) {
+      console.error("Delete error:", error)
+      toast.error("Failed to delete project")
+    }
   }
 
   return (
@@ -392,6 +431,10 @@ export default function SettingsPage() {
                     variant="ghost"
                     size="icon"
                     className="h-6 w-6 text-white hover:bg-white/10"
+                    onClick={() => {
+                      window.navigator.clipboard.writeText(projectId)
+                      toast.success("Copied to clipboard")
+                    }}
                   >
                     <Zap className="h-3 w-3" />
                   </Button>
@@ -407,7 +450,7 @@ export default function SettingsPage() {
                     <Clock className="h-3 w-3 text-emerald-500" />
                     {project?.createdAt
                       ? new Date(project.createdAt).toLocaleDateString()
-                      : "2/4/26"}
+                      : "Loading..."}
                   </div>
                 </div>
                 <div className="space-y-1">
@@ -446,7 +489,7 @@ export default function SettingsPage() {
                 <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Button>
               <Button
-                variant="destructive"
+                onClick={handleDelete}
                 className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-rose-600 font-black shadow-lg shadow-rose-500/30"
               >
                 <Trash2 className="h-4 w-4" />

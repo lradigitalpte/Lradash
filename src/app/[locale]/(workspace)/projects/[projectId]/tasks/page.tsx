@@ -19,13 +19,23 @@ import {
   Layers,
   Target,
   ArrowUpRight,
-  Info
+  Info,
+  UserPlus,
+  Trash2,
+  Edit,
+  RefreshCw,
+  Eye
 } from "lucide-react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useState, useEffect, useMemo } from "react"
+import { toast } from "sonner"
 
+import { ChangeTaskOwnerModal } from "@/components/tasks/ChangeTaskOwnerModal"
+import { ConvertToBoardTaskModal } from "@/components/tasks/ConvertToBoardTaskModal"
 import { CreateTaskDialog } from "@/components/tasks/CreateTaskDialog"
+import { EditTaskModal } from "@/components/tasks/EditTaskModal"
+import { TaskDetailModal } from "@/components/tasks/TaskDetailModal"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -51,34 +61,112 @@ import { cn } from "@/lib/utils"
 
 export default function TasksPage() {
   const params = useParams()
-  const projectId = params?.projectId as string
+  const projectId = (params?.projectId || params?.boardId) as string
   const locale = params?.locale as string
   const [project, setProject] = useState<any>(null)
   const [tasks, setTasks] = useState<any[]>([])
+  const [workPackages, setWorkPackages] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [filterStatus, setFilterStatus] = useState<string>("ALL")
   const [loading, setLoading] = useState(true)
 
+  // Modal states
+  const [viewTaskModalOpen, setViewTaskModalOpen] = useState(false)
+  const [editTaskModalOpen, setEditTaskModalOpen] = useState(false)
+  const [changeOwnerModalOpen, setChangeOwnerModalOpen] = useState(false)
+  const [convertToBoardModalOpen, setConvertToBoardModalOpen] = useState(false)
+  const [selectedTask, setSelectedTask] = useState<any>(null)
+
   useEffect(() => {
     if (projectId) {
-      fetchProject()
+      fetchData()
     }
   }, [projectId])
 
-  const fetchProject = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true)
-      const response = await apiClient.get(`/api/projects/${projectId}`)
-      if (!response.ok) {
-        return
+
+      // Fetch project info
+      const projectRes = await apiClient.get(`/api/projects/${projectId}`)
+      if (projectRes.ok) {
+        const projectData = await projectRes.json()
+        setProject(projectData)
       }
-      const data = await response.json()
-      setProject(data)
-      setTasks(data.tasks || [])
+
+      // Fetch tasks from backend API
+      const tasksRes = await apiClient.get(`/api/projects/${projectId}/tasks`)
+      if (tasksRes.ok) {
+        const tasksData = await tasksRes.json()
+        setTasks(Array.isArray(tasksData) ? tasksData : tasksData.tasks || [])
+      }
+
+      // Fetch work packages
+      const wpRes = await apiClient.get(`/api/projects/${projectId}/work-packages`)
+      if (wpRes.ok) {
+        const wpData = await wpRes.json()
+        setWorkPackages(Array.isArray(wpData) ? wpData : wpData.workPackages || [])
+      }
     } catch (err) {
-      console.error("Failed to fetch project:", err)
+      console.error("Failed to fetch data:", err)
+      toast.error("Failed to load project data")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleTaskCreated = () => {
+    // Refresh tasks after creation
+    fetchData()
+  }
+
+  const handleTaskUpdated = (updatedTask: any) => {
+    // Update the task in the local state
+    setTasks((prevTasks) =>
+      prevTasks.map((task) => (task._id === updatedTask._id ? updatedTask : task))
+    )
+
+    // Close any open modals
+    setEditTaskModalOpen(false)
+    setChangeOwnerModalOpen(false)
+  }
+
+  const handleViewDetails = (task: any) => {
+    setSelectedTask(task)
+    setViewTaskModalOpen(true)
+  }
+
+  const handleEdit = (task: any) => {
+    setSelectedTask(task)
+    setEditTaskModalOpen(true)
+  }
+
+  const handleChangeOwner = (task: any) => {
+    setSelectedTask(task)
+    setChangeOwnerModalOpen(true)
+  }
+
+  const handleConvertToBoard = (task: any) => {
+    setSelectedTask(task)
+    setConvertToBoardModalOpen(true)
+  }
+
+  const handleDelete = async (taskId: string) => {
+    if (confirm("Are you sure you want to permanently delete this task?")) {
+      try {
+        const response = await apiClient.delete(`/api/tasks/${taskId}`)
+        if (response.ok) {
+          toast.success("Task deleted successfully")
+          // Refresh tasks after deletion
+          fetchData()
+        } else {
+          const errorData = await response.json()
+          toast.error(errorData.error || "Failed to delete task")
+        }
+      } catch (error) {
+        console.error("Error deleting task:", error)
+        toast.error("Failed to delete task")
+      }
     }
   }
 
@@ -106,7 +194,7 @@ export default function TasksPage() {
 
   if (loading && tasks.length === 0) {
     return (
-      <div className="flex min-h-[600px] flex-col items-center justify-center space-y-4 bg-slate-50/50 dark:bg-slate-950/50">
+      <div className="flex min-h-96 flex-col items-center justify-center space-y-4 bg-slate-50/50 dark:bg-slate-950/50">
         <div className="flex h-12 w-12 animate-pulse items-center justify-center rounded-2xl bg-blue-600/10">
           <Activity className="h-6 w-6 text-blue-600" />
         </div>
@@ -118,7 +206,7 @@ export default function TasksPage() {
   }
 
   return (
-    <div className="min-h-full space-y-10 bg-slate-50/30 p-8 pb-32 font-sans dark:bg-slate-950/30">
+    <div className="relative min-h-screen w-full space-y-10 overflow-hidden bg-white p-8 pb-32 font-sans md:overflow-auto dark:bg-slate-950">
       {/* 1. Navigation & Breadcrumb */}
       <div className="flex items-center gap-4">
         <Link href={`/${locale}/projects/${projectId}`}>
@@ -130,7 +218,7 @@ export default function TasksPage() {
             Project Dashboard
           </Button>
         </Link>
-        <div className="mx-2 h-4 w-[1px] bg-slate-300" />
+        <div className="mx-2 h-4 w-px bg-slate-300" />
         <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
           Workspace / Tasks
         </span>
@@ -161,7 +249,7 @@ export default function TasksPage() {
           </p>
         </div>
         <div className="shrink-0 origin-bottom-right scale-110">
-          <CreateTaskDialog projectId={projectId} onTaskCreated={fetchProject} />
+          <CreateTaskDialog projectId={projectId} onTaskCreated={handleTaskCreated} />
         </div>
       </div>
 
@@ -199,7 +287,7 @@ export default function TasksPage() {
         ].map((stat, idx) => (
           <Card
             key={idx}
-            className="group overflow-hidden rounded-[2rem] border-none bg-white shadow-2xl shadow-slate-200/50 transition-all hover:-translate-y-1 dark:bg-slate-900 dark:shadow-none"
+            className="group overflow-hidden rounded-4xl border-none bg-white shadow-2xl shadow-slate-200/50 transition-all hover:-translate-y-1 dark:bg-slate-900 dark:shadow-none"
           >
             <CardContent className="p-8">
               <div className="mb-4 flex items-center justify-between">
@@ -241,7 +329,9 @@ export default function TasksPage() {
             <Input
               placeholder="Find a task by title or description..."
               value={searchQuery}
-              onChange={(e) =>{  setSearchQuery(e.target.value); }}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+              }}
               className="h-12 rounded-2xl border-none bg-slate-50 pl-12 text-sm font-medium transition-all placeholder:font-medium placeholder:italic focus:ring-4 focus:ring-blue-500/10 dark:bg-slate-950"
             />
           </div>
@@ -261,28 +351,36 @@ export default function TasksPage() {
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56 rounded-2xl border-slate-100 p-2 shadow-2xl">
                 <DropdownMenuItem
-                  onClick={() =>{  setFilterStatus("ALL"); }}
+                  onClick={() => {
+                    setFilterStatus("ALL")
+                  }}
                   className="group rounded-xl py-3 font-bold"
                 >
                   <Layers className="mr-2 h-4 w-4 text-slate-400 group-hover:text-blue-500" />
                   All Tasks
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() =>{  setFilterStatus("TODO"); }}
+                  onClick={() => {
+                    setFilterStatus("TODO")
+                  }}
                   className="group rounded-xl py-3 font-bold"
                 >
                   <Circle className="mr-2 h-4 w-4 text-slate-300 group-hover:text-slate-500" />
                   Backlog
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() =>{  setFilterStatus("IN_PROGRESS"); }}
+                  onClick={() => {
+                    setFilterStatus("IN_PROGRESS")
+                  }}
                   className="group rounded-xl py-3 font-bold"
                 >
                   <Zap className="mr-2 h-4 w-4 text-orange-500 group-hover:scale-110" />
                   In Progress
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() =>{  setFilterStatus("DONE"); }}
+                  onClick={() => {
+                    setFilterStatus("DONE")
+                  }}
                   className="group rounded-xl py-3 font-bold"
                 >
                   <CheckCircle2 className="mr-2 h-4 w-4 text-emerald-500 group-hover:scale-110" />
@@ -326,7 +424,7 @@ export default function TasksPage() {
               <TableRow>
                 <TableCell colSpan={6} className="py-32 text-center">
                   <div className="flex flex-col items-center gap-6">
-                    <div className="relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-[2rem] bg-slate-50 shadow-inner dark:bg-slate-950">
+                    <div className="relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-4xl bg-slate-50 shadow-inner dark:bg-slate-950">
                       <Sparkles className="h-10 w-10 text-slate-200" />
                       <div className="absolute top-0 right-0 h-1/2 w-1/2 bg-blue-500/5 blur-2xl" />
                     </div>
@@ -363,15 +461,25 @@ export default function TasksPage() {
                       <span className="text-base font-black text-slate-900 transition-colors group-hover:text-blue-600 dark:text-white">
                         {task.title}
                       </span>
-                      <div className="mt-0.5 flex items-center gap-2">
+                      <div className="mt-0.5 flex flex-wrap items-center gap-2">
                         <span className="text-[10px] font-black tracking-tighter text-slate-400 uppercase">
                           Task
                         </span>
                         {task.description && (
-                          <span className="max-w-[200px] truncate text-[10px] font-bold text-slate-300 italic">
+                          <span className="max-w-50 truncate text-[10px] font-bold text-slate-300 italic">
                             {" "}
                             - {task.description}
                           </span>
+                        )}
+                        {task.workPackage && (
+                          <Badge
+                            variant="secondary"
+                            className="ml-auto px-1.5 py-0.5 text-[8px] font-bold tracking-tighter"
+                          >
+                            {typeof task.workPackage === "string"
+                              ? "WP"
+                              : task.workPackage.title || "Work Package"}
+                          </Badge>
                         )}
                       </div>
                     </div>
@@ -404,7 +512,7 @@ export default function TasksPage() {
                           <span className="text-xs font-black text-slate-900 dark:text-white">
                             {task.assignee.name}
                           </span>
-                          <span className="text-[8px] text-[9px] font-bold tracking-widest text-slate-400 uppercase">
+                          <span className="text-[9px] font-bold tracking-widest text-slate-400 uppercase">
                             Assignee
                           </span>
                         </div>
@@ -454,17 +562,57 @@ export default function TasksPage() {
                         align="end"
                         className="w-56 rounded-2xl border-slate-100 p-2 shadow-2xl"
                       >
-                        <DropdownMenuItem className="group gap-3 rounded-xl py-3 font-bold">
-                          <Zap className="h-4 w-4 text-blue-500 group-hover:scale-110" />
-                          Update Task
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.preventDefault()
+                            handleViewDetails(task)
+                          }}
+                          className="group gap-3 rounded-xl py-3 font-bold hover:bg-blue-50"
+                        >
+                          <Eye className="h-4 w-4 text-blue-500 group-hover:scale-110" />
+                          View Details
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="group gap-3 rounded-xl py-3 font-bold">
-                          <Target className="h-4 w-4 text-purple-500 group-hover:scale-110" />
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.preventDefault()
+                            handleEdit(task)
+                          }}
+                          className="group gap-3 rounded-xl py-3 font-bold hover:bg-blue-50"
+                        >
+                          <Edit className="h-4 w-4 text-blue-500 group-hover:scale-110" />
+                          Edit Task
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.preventDefault()
+                            handleChangeOwner(task)
+                          }}
+                          className="group gap-3 rounded-xl py-3 font-bold hover:bg-purple-50"
+                        >
+                          <UserPlus className="h-4 w-4 text-purple-500 group-hover:scale-110" />
                           Change Assignee
                         </DropdownMenuItem>
+                        {!task.project && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.preventDefault()
+                              handleConvertToBoard(task)
+                            }}
+                            className="group gap-3 rounded-xl py-3 font-bold hover:bg-green-50"
+                          >
+                            <RefreshCw className="h-4 w-4 text-green-500 group-hover:scale-110" />
+                            Convert to Board Task
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuSeparator className="my-2" />
-                        <DropdownMenuItem className="gap-3 rounded-xl bg-rose-50/50 py-3 font-bold text-rose-600 hover:bg-rose-50">
-                          <MoreHorizontal className="h-4 w-4" />
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.preventDefault()
+                            handleDelete(task._id)
+                          }}
+                          className="gap-3 rounded-xl bg-rose-50/50 py-3 font-bold text-rose-600 hover:bg-rose-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
                           Delete Task
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -478,7 +626,7 @@ export default function TasksPage() {
       </Card>
 
       {/* 6. System Footer Hint */}
-      <div className="flex items-center justify-between rounded-[2rem] border border-white/20 bg-white/40 px-10 py-6 backdrop-blur-sm dark:bg-slate-900/40">
+      <div className="flex items-center justify-between rounded-4xl border border-white/20 bg-white/40 px-10 py-6 backdrop-blur-sm dark:bg-slate-900/40">
         <div className="flex items-center gap-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600 shadow-inner">
             <Info className="h-5 w-5" />
@@ -497,6 +645,46 @@ export default function TasksPage() {
           </Button>
         </div>
       </div>
+
+      {/* Task Detail Modal */}
+      {selectedTask && (
+        <TaskDetailModal
+          task={selectedTask}
+          open={viewTaskModalOpen}
+          onOpenChange={setViewTaskModalOpen}
+          onTaskUpdated={handleTaskUpdated}
+        />
+      )}
+
+      {/* Edit Task Modal */}
+      {selectedTask && (
+        <EditTaskModal
+          task={selectedTask}
+          open={editTaskModalOpen}
+          onOpenChange={setEditTaskModalOpen}
+          onTaskUpdated={handleTaskUpdated}
+        />
+      )}
+
+      {/* Change Owner Modal */}
+      {selectedTask && (
+        <ChangeTaskOwnerModal
+          task={selectedTask}
+          open={changeOwnerModalOpen}
+          onOpenChange={setChangeOwnerModalOpen}
+          onTaskUpdated={handleTaskUpdated}
+        />
+      )}
+
+      {/* Convert to Board Task Modal */}
+      {selectedTask && (
+        <ConvertToBoardTaskModal
+          task={selectedTask}
+          open={convertToBoardModalOpen}
+          onOpenChange={setConvertToBoardModalOpen}
+          onTaskConverted={handleTaskUpdated}
+        />
+      )}
     </div>
   )
 }

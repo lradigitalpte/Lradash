@@ -18,6 +18,9 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 
+import { MemberPicker } from "./MemberPicker"
+import { WorkPackagePicker } from "./WorkPackagePicker"
+
 interface Card {
   _id: string
   title: string
@@ -31,22 +34,33 @@ interface Card {
   checklist?: Array<{ text: string; completed: boolean }>
   attachments?: Array<{ name: string; url: string }>
   coverColor?: string
+  workPackage?: string
 }
 
 interface CardSidebarProps {
   card: Card
+  boardId: string
+  projectId: string
   onAddLabel: (label: { name: string; color: string }) => void
   onAddChecklistItem: (text: string) => void
   onChangeCover: (color: string) => void
+  onAssignMember: (user: any) => void
+  onUnassignMember: (userId: string) => void
+  onSelectWorkPackage: (wpId: string | null) => void
   onDelete?: () => void
   onArchive?: () => void
 }
 
 export function CardSidebar({
   card,
+  boardId,
+  projectId,
   onAddLabel,
   onAddChecklistItem,
   onChangeCover,
+  onAssignMember,
+  onUnassignMember,
+  onSelectWorkPackage,
   onDelete,
   onArchive
 }: CardSidebarProps) {
@@ -108,10 +122,16 @@ export function CardSidebar({
           Add to Card
         </h3>
         <div className="space-y-2">
-          <SidebarButton
-            icon={User}
-            label="Members"
-            onClick={() => toast.info("Member picker opened")}
+          <MemberPicker
+            currentMembers={card.members || []}
+            onAssign={onAssignMember}
+            onUnassign={onUnassignMember}
+          />
+          <WorkPackagePicker
+            boardId={boardId}
+            projectId={projectId}
+            currentWorkPackageId={card.workPackage}
+            onSelect={onSelectWorkPackage}
           />
           <SidebarButton
             icon={Tag}
@@ -121,7 +141,9 @@ export function CardSidebar({
           <SidebarButton
             icon={CheckSquare}
             label="Checklist"
-            onClick={() => onAddChecklistItem("New task")}
+            onClick={() => {
+              onAddChecklistItem("New task")
+            }}
           />
           <SidebarButton
             icon={Calendar}
@@ -131,12 +153,14 @@ export function CardSidebar({
           <SidebarButton
             icon={Paperclip}
             label="Attachment"
-            onClick={() { => toast.info("File upload open; }ed")}
+            onClick={() => toast.info("File upload coming soon")}
           />
           <SidebarButton
             icon={Palette}
             label="Cover"
-            onClick={() => onChangeCover("#" + Math.floor(Math.random() * 16777215).toString(16))}
+            onClick={() => {
+              onChangeCover("#" + Math.floor(Math.random() * 16777215).toString(16))
+            }}
           />
         </div>
       </div>
@@ -149,10 +173,10 @@ export function CardSidebar({
         <div className="space-y-2">
           <SidebarButton icon={Copy} label="Copy" onClick={handleCopyCard} />
           <SidebarButton icon={Archive} label="Archive" onClick={handleArchiveCard} />
-          <S{ idebarButton
+          <SidebarButton
             icon={Trash2}
             label="Delete"
-     ; }       className="border-rose-100 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-900/30 dark:hover:bg-rose-900/10"
+            className="border-rose-100 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-900/30 dark:hover:bg-rose-900/10"
             onClick={handleDeleteCard}
           />
         </div>

@@ -53,9 +53,16 @@ interface TaskDetailModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSave?: (task: Task) => void
+  onTaskUpdated?: (task: Task) => void // For updates that already patched
 }
 
-export function TaskDetailModal({ task, open, onOpenChange, onSave }: TaskDetailModalProps) {
+export function TaskDetailModal({
+  task,
+  open,
+  onOpenChange,
+  onSave,
+  onTaskUpdated
+}: TaskDetailModalProps) {
   const [editedTitle, setEditedTitle] = useState(task?.title || "")
   const [editedDescription, setEditedDescription] = useState(task?.description || "")
   const [checklist, setChecklist] = useState<any[]>(task?.checklist || [])
@@ -112,6 +119,27 @@ export function TaskDetailModal({ task, open, onOpenChange, onSave }: TaskDetail
     const newChecklist = checklist.filter((_, i) => i !== index)
     setChecklist(newChecklist)
     onSave?.({ ...task, checklist: newChecklist } as Task)
+  }
+
+  const handleStatusChange = async (newStatus: string) => {
+    setStatus(newStatus)
+    try {
+      const response = await apiClient.patch(`/api/tasks/${task._id}`, {
+        status: newStatus
+      })
+      if (response.ok) {
+        const updatedTask = await response.json()
+        toast.success(`Status updated to ${newStatus.replace("_", " ")}`)
+        // Call the special callback that doesn't patch again
+        onTaskUpdated?.(updatedTask)
+      } else {
+        toast.error("Failed to update status")
+        setStatus(task.status)
+      }
+    } catch (error) {
+      toast.error("Failed to update status")
+      setStatus(task.status)
+    }
   }
 
   const handleAddLabel = (label: { name: string; color: string }) => {
@@ -212,7 +240,9 @@ export function TaskDetailModal({ task, open, onOpenChange, onSave }: TaskDetail
             <CardHeader
               title={editedTitle}
               onUpdateTitle={handleUpdateTitle}
-              onClose={() =>{  onOpenChange(false); }}
+              onClose={() => {
+                onOpenChange(false)
+              }}
             />
           </div>
 
@@ -404,17 +434,43 @@ export function TaskDetailModal({ task, open, onOpenChange, onSave }: TaskDetail
                       </p>
                     </div>
                   </div>
-                  <CardActivity cardId={task._id.toString()} />
+                  <CardActivity
+                    key={`activity-${task._id}-${new Date(task.updatedAt).getTime()}`}
+                    cardId={task._id.toString()}
+                  />
                 </div>
               </div>
 
               {/* Right Column - Actions & Stats */}
               <div className="space-y-8">
+                {/* Status Selector */}
+                <div className="space-y-3">
+                  <h3 className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
+                    Status
+                  </h3>
+                  <Select value={status} onValueChange={handleStatusChange}>
+                    <SelectTrigger className="h-12 rounded-2xl border-slate-100 bg-slate-50 text-sm font-bold dark:border-slate-800 dark:bg-slate-800">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="TODO">To Do</SelectItem>
+                      <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
+                      <SelectItem value="DONE">Completed</SelectItem>
+                      <SelectItem value="ARCHIVED">Archived</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <CardSidebar
                   card={cardAdapter as any}
+                  boardId=""
+                  projectId=""
                   onAddLabel={handleAddLabel}
                   onAddChecklistItem={handleAddChecklistItem}
                   onChangeCover={handleChangeCover}
+                  onAssignMember={() => {}}
+                  onUnassignMember={() => {}}
+                  onSelectWorkPackage={() => {}}
                   onArchive={handleArchive}
                   onDelete={handleDelete}
                 />

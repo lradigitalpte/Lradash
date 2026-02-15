@@ -1,36 +1,46 @@
 "use client"
 
+import { format } from "date-fns"
 import {
+  Package,
   Plus,
   Search,
-  Filter as FilterIcon,
-  Download,
-  MoreHorizontal,
-  Clock,
-  CheckCircle2,
-  Circle,
+  Calendar,
+  Trash2,
   ArrowLeft,
-  Package,
-  Info,
-  Zap,
-  Sparkles,
+  Badge as BadgeIcon,
   Layers,
   Target,
+  Zap,
+  CheckCircle2,
+  Circle,
+  MoreHorizontal,
+  FileDown,
+  FilterIcon,
   ArrowUpRight,
-  ChevronRight,
   User,
-  Calendar,
-  Activity,
-  FileDown
+  Sparkles,
+  Eye,
+  UserCheck
 } from "lucide-react"
+import { useLocale } from "next-intl"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { useState, useEffect, useMemo } from "react"
+import { useEffect, useState, useMemo } from "react"
+import { toast } from "sonner"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,6 +50,13 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select"
+import {
   Table,
   TableBody,
   TableCell,
@@ -47,69 +64,223 @@ import {
   TableHeader,
   TableRow
 } from "@/components/ui/table"
-import { CreateWorkPackageDialog } from "@/components/work-packages/CreateWorkPackageDialog"
-import { WorkPackageHierarchyInfo } from "@/components/work-packages/WorkPackageHierarchyInfo"
+import { ChangeOwnerDialog } from "@/components/work-packages/ChangeOwnerDialog"
+import { EditWorkPackageDialog } from "@/components/work-packages/EditWorkPackageDialog"
+import { ViewWorkPackageDialog } from "@/components/work-packages/ViewWorkPackageDialog"
 import { apiClient } from "@/lib/api/client"
 import { cn } from "@/lib/utils"
 
-export default function WorkPackagesPage() {
+interface WorkPackage {
+  _id: string
+  title: string
+  description?: string
+  status: "TODO" | "IN_PROGRESS" | "COMPLETED" | "ON_HOLD"
+  priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT"
+  dueDate?: Date
+  progress?: number
+  projectId?: string
+  owner: {
+    _id: string
+    name: string
+    email: string
+    avatar?: string
+  }
+  assignees?: Array<{
+    _id: string
+    name: string
+    email: string
+    avatar?: string
+  }>
+  createdAt: Date
+  updatedAt: Date
+}
+
+const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
+  TODO: {
+    bg: "bg-slate-100 dark:bg-slate-800",
+    text: "text-slate-600 dark:text-slate-400",
+    label: "To Do"
+  },
+  IN_PROGRESS: {
+    bg: "bg-blue-100 dark:bg-blue-950",
+    text: "text-blue-600 dark:text-blue-400",
+    label: "In Progress"
+  },
+  COMPLETED: {
+    bg: "bg-emerald-100 dark:bg-emerald-950",
+    text: "text-emerald-600 dark:text-emerald-400",
+    label: "Completed"
+  },
+  ON_HOLD: {
+    bg: "bg-amber-100 dark:bg-amber-950",
+    text: "text-amber-600 dark:text-amber-400",
+    label: "On Hold"
+  }
+}
+
+const PRIORITY_COLORS: Record<string, string> = {
+  LOW: "text-slate-500",
+  MEDIUM: "text-blue-500",
+  HIGH: "text-orange-500",
+  URGENT: "text-rose-500"
+}
+
+export default function ProjectWorkPackagesPage() {
   const params = useParams()
-  const projectId = params?.projectId as string
-  const locale = params?.locale as string
-  const [project, setProject] = useState<any>(null)
-  const [tasks, setTasks] = useState<any[]>([])
+  const locale = useLocale()
+  const projectId = params.projectId as string
+  const [workPackages, setWorkPackages] = useState<WorkPackage[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterStatus, setFilterStatus] = useState<string>("ALL")
-  const [loading, setLoading] = useState(true)
+  const [isCreating, setIsCreating] = useState(false)
+  const [openDialog, setOpenDialog] = useState(false)
+  const [viewDialogOpen, setViewDialogOpen] = useState(false)
+  const [changeOwnerDialogOpen, setChangeOwnerDialogOpen] = useState(false)
+  const [selectedWorkPackage, setSelectedWorkPackage] = useState<WorkPackage | null>(null)
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    priority: "MEDIUM",
+    dueDate: ""
+  })
 
   useEffect(() => {
-    if (projectId) {
-      fetchProject()
-    }
+    fetchWorkPackages()
   }, [projectId])
 
-  const fetchProject = async () => {
+  const fetchWorkPackages = async () => {
     try {
-      setLoading(true)
-      const response = await apiClient.get(`/api/projects/${projectId}`)
-      if (!response.ok) {
+      // Make sure we're on the client side before making API calls
+      if (typeof window === "undefined") {
+        setLoading(false)
         return
       }
-      const data = await response.json()
-      setProject(data)
-      setTasks(data.tasks || [])
-    } catch (err) {
-      console.error("Failed to fetch project:", err)
+
+      const response = await apiClient.get(`/api/projects/${projectId}/work-packages`)
+
+      if (response.ok) {
+        const data = await response.json()
+        setWorkPackages(Array.isArray(data) ? data : [])
+      } else {
+        toast.error("Failed to fetch work packages")
+      }
+    } catch (error) {
+      console.error("Error fetching work packages:", error)
+      toast.error("Failed to load work packages")
     } finally {
       setLoading(false)
     }
   }
 
+  const handleCreateWorkPackage = async () => {
+    if (!formData.title.trim()) {
+      toast.error("Title is required")
+      return
+    }
+
+    // Make sure we're on the client side before making API calls
+    if (typeof window === "undefined") {
+      toast.error("Cannot create work package at this time")
+      return
+    }
+
+    setIsCreating(true)
+    try {
+      const response = await apiClient.post(`/api/projects/${projectId}/work-packages`, {
+        title: formData.title,
+        description: formData.description,
+        priority: formData.priority,
+        dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : null
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setWorkPackages([...workPackages, data])
+        setFormData({ title: "", description: "", priority: "MEDIUM", dueDate: "" })
+        setOpenDialog(false)
+        toast.success("Work package created successfully!")
+      } else {
+        toast.error("Failed to create work package")
+      }
+    } catch (error) {
+      console.error("Error creating work package:", error)
+      toast.error("Failed to create work package")
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
+  const handleDeleteWorkPackage = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this work package?")) {
+      return
+    }
+
+    try {
+      // Make sure we're on the client side before making API calls
+      if (typeof window === "undefined") {
+        toast.error("Cannot delete work package at this time")
+        return
+      }
+
+      const response = await apiClient.delete(`/api/workpackages/${id}`)
+
+      if (response.ok) {
+        setWorkPackages(workPackages.filter((wp) => wp._id !== id))
+        toast.success("Work package deleted successfully!")
+      } else {
+        toast.error("Failed to delete work package")
+      }
+    } catch (error) {
+      console.error("Error deleting work package:", error)
+      toast.error("Failed to delete work package")
+    }
+  }
+
   const filteredTasks = useMemo(() => {
-    return tasks.filter((task) => {
+    return workPackages.filter((task) => {
       const matchesSearch =
         task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         task.description?.toLowerCase().includes(searchQuery.toLowerCase())
       const matchesFilter = filterStatus === "ALL" || task.status === filterStatus
       return matchesSearch && matchesFilter
     })
-  }, [tasks, searchQuery, filterStatus])
+  }, [workPackages, searchQuery, filterStatus])
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case "DONE":
+      case "COMPLETED":
         return <CheckCircle2 className="h-5 w-5 text-emerald-500" />
       case "IN_PROGRESS":
-      case "DOING":
         return <Zap className="h-5 w-5 animate-pulse text-blue-500" />
       default:
         return <Circle className="h-5 w-5 text-slate-300" />
     }
   }
 
-  if (loading && tasks.length === 0) {
+  const handleViewDetails = (wp: WorkPackage) => {
+    setSelectedWorkPackage({
+      ...wp,
+      projectId: projectId
+    })
+    setViewDialogOpen(true)
+  }
+
+  const handleChangeOwner = (wp: WorkPackage) => {
+    setSelectedWorkPackage({
+      ...wp,
+      projectId: projectId
+    })
+    setChangeOwnerDialogOpen(true)
+  }
+
+  const handleOwnerChanged = () => {
+    fetchWorkPackages()
+  }
+
+  if (loading && workPackages.length === 0) {
     return (
-      <div className="flex min-h-[600px] flex-col items-center justify-center space-y-4 bg-slate-50/50 dark:bg-slate-950/50">
+      <div className="flex min-h-96 flex-col items-center justify-center space-y-4 bg-slate-50/50 dark:bg-slate-950/50">
         <div className="flex h-12 w-12 animate-pulse items-center justify-center rounded-2xl bg-blue-600/10">
           <Package className="h-6 w-6 text-blue-600" />
         </div>
@@ -121,7 +292,7 @@ export default function WorkPackagesPage() {
   }
 
   return (
-    <div className="min-h-full space-y-12 bg-slate-50/30 p-8 pb-32 font-sans dark:bg-slate-950/30">
+    <div className="relative min-h-screen w-full space-y-10 overflow-hidden bg-white p-8 pb-32 font-sans md:overflow-auto dark:bg-slate-950">
       {/* 1. Navigation & Context */}
       <div className="flex items-center gap-4">
         <Link href={`/${locale}/projects/${projectId}`}>
@@ -133,18 +304,13 @@ export default function WorkPackagesPage() {
             Back to Project
           </Button>
         </Link>
-        <div className="mx-2 h-4 w-[1px] bg-slate-300" />
+        <div className="mx-2 h-4 w-px bg-slate-300" />
         <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
           Workspace / Work Packages
         </span>
       </div>
 
-      {/* 2. Package Hierarchy Section */}
-      <div className="grid gap-8">
-        <WorkPackageHierarchyInfo />
-      </div>
-
-      {/* 3. Premium Header Section */}
+      {/* 2. Premium Header Section */}
       <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
         <div className="space-y-3">
           <div className="mb-1 flex items-center gap-3">
@@ -164,16 +330,101 @@ export default function WorkPackagesPage() {
           <p className="max-w-2xl leading-relaxed font-medium text-slate-500 italic">
             Project deliverables and status for{" "}
             <span className="text-blue-600 underline decoration-blue-500/30 underline-offset-4">
-              "{project?.title || "Project"}"
+              "{projectId}"
             </span>
           </p>
         </div>
-        <div className="flex shrink-0 origin-bottom-right scale-110 items-center gap-3">
-          <CreateWorkPackageDialog projectId={projectId} onWorkPackageCreated={fetchProject} />
-        </div>
+        <Dialog open={openDialog} onOpenChange={setOpenDialog}>
+          <DialogTrigger asChild>
+            <Button className="h-12 gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 px-6 font-bold text-white shadow-lg shadow-blue-500/25">
+              <Plus className="h-4 w-4" />
+              New Package
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="rounded-3xl border-slate-200/60 bg-white/80 backdrop-blur-xl dark:border-slate-800/60 dark:bg-slate-950/80">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-black">Create Work Package</DialogTitle>
+              <DialogDescription>
+                Add a new work package to organize your project deliverables
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div>
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  Title *
+                </label>
+                <Input
+                  placeholder="Work package title"
+                  value={formData.title}
+                  onChange={(e) => {
+                    setFormData({ ...formData, title: e.target.value })
+                  }}
+                  className="mt-2 rounded-xl border-slate-200 dark:border-slate-800"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  Description
+                </label>
+                <textarea
+                  placeholder="Describe your work package..."
+                  value={formData.description}
+                  onChange={(e) => {
+                    setFormData({ ...formData, description: e.target.value })
+                  }}
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white/60 p-3 text-sm dark:border-slate-800 dark:bg-slate-900/60"
+                  rows={3}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    Priority
+                  </label>
+                  <Select
+                    value={formData.priority}
+                    onValueChange={(value) => {
+                      setFormData({ ...formData, priority: value })
+                    }}
+                  >
+                    <SelectTrigger className="mt-2 rounded-xl border-slate-200 dark:border-slate-800">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="LOW">Low</SelectItem>
+                      <SelectItem value="MEDIUM">Medium</SelectItem>
+                      <SelectItem value="HIGH">High</SelectItem>
+                      <SelectItem value="URGENT">Urgent</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.dueDate}
+                    onChange={(e) => {
+                      setFormData({ ...formData, dueDate: e.target.value })
+                    }}
+                    className="mt-2 w-full rounded-xl border border-slate-200 bg-white/60 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-900/60"
+                  />
+                </div>
+              </div>
+              <Button
+                onClick={handleCreateWorkPackage}
+                disabled={isCreating}
+                className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 font-semibold text-white"
+              >
+                {isCreating ? "Creating..." : "Create Work Package"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
-      {/* 4. Filters & Actions */}
+      {/* 3. Filters & Actions */}
       <div className="sticky top-4 z-20 space-y-4 rounded-3xl border border-white/20 bg-white/70 p-4 shadow-2xl shadow-slate-200/40 backdrop-blur-xl dark:border-slate-800/50 dark:bg-slate-900/70 dark:shadow-none">
         <div className="flex flex-col gap-4 md:flex-row">
           <div className="group relative flex-1">
@@ -181,7 +432,9 @@ export default function WorkPackagesPage() {
             <Input
               placeholder="Search work packages by title..."
               value={searchQuery}
-              onChange={(e) =>{  setSearchQuery(e.target.value); }}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+              }}
               className="h-12 rounded-2xl border-none bg-slate-50 pl-12 text-sm font-medium transition-all placeholder:font-medium placeholder:italic focus:ring-4 focus:ring-blue-500/10 dark:bg-slate-950"
             />
           </div>
@@ -195,31 +448,39 @@ export default function WorkPackagesPage() {
                   <FilterIcon className="h-4 w-4 text-blue-600" />
                   Filter:{" "}
                   <span className="text-blue-600">
-                    {filterStatus === "ALL" ? "All Tasks" : filterStatus.replace("_", " ")}
+                    {filterStatus === "ALL" ? "All Packages" : filterStatus.replace("_", " ")}
                   </span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56 rounded-2xl border-slate-100 p-2 shadow-2xl">
                 <DropdownMenuItem
-                  onClick={() =>{  setFilterStatus("ALL"); }}
+                  onClick={() => {
+                    setFilterStatus("ALL")
+                  }}
                   className="rounded-xl py-3 font-bold"
                 >
-                  All Tasks
+                  All Packages
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() =>{  setFilterStatus("TODO"); }}
+                  onClick={() => {
+                    setFilterStatus("TODO")
+                  }}
                   className="rounded-xl py-3 font-bold"
                 >
                   To Do
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() =>{  setFilterStatus("IN_PROGRESS"); }}
+                  onClick={() => {
+                    setFilterStatus("IN_PROGRESS")
+                  }}
                   className="rounded-xl py-3 font-bold"
                 >
                   In Progress
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() =>{  setFilterStatus("DONE"); }}
+                  onClick={() => {
+                    setFilterStatus("COMPLETED")
+                  }}
                   className="rounded-xl py-3 font-bold"
                 >
                   Completed
@@ -237,41 +498,41 @@ export default function WorkPackagesPage() {
         </div>
       </div>
 
-      {/* 5. Progress Dashboard */}
+      {/* 4. Progress Dashboard */}
       <div className="grid gap-6 md:grid-cols-4">
         {[
           {
-            label: "Total Tasks",
-            value: tasks.length,
+            label: "Total Packages",
+            value: workPackages.length,
             icon: Package,
             color: "blue",
             sub: "All packages"
           },
           {
             label: "To Do",
-            value: tasks.filter((t) => t.status === "TODO").length,
+            value: workPackages.filter((t) => t.status === "TODO").length,
             icon: Target,
             color: "slate",
             sub: "Awaiting start"
           },
           {
             label: "In Progress",
-            value: tasks.filter((t) => t.status === "IN_PROGRESS" || t.status === "DOING").length,
+            value: workPackages.filter((t) => t.status === "IN_PROGRESS").length,
             icon: Zap,
             color: "orange",
-            sub: "Active tasks"
+            sub: "Active packages"
           },
           {
             label: "Completed",
-            value: tasks.filter((t) => t.status === "DONE").length,
+            value: workPackages.filter((t) => t.status === "COMPLETED").length,
             icon: CheckCircle2,
             color: "green",
-            sub: "Finished tasks"
+            sub: "Finished packages"
           }
         ].map((stat, idx) => (
           <Card
             key={idx}
-            className="group overflow-hidden rounded-[2rem] border-none bg-white shadow-2xl shadow-slate-200/50 transition-all hover:-translate-y-1 dark:bg-slate-900 dark:shadow-none"
+            className="group overflow-hidden rounded-4xl border-none bg-white shadow-2xl shadow-slate-200/50 transition-all hover:-translate-y-1 dark:bg-slate-900 dark:shadow-none"
           >
             <CardContent className="p-8">
               <div className="mb-4 flex items-center justify-between">
@@ -307,7 +568,7 @@ export default function WorkPackagesPage() {
         ))}
       </div>
 
-      {/* 6. Work Package Table */}
+      {/* 5. Work Package Table */}
       <Card className="overflow-hidden rounded-[2.5rem] border-none bg-white shadow-2xl shadow-slate-200/50 dark:bg-slate-900">
         <Table>
           <TableHeader className="h-16 bg-slate-50/50 dark:bg-slate-900/50">
@@ -320,7 +581,7 @@ export default function WorkPackagesPage() {
                 Status
               </TableHead>
               <TableHead className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
-                Assigned To
+                Owner
               </TableHead>
               <TableHead className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
                 Due Date
@@ -344,11 +605,95 @@ export default function WorkPackagesPage() {
                         No work packages found in this project.
                       </p>
                     </div>
-                    <Link href={`/${locale}/projects/${projectId}/board`}>
-                      <Button className="h-14 rounded-2xl bg-slate-900 px-8 font-black text-white shadow-xl transition-all hover:scale-105 dark:bg-white dark:text-slate-900">
-                        Create First Work Package
-                      </Button>
-                    </Link>
+                    <Dialog open={openDialog} onOpenChange={setOpenDialog}>
+                      <DialogTrigger asChild>
+                        <Button className="h-14 rounded-2xl bg-slate-900 px-8 font-black text-white shadow-xl transition-all hover:scale-105 dark:bg-white dark:text-slate-900">
+                          Create First Work Package
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="rounded-3xl border-slate-200/60 bg-white/80 backdrop-blur-xl dark:border-slate-800/60 dark:bg-slate-950/80">
+                        <DialogHeader>
+                          <DialogTitle className="text-2xl font-black">
+                            Create Work Package
+                          </DialogTitle>
+                          <DialogDescription>
+                            Add a new work package to organize your project deliverables
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div>
+                            <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                              Title *
+                            </label>
+                            <Input
+                              placeholder="Work package title"
+                              value={formData.title}
+                              onChange={(e) => {
+                                setFormData({ ...formData, title: e.target.value })
+                              }}
+                              className="mt-2 rounded-xl border-slate-200 dark:border-slate-800"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                              Description
+                            </label>
+                            <textarea
+                              placeholder="Describe your work package..."
+                              value={formData.description}
+                              onChange={(e) => {
+                                setFormData({ ...formData, description: e.target.value })
+                              }}
+                              className="mt-2 w-full rounded-xl border border-slate-200 bg-white/60 p-3 text-sm dark:border-slate-800 dark:bg-slate-900/60"
+                              rows={3}
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                                Priority
+                              </label>
+                              <Select
+                                value={formData.priority}
+                                onValueChange={(value) => {
+                                  setFormData({ ...formData, priority: value })
+                                }}
+                              >
+                                <SelectTrigger className="mt-2 rounded-xl border-slate-200 dark:border-slate-800">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="LOW">Low</SelectItem>
+                                  <SelectItem value="MEDIUM">Medium</SelectItem>
+                                  <SelectItem value="HIGH">High</SelectItem>
+                                  <SelectItem value="URGENT">Urgent</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                                Due Date
+                              </label>
+                              <input
+                                type="date"
+                                value={formData.dueDate}
+                                onChange={(e) => {
+                                  setFormData({ ...formData, dueDate: e.target.value })
+                                }}
+                                className="mt-2 w-full rounded-xl border border-slate-200 bg-white/60 px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-900/60"
+                              />
+                            </div>
+                          </div>
+                          <Button
+                            onClick={handleCreateWorkPackage}
+                            disabled={isCreating}
+                            className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 font-semibold text-white"
+                          >
+                            {isCreating ? "Creating..." : "Create Work Package"}
+                          </Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 </TableCell>
               </TableRow>
@@ -376,7 +721,7 @@ export default function WorkPackagesPage() {
                           Verified
                         </Badge>
                         {task.description && (
-                          <span className="max-w-[200px] truncate text-[10px] font-medium text-slate-400 italic">
+                          <span className="max-w-50 truncate text-[10px] font-medium text-slate-400 italic">
                             {" "}
                             - {task.description}
                           </span>
@@ -396,20 +741,20 @@ export default function WorkPackagesPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {task.assignee ? (
+                    {task.owner ? (
                       <div className="flex items-center gap-3">
                         <Avatar className="h-10 w-10 rounded-2xl border-4 border-white shadow-xl transition-transform group-hover:scale-110 dark:border-slate-900">
-                          <AvatarImage src={task.assignee.avatar} />
+                          <AvatarImage src={task.owner.avatar} />
                           <AvatarFallback className="bg-slate-900 text-xs font-black text-white">
-                            {task.assignee.name?.slice(0, 1).toUpperCase()}
+                            {task.owner.name?.slice(0, 1).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex flex-col">
                           <span className="text-xs font-black text-slate-900 dark:text-white">
-                            {task.assignee.name}
+                            {task.owner.name}
                           </span>
                           <span className="text-[9px] font-black tracking-widest text-slate-400 uppercase">
-                            Assigned To
+                            Owner
                           </span>
                         </div>
                       </div>
@@ -424,14 +769,10 @@ export default function WorkPackagesPage() {
                       <div className="flex flex-col">
                         <span className="flex items-center gap-1.5 text-sm font-black tabular-nums">
                           <Calendar className="h-3 w-3 text-slate-300" />
-                          {new Date(task.dueDate).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric"
-                          })}
+                          {format(new Date(task.dueDate), "MMM dd, yyyy")}
                         </span>
                         <span className="mt-0.5 text-[9px] font-black tracking-widest text-slate-300 uppercase">
-                          Final SLA
+                          Due Date
                         </span>
                       </div>
                     ) : (
@@ -455,18 +796,31 @@ export default function WorkPackagesPage() {
                         align="end"
                         className="w-56 rounded-2xl border-slate-100 p-2 shadow-2xl"
                       >
-                        <DropdownMenuItem className="group gap-3 rounded-xl py-3 font-bold">
-                          <ArrowUpRight className="h-4 w-4 text-blue-500 transition-transform group-hover:scale-125" />
-                          Expand Analytics
+                        <DropdownMenuItem
+                          onClick={() => {
+                            handleViewDetails(task)
+                          }}
+                          className="group gap-3 rounded-xl py-3 font-bold"
+                        >
+                          <Eye className="h-4 w-4 text-blue-500 transition-transform group-hover:scale-125" />
+                          View Details
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="gap-3 rounded-xl py-3 font-bold">
-                          <User className="h-4 w-4 text-purple-500" />
-                          Reassign Lead
+                        <DropdownMenuItem
+                          onClick={() => {
+                            handleChangeOwner(task)
+                          }}
+                          className="gap-3 rounded-xl py-3 font-bold"
+                        >
+                          <UserCheck className="h-4 w-4 text-purple-500" />
+                          Change Owner
                         </DropdownMenuItem>
                         <DropdownMenuSeparator className="my-2" />
-                        <DropdownMenuItem className="gap-3 rounded-xl bg-rose-50/50 py-3 font-bold text-rose-600 hover:bg-rose-50">
-                          <MoreHorizontal className="h-4 w-4" />
-                          Purge Record
+                        <DropdownMenuItem
+                          onClick={async () => handleDeleteWorkPackage(task._id)}
+                          className="gap-3 rounded-xl bg-rose-50/50 py-3 font-bold text-rose-600 hover:bg-rose-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete Package
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -478,7 +832,7 @@ export default function WorkPackagesPage() {
         </Table>
       </Card>
 
-      {/* 7. Strategic Footer */}
+      {/* 6. Strategic Footer */}
       <div className="group relative flex items-center justify-between overflow-hidden rounded-[2.5rem] bg-slate-900 px-10 py-8 text-white shadow-2xl dark:bg-white dark:text-slate-900">
         <div className="absolute top-0 right-0 h-64 w-64 bg-blue-600/20 blur-[100px] transition-colors group-hover:bg-blue-600/40" />
         <div className="relative z-10 flex items-center gap-6">
@@ -500,16 +854,37 @@ export default function WorkPackagesPage() {
           </Button>
         </div>
       </div>
+
+      {/* 7. View Details Dialog */}
+      {selectedWorkPackage && (
+        <ViewWorkPackageDialog
+          open={viewDialogOpen}
+          onOpenChange={setViewDialogOpen}
+          workPackage={selectedWorkPackage}
+          onPackageUpdated={handleOwnerChanged}
+        />
+      )}
+
+      {/* 8. Change Owner Dialog */}
+      {selectedWorkPackage && selectedWorkPackage.owner && (
+        <ChangeOwnerDialog
+          open={changeOwnerDialogOpen}
+          onOpenChange={setChangeOwnerDialogOpen}
+          workPackageId={selectedWorkPackage._id}
+          currentOwner={selectedWorkPackage.owner}
+          projectId={projectId}
+          onOwnerChanged={handleOwnerChanged}
+        />
+      )}
     </div>
   )
 }
 
 function statColor(status: string) {
   switch (status) {
-    case "DONE":
+    case "COMPLETED":
       return "bg-emerald-50 text-emerald-600 border-emerald-100"
     case "IN_PROGRESS":
-    case "DOING":
       return "bg-blue-50 text-blue-600 border-blue-100"
     default:
       return "bg-slate-100 text-slate-500 border-slate-200"

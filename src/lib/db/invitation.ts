@@ -1,9 +1,11 @@
 "use server"
 
-import { connectToDatabase } from "./connect"
+import crypto from "crypto"
+
 import { OrganizationModel } from "@/models/organization.model"
 import { UserModel } from "@/models/user.model"
-import crypto from "crypto"
+
+import { connectToDatabase } from "./connect"
 
 export interface Invitation {
   email: string
@@ -36,9 +38,7 @@ export async function inviteUserToOrganization(
     }
 
     // Check if user is already a member
-    const existingMember = org.members.find(
-      m => m.userId.toString() === invitedById
-    )
+    const existingMember = org.members.find((m) => m.userId.toString() === invitedById)
     if (!existingMember) {
       return { success: false, error: "You are not a member of this organization" }
     }
@@ -48,7 +48,7 @@ export async function inviteUserToOrganization(
     if (existingUser) {
       // Add user to organization directly
       const alreadyMember = org.members.find(
-        m => m.userId.toString() === existingUser._id.toString()
+        (m) => m.userId.toString() === existingUser._id.toString()
       )
       if (alreadyMember) {
         return { success: false, error: "User is already a member" }
@@ -56,7 +56,7 @@ export async function inviteUserToOrganization(
 
       org.members.push({
         userId: existingUser._id,
-        role: role,
+        role: role as any,
         joinedAt: new Date()
       })
       await org.save()
@@ -126,14 +126,14 @@ export async function acceptInvitation(
       name,
       passwordHash,
       status: "ACTIVE"
-    })
+    } as any)
 
     // Add to organization
     const org = await OrganizationModel.findById(invitation.organizationId)
     if (org) {
       org.members.push({
         userId: user._id,
-        role: "MEMBER",
+        role: "MEMBER" as any,
         joinedAt: new Date()
       })
       await org.save()
@@ -152,9 +152,7 @@ export async function acceptInvitation(
 /**
  * Get invitation details
  */
-export async function getInvitation(
-  token: string
-): Promise<Invitation | null> {
+export async function getInvitation(token: string): Promise<Invitation | null> {
   const invitation = invitations.get(token)
   if (!invitation || invitation.expiresAt < new Date()) {
     return null

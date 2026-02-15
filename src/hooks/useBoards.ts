@@ -38,11 +38,17 @@ export function useBoards() {
       const userTeamBoards: Board[] = []
 
       boardsFromDB.forEach((board) => {
-        if (board.owner && typeof board.owner !== "string" && board.owner.id === userId) {
+        const isOwner = board.owner && typeof board.owner !== "string" && board.owner.id === userId
+        const isPrivate = board.isPrivate // Default to private=true
+
+        if (isOwner) {
+          // Owner can always see their own boards (personal or project-linked)
           userMyBoards.push(board)
-        } else {
+        } else if (!isPrivate) {
+          // Only show non-private boards to other users
           userTeamBoards.push(board)
         }
+        // Private boards not owned by this user are hidden
       })
 
       setMyBoards(userMyBoards)

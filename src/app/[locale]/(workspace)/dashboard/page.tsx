@@ -12,6 +12,7 @@ import {
   TrendingUp,
   Users
 } from "lucide-react"
+import { useEffect, useState } from "react"
 
 import {
   ActivityFeed,
@@ -28,15 +29,57 @@ import { useProjectStats } from "@/hooks/useProjectStats"
 import { useRecentActivity } from "@/hooks/useRecentActivity"
 import { useTaskStats } from "@/hooks/useTaskStats"
 import { Link } from "@/i18n/navigation"
+import { apiClient } from "@/lib/api/client"
 import { useTaskStore } from "@/lib/store"
 import { cn, formatDate } from "@/lib/utils"
 
 export default function DashboardPage() {
   const userId = useTaskStore((state) => state.userId)
+  const boardId = useTaskStore((state) => state.currentBoardId)
+  const fetchProjects = useTaskStore((state) => state.fetchProjects)
   const { myBoards, teamBoards } = useBoards()
   const taskStats = useTaskStats(userId)
   const projectStats = useProjectStats()
   const recentActivity = useRecentActivity(5)
+  const [upcomingEvents, setUpcomingEvents] = useState<any[]>([])
+
+  // Fetch projects on mount
+  useEffect(() => {
+    if (myBoards && myBoards.length > 0) {
+      const boardToLoad = myBoards[0]
+      fetchProjects(boardToLoad._id)
+    }
+  }, [myBoards, fetchProjects])
+
+  // Fetch calendar events
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        const response = await apiClient.get("/api/events")
+        if (response.ok) {
+          const events = await response.json()
+          const now = new Date()
+          const inThreeDays = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000)
+
+          const upcoming = events
+            .filter((event: any) => {
+              const eventStart = new Date(event.startTime)
+              return eventStart >= now && eventStart <= inThreeDays
+            })
+            .sort(
+              (a: any, b: any) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+            )
+            .slice(0, 5)
+
+          setUpcomingEvents(upcoming)
+        }
+      } catch (error) {
+        console.error("Failed to fetch calendar events:", error)
+      }
+    }
+
+    fetchEvents()
+  }, [])
 
   const allBoards = [...(myBoards || []), ...(teamBoards || [])]
 
@@ -385,7 +428,7 @@ export default function DashboardPage() {
                 </div>
               </CardHeader>
               <CardContent className="p-8 pt-2">
-                {taskStats.dueSoon === 0 && taskStats.dueToday === 0 ? (
+                {upcomingEvents.length === 0 ? (
                   <div className="py-10 text-center">
                     <p className="text-xs font-bold tracking-widest text-slate-400 uppercase italic opacity-60">
                       No upcoming deadlines
@@ -393,32 +436,50 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {taskStats.dueToday > 0 && (
-                      <div className="flex items-center gap-4 rounded-2xl border border-rose-100 bg-rose-50/50 p-4 shadow-sm transition-transform hover:scale-[1.02] dark:border-rose-900 dark:bg-rose-950/20">
-                        <AlertCircle className="h-5 w-5 text-rose-500" />
-                        <div>
-                          <p className="mb-1 text-sm leading-none font-black tracking-tight text-rose-900 uppercase dark:text-rose-400">
-                            Due Today
-                          </p>
-                          <p className="text-[10px] font-bold tracking-widest text-rose-600/70 uppercase dark:text-rose-500/70">
-                            {taskStats.dueToday} Tasks Due
-                          </p>
+                    {upcomingEvents.map((event: any) => {
+                      const eventDate = new Date(event.startTime)
+                      const isToday = eventDate.toDateString() === new Date().toDateString()
+                      const isSoon =
+                        eventDate.getTime() - new Date().getTime() < 3 * 24 * 60 * 60 * 1000
+
+                      return (
+                        <div
+                          key={event._id}
+                          className={cn(
+                            "flex items-center gap-4 rounded-2xl p-4 shadow-sm transition-transform hover:scale-[1.02]",
+                            isToday
+                              ? "border border-rose-100 bg-rose-50/50 dark:border-rose-900 dark:bg-rose-950/20"
+                              : "border border-blue-100 bg-blue-50/50 dark:border-blue-900 dark:bg-blue-950/20"
+                          )}
+                        >
+                          <AlertCircle
+                            className={cn("h-5 w-5", isToday ? "text-rose-500" : "text-blue-500")}
+                          />
+                          <div>
+                            <p
+                              className={cn(
+                                "mb-1 text-sm leading-none font-black tracking-tight uppercase",
+                                isToday
+                                  ? "text-rose-900 dark:text-rose-400"
+                                  : "text-blue-900 dark:text-blue-400"
+                              )}
+                            >
+                              {event.title}
+                            </p>
+                            <p
+                              className={cn(
+                                "text-[10px] font-bold tracking-widest uppercase",
+                                isToday
+                                  ? "text-rose-600/70 dark:text-rose-500/70"
+                                  : "text-blue-600/70 dark:text-blue-500/70"
+                              )}
+                            >
+                              {formatDate(eventDate)}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                    {taskStats.overdue > 0 && (
-                      <div className="flex items-center gap-4 rounded-2xl bg-slate-900 p-4 text-white shadow-2xl transition-transform hover:scale-[1.02] dark:bg-white dark:text-slate-900">
-                        <AlertCircle className="h-5 w-5 text-rose-500" />
-                        <div>
-                          <p className="mb-1 text-sm leading-none font-black tracking-tight uppercase">
-                            Overdue Tasks
-                          </p>
-                          <p className="text-[10px] font-black tracking-widest uppercase opacity-60">
-                            {taskStats.overdue} Tasks need attention
-                          </p>
-                        </div>
-                      </div>
-                    )}
+                      )
+                    })}
                   </div>
                 )}
               </CardContent>

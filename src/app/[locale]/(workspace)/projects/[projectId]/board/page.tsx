@@ -36,7 +36,7 @@ interface Board {
 
 export default function ProjectBoardsPage() {
   const params = useParams()
-  const projectId = params?.projectId as string
+  const projectId = (params?.projectId || params?.boardId) as string
   const [boards, setBoards] = useState<Board[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
@@ -194,7 +194,9 @@ export default function ProjectBoardsPage() {
                     <Input
                       placeholder="e.g., Tactical Design, Core Development"
                       value={formData.title}
-                      onChange={(e) =>{  setFormData({ ...formData, title: e.target.value }); }}
+                      onChange={(e) => {
+                        setFormData({ ...formData, title: e.target.value })
+                      }}
                       disabled={creating}
                       className="h-14 rounded-2xl border-slate-200 bg-slate-50 text-base font-medium shadow-inner transition-all focus:ring-4 focus:ring-blue-500/10 dark:border-slate-800 dark:bg-slate-900"
                     />
@@ -207,7 +209,9 @@ export default function ProjectBoardsPage() {
                     <Textarea
                       placeholder="Outline the core objectives for this board..."
                       value={formData.description}
-                      onChange={(e) =>{  setFormData({ ...formData, description: e.target.value }); }}
+                      onChange={(e) => {
+                        setFormData({ ...formData, description: e.target.value })
+                      }}
                       disabled={creating}
                       rows={4}
                       className="resize-none rounded-[2rem] border-slate-200 bg-slate-50 p-5 text-base font-medium shadow-inner transition-all focus:ring-4 focus:ring-blue-500/10 dark:border-slate-800 dark:bg-slate-900"
@@ -218,7 +222,9 @@ export default function ProjectBoardsPage() {
                 <div className="relative z-10 flex items-center justify-end gap-4 pt-4">
                   <Button
                     variant="ghost"
-                    onClick={() =>{  setDialogOpen(false); }}
+                    onClick={() => {
+                      setDialogOpen(false)
+                    }}
                     disabled={creating}
                     className="h-14 rounded-2xl px-8 text-[11px] font-bold tracking-widest text-slate-400 uppercase transition-colors hover:text-slate-900 dark:hover:text-white"
                   >
@@ -262,7 +268,9 @@ export default function ProjectBoardsPage() {
               managing tasks.
             </p>
             <Button
-              onClick={() =>{  setDialogOpen(true); }}
+              onClick={() => {
+                setDialogOpen(true)
+              }}
               className="h-16 rounded-2xl bg-blue-600 px-12 text-[12px] font-bold tracking-widest text-white uppercase shadow-2xl shadow-blue-500/30 transition-all hover:scale-[1.05] hover:bg-blue-700"
             >
               Create First Board

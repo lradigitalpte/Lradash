@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { verifyAccessToken } from "@/lib/auth/tokens"
+import { connectToDatabase } from "@/lib/db/connect"
+import { WorkPackageModel } from "@/models/workpackage.model"
 
 export async function GET(
   request: NextRequest,
@@ -25,11 +27,19 @@ export async function GET(
       )
     }
 
+    await connectToDatabase()
     const { projectId } = await params
 
-    // TODO: Fetch work packages from database when work package model is ready
-    // For now, return empty array
-    return NextResponse.json([], {
+    // Fetch work packages for this project
+    const workPackages = await WorkPackageModel.find({
+      projectId,
+      deletedAt: null
+    })
+      .populate("owner", "name avatar email")
+      .populate("assignees", "name avatar email")
+      .sort({ createdAt: -1 })
+
+    return NextResponse.json(workPackages, {
       status: 200,
       headers: { "Content-Type": "application/json" }
     })
@@ -58,31 +68,39 @@ export async function POST(
     const token = authHeader.substring(7)
     const decoded = verifyAccessToken(token)
 
-    if (!decoded) {
+    if (!decoded || !decoded.userId) {
       return NextResponse.json(
         { error: "Invalid token" },
         { status: 401, headers: { "Content-Type": "application/json" } }
       )
     }
 
+    await connectToDatabase()
     const { projectId } = await params
     const body = await request.json()
 
-    // TODO: Create work package in database when work package model is ready
-    // For now, return a mock response
-    return NextResponse.json(
-      {
-        _id: "temp-" + Date.now(),
-        ...body,
-        projectId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      },
-      {
-        status: 201,
-        headers: { "Content-Type": "application/json" }
-      }
-    )
+    // Create work package
+    const workPackage = new WorkPackageModel({
+      title: body.title,
+      description: body.description,
+      status: body.status || "TODO",
+      priority: body.priority || "MEDIUM",
+      dueDate: body.dueDate ? new Date(body.dueDate) : undefined,
+      projectId,
+      organizationId: body.organizationId,
+      owner: decoded.userId,
+      assignees: body.assignees || []
+    })
+
+    await workPackage.save()
+
+    // Populate related fields
+    await workPackage.populate("owner", "name avatar email")
+
+    return NextResponse.json(workPackage, {
+      status: 201,
+      headers: { "Content-Type": "application/json" }
+    })
   } catch (error) {
     console.error("Create work package error:", error)
     return NextResponse.json(

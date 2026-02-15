@@ -25,7 +25,13 @@ export default function RootWrapper({ children }: { children: React.ReactNode })
         if (response.ok && mounted) {
           const user = await response.json()
           console.log("[RootWrapper] Initializing user:", user.email)
-          await setUserInfo(user.email)
+          // Serialize user to plain object to avoid MongoDB ObjectId issues
+          const plainUser = {
+            email: user.email,
+            name: user.name,
+            id: user._id?.toString ? user._id.toString() : user._id
+          }
+          await setUserInfo(plainUser.email)
         }
       } catch (error) {
         console.error("[RootWrapper] Failed to initialize user:", error)
@@ -39,20 +45,20 @@ export default function RootWrapper({ children }: { children: React.ReactNode })
     }
   }, [setUserInfo])
 
-  // Hide app sidebar when viewing project detail or board projects page
+  // Hide app sidebar when viewing project or board detail page, or the monitor section
   const segments = pathname.split("/").filter(Boolean)
-  // Check if path starts with locale and contains /projects/[id]
-  const isProjectDetail = segments.length >= 3 && segments[1] === "projects" && segments[2]
-  const isBoardProjectsPage =
-    segments.length === 4 && segments[1] === "boards" && segments[3] === "projects"
+  // Check if path starts with locale and contains /projects/[id], /boards/[id] or /monitor
+  const isDetailView =
+    segments.length >= 3 && (segments[1] === "projects" || segments[1] === "boards") && segments[2]
+  const isMonitorView = segments.length >= 2 && segments[1] === "monitor"
 
   return (
     <>
-      {isProjectDetail || isBoardProjectsPage ? (
-        // For project detail and board projects page, render children directly without sidebar/header
+      {isDetailView || isMonitorView ? (
+        // For detail views and monitor, render children directly (they provide their own sidebar/layout)
         <>{children}</>
       ) : (
-        // For all other pages, render with sidebar and header
+        // For all other pages (including board projects), render with sidebar and header
         <SidebarProvider>
           <AppSidebar />
           <SidebarInset>

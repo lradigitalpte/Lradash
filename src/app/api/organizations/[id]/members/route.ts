@@ -72,7 +72,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         passwordHash,
         status: "ACTIVE",
         defaultOrganizationId: organizationId
-      })
+      } as any)
     }
 
     // 4. Add user to organization

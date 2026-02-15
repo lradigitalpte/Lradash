@@ -5,7 +5,7 @@ const withNextIntl = createNextIntlPlugin()
 
 const nextConfig: NextConfig = {
   typescript: {
-    ignoreBuildErrors: true
+    ignoreBuildErrors: false
   },
   compiler: {
     relay: {

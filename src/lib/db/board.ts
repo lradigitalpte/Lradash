@@ -21,7 +21,7 @@ export async function fetchBoardsFromDb(userEmail: string): Promise<Board[]> {
 
     const boardsFromDb = await BoardModel.find({
       $or: [{ owner: user._id }, { members: user._id }]
-    })
+    } as any)
       .populate("owner", "name")
       .populate("members", "name")
       .lean()
@@ -38,7 +38,7 @@ async function getUserMap(userIds: string[]): Promise<Map<string, string>> {
   const users = await Promise.all(userIds.map(async (id) => getUserById(id)))
   users.forEach((user) => {
     if (user) {
-      userMap.set(user.id, user.name)
+      userMap.set(user._id, user.name)
     }
   })
   return userMap
@@ -78,6 +78,10 @@ function convertBoardToPlainObject(
         name
       }
     }),
+    organizationId: boardDoc.organizationId.toString(),
+    listIds: (boardDoc as any).listIds || [],
+    isPrivate: boardDoc.isPrivate, // Default to private
+    isArchived: boardDoc.isArchived || false,
     projects: [], // Boards don't have a projects array in the schema
     createdAt: new Date(boardDoc.createdAt),
     updatedAt: new Date(boardDoc.updatedAt)
@@ -107,15 +111,16 @@ export async function createBoardInDb({
     }
 
     // For personal boards, create with organizationId but no specific projectId
-    // This makes it a personal workspace board
+    // This makes it a personal workspace board (private by default)
     const newBoard = await BoardModel.create({
       title,
       description,
       organizationId,
       owner: user._id,
       projectId: null, // Personal boards don't belong to a specific project
-      members: [user._id]
-    })
+      members: [user._id],
+      isPrivate: true // Personal boards are private by default
+    } as any)
 
     const userMap = new Map([[user._id.toString(), user.name]])
     return convertBoardToPlainObject(newBoard.toObject(), userMap)
@@ -144,7 +149,7 @@ export async function updateBoardInDb(
     }
 
     const existingOwnerId = getObjectIdString(existingBoard.owner)
-    if (existingOwnerId !== user.id) {
+    if (existingOwnerId !== user._id.toString()) {
       throw new Error("Unauthorized: Only board owner can update the board")
     }
 
@@ -195,7 +200,7 @@ export async function deleteBoardInDb(boardId: string, userEmail: string): Promi
     const { TaskModel } = await import("@/models/task.model")
     await TaskModel.deleteMany({
       project: { $in: board.projects }
-    })
+    } as any)
 
     await ProjectModel.deleteMany({ board: boardId })
     await BoardModel.findByIdAndDelete(boardId)

@@ -100,9 +100,11 @@ export interface BoardDocument {
   title: string
   description?: string
   organizationId: string
+  projectId?: string | null
   owner: string | UserInfo
   members: (string | UserInfo)[]
   projects: (string | Project)[]
+  isPrivate: boolean
   isArchived: boolean
   createdAt: Date
   updatedAt: Date
@@ -114,9 +116,28 @@ export interface Board {
   title: string
   description?: string
   organizationId: string
+  projectId?: string | null
   owner: UserInfo
   members: UserInfo[]
   projects: Project[]
+  listIds: string[]
+  isPrivate: boolean
+  isArchived: boolean
+  createdAt: Date
+  updatedAt: Date
+  deletedAt?: Date
+}
+
+// ========== LIST TYPES ==========
+export interface List {
+  _id: string
+  title: string
+  description?: string
+  boardId: string
+  projectId: string
+  organizationId: string
+  position: number
+  cardIds: string[]
   isArchived: boolean
   createdAt: Date
   updatedAt: Date
@@ -187,6 +208,7 @@ export interface Task {
   organizationId: string
   board?: string
   project?: string
+  workPackage?: string // Optional: reference to WorkPackage
   assignee?: UserInfo
   creator: UserInfo
   lastModifier: UserInfo
@@ -248,6 +270,54 @@ export interface TaskModel {
   assignee?: string
   creator: string
   lastModifier: string
+  priority: TaskPriority
+  isArchived: boolean
+  createdAt: Date
+  updatedAt: Date
+  deletedAt?: Date
+}
+
+// ========== WORK PACKAGE TYPES ==========
+export enum WorkPackageStatus {
+  TODO = "TODO",
+  IN_PROGRESS = "IN_PROGRESS",
+  COMPLETED = "COMPLETED",
+  ON_HOLD = "ON_HOLD"
+}
+
+export interface WorkPackage {
+  _id: string
+  title: string
+  description?: string
+  status: WorkPackageStatus
+  dueDate?: Date
+  organizationId: string
+  boardId?: string
+  projectId?: string
+  owner: UserInfo
+  assignees?: UserInfo[]
+  tasks?: string[]
+  progress?: number
+  priority: TaskPriority
+  isArchived: boolean
+  createdAt: Date
+  updatedAt: Date
+  deletedAt?: Date
+}
+
+export interface WorkPackageModel {
+  _id: string
+  title: string
+  description?: string
+  status: WorkPackageStatus
+  dueDate?: Date
+  organizationId: string
+  boardId?: string
+  projectId?: string
+  owner: string
+  assignees?: string[]
+  tasks?: string[]
+  progress?: number
   priority: TaskPriority
   isArchived: boolean
   createdAt: Date

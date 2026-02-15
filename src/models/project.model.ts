@@ -13,6 +13,7 @@ const projectSchema = new mongoose.Schema(
     },
     owner: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     members: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    dueDate: { type: Date, default: null },
     isArchived: { type: Boolean, default: false },
     deletedAt: { type: Date, default: null } // Soft delete
   },

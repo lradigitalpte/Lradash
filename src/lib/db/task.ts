@@ -149,6 +149,16 @@ export async function getTaskById(taskId: string): Promise<Task> {
     if (!task) {
       throw new Error(`Task with id ${taskId} not found`)
     }
+    console.log("🔍 Task found:", {
+      title: task.title,
+      activitiesCount: (task as any).activities?.length || 0,
+      activities: (task as any).activities?.map((a: any) => ({
+        type: a.type,
+        text: a.text,
+        userId: a.user,
+        createdAt: a.createdAt
+      }))
+    })
     return await convertTaskToPlainObject(task as any)
   } catch (error) {
     console.error("Error fetching task by id:", error)
@@ -246,7 +256,16 @@ export async function createTaskInDb(
       lastModifier: creator._id,
       createdAt: new Date(),
       updatedAt: new Date(),
-      organizationId: creator.defaultOrganizationId
+      organizationId: creator.defaultOrganizationId,
+      // Add initial activity log
+      activities: [
+        {
+          user: creator._id,
+          type: "activity",
+          text: `Task created by ${creator.name}`,
+          createdAt: new Date()
+        }
+      ]
     }
 
     const newTask = await TaskModel.create(taskData)
@@ -283,22 +302,83 @@ export async function updateTaskInDb(
       updatedAt: new Date()
     }
 
-    // Ensure IDs are treated correctly if they are strings
-    if (updates.assignee && typeof updates.assignee === "string") {
-      taskUpdates.assignee = new Types.ObjectId(updates.assignee)
+    // Remove fields that shouldn't be updated
+    delete taskUpdates.creator
+    delete taskUpdates._id
+    delete taskUpdates.createdAt
+
+    // Ensure assignee is an ObjectId
+    if (taskUpdates.assignee) {
+      if (typeof taskUpdates.assignee === "string") {
+        taskUpdates.assignee = new Types.ObjectId(taskUpdates.assignee)
+      } else if (typeof taskUpdates.assignee === "object" && taskUpdates.assignee?.id) {
+        // If assignee comes as an object with id property, extract the id
+        taskUpdates.assignee = new Types.ObjectId(taskUpdates.assignee.id)
+      }
     }
 
-    if (updates.activities && Array.isArray(updates.activities)) {
-      taskUpdates.activities = updates.activities.map((a: any) => ({
-        ...a,
-        user:
-          typeof a.user === "string"
-            ? new Types.ObjectId(a.user)
-            : a.user?.id
-              ? new Types.ObjectId(a.user.id)
-              : a.user
-      }))
+    // Handle activities array - always ensure it's set
+    let updatedActivities = Array.isArray(taskUpdates.activities)
+      ? [...taskUpdates.activities]
+      : [...((task as any).activities || [])]
+
+    // Map activity user references to ObjectIds
+    updatedActivities = updatedActivities.map((a: any) => ({
+      ...a,
+      user:
+        typeof a.user === "string"
+          ? new Types.ObjectId(a.user)
+          : a.user?.id
+            ? new Types.ObjectId(a.user.id)
+            : a.user instanceof Types.ObjectId
+              ? a.user
+              : new Types.ObjectId(String(a.user))
+    }))
+
+    // Log status changes as activities
+    if (updates.status && updates.status !== (task as any).status) {
+      const statusMap: { [key: string]: string } = {
+        TODO: "To Do",
+        IN_PROGRESS: "In Progress",
+        DONE: "Completed",
+        ARCHIVED: "Archived"
+      }
+      const newStatusLabel = statusMap[updates.status] || updates.status
+      const activityEntry = {
+        user: modifier._id,
+        type: "activity",
+        text: `Status changed to ${newStatusLabel} by ${modifier.name}`,
+        createdAt: new Date()
+      }
+      updatedActivities.push(activityEntry)
     }
+
+    // Log assignee changes
+    if (updates.assignee && updates.assignee !== (task as any).assignee) {
+      const assigneeId =
+        typeof updates.assignee === "string"
+          ? updates.assignee
+          : updates.assignee?.id
+            ? updates.assignee.id
+            : String(updates.assignee)
+      const assigneeUser = await getUserById(assigneeId)
+      const activityEntry = {
+        user: modifier._id,
+        type: "activity",
+        text: `Assigned to ${assigneeUser?.name || "Unknown"} by ${modifier.name}`,
+        createdAt: new Date()
+      }
+      updatedActivities.push(activityEntry)
+    }
+
+    // Always set activities in taskUpdates
+    taskUpdates.activities = updatedActivities
+
+    console.log("📝 Updating task activities:", {
+      taskId,
+      totalActivities: updatedActivities.length,
+      newActivities: updatedActivities.slice(-2).map((a) => ({ type: a.type, text: a.text }))
+    })
 
     const updatedTask = await TaskModel.findByIdAndUpdate(taskId, taskUpdates, { new: true })
 
@@ -387,7 +467,19 @@ export async function deleteTaskInDb(taskId: string): Promise<void> {
     if (!task) {
       throw new Error(`Task with id ${taskId} not found`)
     }
-    await TaskModel.findByIdAndDelete(taskId)
+
+    // Soft delete by adding deletion activity and marking as deleted
+    const deletionActivity = {
+      user: (task as any).lastModifier,
+      type: "activity",
+      text: "Task deleted",
+      createdAt: new Date()
+    }
+
+    await TaskModel.findByIdAndUpdate(taskId, {
+      deletedAt: new Date(),
+      activities: [...((task as any).activities || []), deletionActivity]
+    })
   } catch (error) {
     console.error("Error deleting task:", error)
     throw error
@@ -417,7 +509,7 @@ export async function getAllUserTasks(userEmail: string): Promise<Task[]> {
       creator: user._id,
       deletedAt: null,
       isArchived: false
-    }).lean()
+    } as any).lean()
 
     const taskPromises = tasks.map(async (task) => convertTaskToPlainObject(task as any))
     return await Promise.all(taskPromises)
@@ -450,6 +542,7 @@ export async function createPersonalTask(
       throw new Error("User must belong to an organization")
     }
 
+    const now = new Date()
     const taskData: any = {
       title,
       description,
@@ -460,8 +553,17 @@ export async function createPersonalTask(
       // No board or project for personal tasks
       creator: creator._id,
       lastModifier: creator._id,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: now,
+      updatedAt: now,
+      // Add initial activity log
+      activities: [
+        {
+          user: creator._id,
+          type: "activity",
+          text: `Task created by ${creator.name}`,
+          createdAt: now
+        }
+      ]
     }
 
     const newTask = await TaskModel.create(taskData)

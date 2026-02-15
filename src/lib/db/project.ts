@@ -29,7 +29,7 @@ export async function getProjectsFromDb(boardId: string): Promise<ProjectType[] 
 
     const projects = await ProjectModel.find({
       board: boardObjectId
-    }).lean()
+    } as any).lean()
 
     if (!projects || projects.length === 0) {
       console.log("No projects found for board:", boardId)
@@ -53,14 +53,14 @@ async function convertProjectToPlainObject(projectDoc: ProjectBase): Promise<Pro
   let ownerUser
   if (
     typeof projectDoc.owner === "object" &&
-    "id" in projectDoc.owner &&
+    ("id" in projectDoc.owner || "_id" in projectDoc.owner) &&
     "name" in projectDoc.owner
   ) {
     // Owner is already an object with id and name
     ownerUser = {
-      id: projectDoc.owner.id,
+      _id: (projectDoc.owner as any).id || (projectDoc.owner as any)._id,
       name: projectDoc.owner.name
-    }
+    } as any
   } else {
     // Owner is an ObjectId or string
     const ownerId =
@@ -74,10 +74,10 @@ async function convertProjectToPlainObject(projectDoc: ProjectBase): Promise<Pro
 
   // Handle the case where members might be an array of objects
   const memberPromises = projectDoc.members.map(async (member) => {
-    if (typeof member === "object" && "id" in member && "name" in member) {
+    if (typeof member === "object" && ("id" in member || "_id" in member) && "name" in member) {
       // Member is already an object with id and name
       return {
-        id: member.id,
+        _id: (member as any).id || (member as any)._id,
         name: member.name
       }
     }
@@ -89,7 +89,7 @@ async function convertProjectToPlainObject(projectDoc: ProjectBase): Promise<Pro
       return null
     }
     return {
-      id: memberUser.id.toString(),
+      id: memberUser._id.toString(),
       name: memberUser.name
     }
   })
@@ -104,14 +104,16 @@ async function convertProjectToPlainObject(projectDoc: ProjectBase): Promise<Pro
     _id: docId,
     title: projectDoc.title,
     description: projectDoc.description || "",
+    organizationId: (projectDoc as any).organizationId?.toString() || "",
     owner: {
-      id: ownerUser.id.toString(),
+      id: ownerUser._id?.toString() || ownerUser.id,
       name: ownerUser.name
     },
     members: members.map((member) => ({
-      id: member.id.toString(),
+      id: (member as any)._id?.toString() || (member as any).id,
       name: member.name
     })),
+    isArchived: (projectDoc as any).isArchived || false,
     createdAt: projectDoc.createdAt
       ? new Date(projectDoc.createdAt).toISOString()
       : new Date().toISOString(),
@@ -123,8 +125,11 @@ async function convertProjectToPlainObject(projectDoc: ProjectBase): Promise<Pro
       title: task.title,
       description: task.description || "",
       status: task.status,
-      project: task.project.toString(),
+      project: task.project?.toString() || "",
       board: task.board,
+      organizationId: task.organizationId?.toString() || "",
+      priority: task.priority || "MEDIUM",
+      isArchived: task.isArchived || false,
       creator: {
         id: task.creator.id,
         name: task.creator.name
@@ -155,10 +160,10 @@ export async function createProjectInDb(data: {
     }
     const projectDoc = await ProjectModel.create({
       ...data,
-      owner: owner.id,
-      members: [owner.id],
+      owner: owner._id,
+      members: [owner._id],
       board: new Types.ObjectId(data.board)
-    })
+    } as any)
 
     // add new project to board
     const updatedBoard = await BoardModel.findByIdAndUpdate(
@@ -201,7 +206,7 @@ export async function updateProjectInDb(data: {
       console.error("Owner not found")
       return null
     }
-    if ((project.owner as any).toString() !== owner.id.toString()) {
+    if ((project.owner as any).toString() !== owner._id.toString()) {
       console.error("Permission denied: User is not the project owner")
       return null
     }
@@ -246,7 +251,7 @@ export async function deleteProjectInDb(id: string, userEmail: string): Promise<
       console.error("User not found")
       return false
     }
-    if ((project.owner as any).toString() !== owner.id.toString()) {
+    if ((project.owner as any).toString() !== (owner as any)._id.toString()) {
       console.error("Permission denied: User is not the project owner")
       return false
     }

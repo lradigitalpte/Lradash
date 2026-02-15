@@ -164,12 +164,16 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
           <Header />
 
           {/* Content Wrapper */}
-          <main className="custom-scrollbar relative flex-1 overflow-y-auto">
-            {/* Background elements for premium feel */}
-            <div className="pointer-events-none absolute top-0 right-0 -z-10 h-[500px] w-[500px] rounded-full bg-blue-500/5 blur-[120px]" />
-            <div className="pointer-events-none absolute bottom-0 left-0 -z-10 h-[500px] w-[500px] rounded-full bg-indigo-500/5 blur-[120px]" />
-
-            <div className="h-full p-0">{children}</div>
+          <main className="relative flex-1 overflow-hidden">
+            <div className="custom-scrollbar relative h-full overflow-y-auto">
+              {/* Background that covers full scrollable area */}
+              <div className="absolute inset-0 -z-10 min-h-screen bg-slate-50/30 dark:bg-slate-950/30">
+                {/* Background elements for premium feel */}
+                <div className="pointer-events-none absolute top-0 right-0 h-[500px] w-[500px] translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-500/5 blur-[120px]" />
+                <div className="pointer-events-none absolute bottom-0 left-0 h-[500px] w-[500px] -translate-x-1/2 translate-y-1/2 rounded-full bg-indigo-500/5 blur-[120px]" />
+              </div>
+              {children}
+            </div>
           </main>
         </SidebarInset>
       </div>

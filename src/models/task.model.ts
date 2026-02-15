@@ -44,6 +44,11 @@ const taskSchema = new mongoose.Schema(
       enum: ["LOW", "MEDIUM", "HIGH", "URGENT"],
       default: "MEDIUM"
     },
+    workPackage: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "WorkPackage",
+      required: false // Optional: tasks can exist independently or be linked to work packages
+    },
     checklist: [
       {
         text: { type: String, required: true },
@@ -64,7 +69,21 @@ const taskSchema = new mongoose.Schema(
         user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
         type: { type: String, enum: ["comment", "activity"], required: true },
         text: { type: String, required: true },
-        createdAt: { type: Date, default: Date.now }
+        createdAt: { type: Date, default: Date.now },
+        mentions: [
+          {
+            userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+            userName: { type: String }
+          }
+        ],
+        notificationsSent: [
+          {
+            userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+            sentAt: { type: Date, default: Date.now },
+            method: { type: String, enum: ["email", "push", "in-app"], default: "in-app" },
+            status: { type: String, enum: ["pending", "sent", "failed"], default: "pending" }
+          }
+        ]
       }
     ],
     attachments: [
@@ -86,9 +105,11 @@ const taskSchema = new mongoose.Schema(
 taskSchema.index({ organizationId: 1 })
 taskSchema.index({ board: 1 })
 taskSchema.index({ project: 1 })
+taskSchema.index({ workPackage: 1 })
 taskSchema.index({ assignee: 1 })
 taskSchema.index({ creator: 1 })
 taskSchema.index({ organizationId: 1, board: 1, project: 1 })
+taskSchema.index({ organizationId: 1, workPackage: 1 })
 taskSchema.index({ deletedAt: 1 })
 
 function isTaskModel(model: any): model is Model<TaskType> {

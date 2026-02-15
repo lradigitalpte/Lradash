@@ -11,7 +11,7 @@ import { apiClient } from "@/lib/api/client"
 
 export default function GanttPage() {
   const params = useParams()
-  const projectId = params?.projectId as string
+  const projectId = (params?.projectId || params?.boardId) as string
   const locale = params?.locale as string
   const [project, setProject] = useState<any>(null)
 
@@ -73,14 +73,18 @@ export default function GanttPage() {
           <Button
             variant="outline"
             className="rounded-xl border-slate-200 shadow-sm dark:border-slate-800"
-            onClick={() =>{  alert("Export function would go here"); }}
+            onClick={() => {
+              alert("Export function would go here")
+            }}
           >
             <Download className="mr-2 h-4 w-4" />
             Export
           </Button>
           <Button
             className="rounded-xl bg-blue-600 shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5 hover:bg-blue-700"
-            onClick={() =>{  alert("Create Task function would go here"); }}
+            onClick={() => {
+              alert("Create Task function would go here")
+            }}
           >
             <Plus className="mr-2 h-4 w-4" />
             Create Task

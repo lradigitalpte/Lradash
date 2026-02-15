@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { verifyAccessToken } from "@/lib/auth/tokens"
 import { updateEventInDb, deleteEventInDb } from "@/lib/db/event"
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const authHeader = request.headers.get("authorization")
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -17,14 +17,18 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     }
 
     const body = await request.json()
-    const event = await updateEventInDb(params.id, body)
+    const { id } = await params
+    const event = await updateEventInDb(id, body)
     return NextResponse.json(event)
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     const authHeader = request.headers.get("authorization")
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -37,7 +41,8 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    await deleteEventInDb(params.id)
+    const { id } = await params
+    await deleteEventInDb(id)
     return NextResponse.json({ success: true })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })

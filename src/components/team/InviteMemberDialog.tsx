@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select"
+import { apiClient } from "@/lib/api/client"
 
 interface InviteMemberDialogProps {
   projectId: string
@@ -48,18 +49,31 @@ export function InviteMemberDialog({
     }
 
     setLoading(true)
-    // Simulating API call for "WOW" effect
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+    try {
+      const response = await apiClient.post(`/api/projects/${projectId}/members`, {
+        email,
+        role
+      })
 
-    toast.success(`Invitation successfully sent to ${email}`, {
-      description: `They will be joined as a ${role.toLowerCase()} once they accept.`
-    })
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || "Failed to invite member")
+      }
 
-    setEmail("")
-    setRole("MEMBER")
-    onOpenChange(false)
-    onInviteSent?.()
-    setLoading(false)
+      toast.success(`Member added successfully`, {
+        description: `${email} has been added to the project.`
+      })
+
+      setEmail("")
+      setRole("MEMBER")
+      onOpenChange(false)
+      onInviteSent?.()
+    } catch (error: any) {
+      console.error("Invite error:", error)
+      toast.error(error.message || "Failed to invite member")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const copyInviteLink = () => {
@@ -67,7 +81,9 @@ export function InviteMemberDialog({
     navigator.clipboard.writeText(link)
     setCopied(true)
     toast.success("Invite link copied to clipboard!")
-    setTimeout(() =>{  setCopied(false); }, 2000)
+    setTimeout(() => {
+      setCopied(false)
+    }, 2000)
   }
 
   return (
@@ -100,7 +116,9 @@ export function InviteMemberDialog({
                   placeholder="colleague@example.com"
                   className="h-12 rounded-xl border-slate-200 bg-slate-50 pl-10 focus:ring-2 focus:ring-blue-500/20 dark:bg-slate-900"
                   value={email}
-                  onChange={(e) =>{  setEmail(e.target.value); }}
+                  onChange={(e) => {
+                    setEmail(e.target.value)
+                  }}
                   disabled={loading}
                 />
               </div>

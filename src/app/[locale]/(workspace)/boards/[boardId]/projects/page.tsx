@@ -56,58 +56,14 @@ export default function BoardProjectsPage() {
     }
   }, [boardId, fetchProjects])
 
-  // Mock projects for display
-  const mockProjects = [
-    {
-      _id: "mock-1",
-      title: "Website Redesign",
-      description: "Complete redesign of the company website with modern UI/UX",
-      owner: "Jane Doe",
-      progress: 65,
-      taskCount: 25,
-      status: "on_track"
-    },
-    {
-      _id: "mock-2",
-      title: "Mobile App Development",
-      description: "Build iOS and Android mobile applications",
-      owner: "John Doe",
-      progress: 45,
-      taskCount: 32,
-      status: "at_risk"
-    },
-    {
-      _id: "mock-3",
-      title: "Database Migration",
-      description: "Migrate from PostgreSQL to MongoDB",
-      owner: "Alice Brown",
-      progress: 30,
-      taskCount: 18,
-      status: "off_track"
-    },
-    {
-      _id: "mock-4",
-      title: "API Documentation",
-      description: "Create comprehensive API documentation and guides",
-      owner: "Charlie Davis",
-      progress: 85,
-      taskCount: 12,
-      status: "on_track"
-    }
-  ]
+  // Use real projects from database (filter out archived)
+  const displayProjects = (projects || []).filter((p) => !p.isArchived)
 
-  const displayProjects = projects && projects.length > 0 ? projects : mockProjects
+  // For now, just use all projects (status filtering can be added later)
+  const filteredProjects = displayProjects
 
-  // Filter projects
-  const filteredProjects =
-    statusFilter === "all"
-      ? displayProjects
-      : displayProjects.filter((p) => p.status === statusFilter)
-
-  // Get attention-needed projects
-  const attentionNeeded = displayProjects.filter(
-    (p) => p.status === "at_risk" || p.status === "off_track"
-  )
+  // Get archived projects as "attention-needed" for now
+  const attentionNeeded = (projects || []).filter((p) => p.isArchived)
 
   if (!board) {
     return (
@@ -118,7 +74,13 @@ export default function BoardProjectsPage() {
             <CardDescription>The board you're looking for doesn't exist</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() =>{  router.push("/boards"); }}>Back to Boards</Button>
+            <Button
+              onClick={() => {
+                router.push("/boards")
+              }}
+            >
+              Back to Boards
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -174,23 +136,23 @@ export default function BoardProjectsPage() {
             variant="default"
           />
           <StatCard
-            title="On Track"
-            value={displayProjects.filter((p) => p.status === "on_track").length}
-            subtitle="Projects following schedule"
+            title="Active"
+            value={displayProjects.length}
+            subtitle="Currently active projects"
             icon={TrendingUp}
             variant="success"
           />
           <StatCard
-            title="At Risk"
-            value={displayProjects.filter((p) => p.status === "at_risk").length}
-            subtitle="Needs attention"
+            title="Archived"
+            value={(projects || []).filter((p) => p.isArchived).length}
+            subtitle="Archived projects"
             icon={AlertCircle}
             variant="warning"
           />
           <StatCard
-            title="Off Track"
-            value={displayProjects.filter((p) => p.status === "off_track").length}
-            subtitle="Significant delays"
+            title="Team Members"
+            value={board?.members?.length || 0}
+            subtitle="Project team"
             icon={TrendingDown}
             variant="danger"
           />
@@ -198,7 +160,13 @@ export default function BoardProjectsPage() {
 
         {/* Tabs and Filter */}
         <div className="space-y-8">
-          <Tabs value={viewMode} onValueChange={(v) =>{  setViewMode(v as any); }} className="w-full">
+          <Tabs
+            value={viewMode}
+            onValueChange={(v) => {
+              setViewMode(v as any)
+            }}
+            className="w-full"
+          >
             <div className="mb-10 flex flex-col justify-between gap-6 border-b border-slate-100 pb-2 md:flex-row md:items-center dark:border-slate-800">
               <TabsList className="h-14 w-full rounded-2xl bg-slate-100/50 p-1 md:w-auto dark:bg-slate-900/50">
                 <TabsTrigger
@@ -247,25 +215,33 @@ export default function BoardProjectsPage() {
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      onClick={() =>{  setStatusFilter("all"); }}
+                      onClick={() => {
+                        setStatusFilter("all")
+                      }}
                       className="gap-3 rounded-xl py-3 font-bold"
                     >
                       All Statuses
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onClick={() =>{  setStatusFilter("on_track"); }}
+                      onClick={() => {
+                        setStatusFilter("on_track")
+                      }}
                       className="gap-3 rounded-xl py-3 font-bold"
                     >
                       On Track
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onClick={() =>{  setStatusFilter("at_risk"); }}
+                      onClick={() => {
+                        setStatusFilter("at_risk")
+                      }}
                       className="gap-3 rounded-xl py-3 font-bold text-amber-600"
                     >
                       At Risk
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      onClick={() =>{  setStatusFilter("off_track"); }}
+                      onClick={() => {
+                        setStatusFilter("off_track")
+                      }}
                       className="gap-3 rounded-xl py-3 font-bold text-rose-600"
                     >
                       Off Track
