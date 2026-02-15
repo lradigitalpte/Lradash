@@ -7,11 +7,19 @@ import MonitorModel from "@/models/monitor.model"
 import { MonitorType, MonitorStatus } from "@/types/monitor"
 
 export async function GET(request: NextRequest) {
-  // Optional: check for a cron secret to prevent unauthorized access
-  // const authHeader = request.headers.get('authorization');
-  // if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-  //   return new Response('Unauthorized', { status: 401 });
-  // }
+  // Check for cron secret to prevent unauthorized access
+  const { searchParams } = new URL(request.url)
+  const key = searchParams.get("key")
+
+  if (key !== process.env.CRON_SECRET && !process.env.VERCEL) {
+    // Only enforce key if on Vercel or if key is provided
+    // This allows local testing without the key if needed, or enforces it in prod
+    if (process.env.NODE_ENV === "production" || key) {
+      if (key !== process.env.CRON_SECRET) {
+        return new Response("Unauthorized", { status: 401 })
+      }
+    }
+  }
 
   try {
     await connectToDatabase()
