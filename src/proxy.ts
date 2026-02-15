@@ -15,11 +15,17 @@ export function proxy(req: NextRequest) {
 
   // Check for custom auth refresh token cookie
   const refreshToken = req.cookies.get("refreshToken")
-  const isAuthenticated = !!refreshToken?.value
+  const authHeader = req.headers.get("Authorization") || req.headers.get("authorization")
+
+  // App-router server-side fetch often doesn't have the cookie passed explicitly
+  // but if the user has a refreshToken, they are authenticated.
+  const isAuthenticated =
+    !!refreshToken?.value || (!!authHeader && authHeader.startsWith("Bearer "))
 
   // Protect API routes (except auth)
   if (pathname.startsWith("/api")) {
     if (!isAuthenticated) {
+      console.warn(`Proxy 401: Path ${pathname} missing auth. Host: ${req.headers.get("host")}`)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
     return NextResponse.next()
