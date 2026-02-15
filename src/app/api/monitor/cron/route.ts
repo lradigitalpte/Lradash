@@ -10,14 +10,18 @@ export async function GET(request: NextRequest) {
   // Check for cron secret to prevent unauthorized access
   const { searchParams } = new URL(request.url)
   const key = searchParams.get("key")
+  const cronSecret = process.env.CRON_SECRET
 
-  if (key !== process.env.CRON_SECRET && !process.env.VERCEL) {
-    // Only enforce key if on Vercel or if key is provided
-    // This allows local testing without the key if needed, or enforces it in prod
-    if (process.env.NODE_ENV === "production" || key) {
-      if (key !== process.env.CRON_SECRET) {
-        return new Response("Unauthorized", { status: 401 })
-      }
+  // In production, always require the key
+  if (process.env.NODE_ENV === "production") {
+    if (!cronSecret || key !== cronSecret) {
+      console.error("Cron Unauthorized: Key mismatch or missing secret")
+      return new Response("Unauthorized", { status: 401 })
+    }
+  } else {
+    // In dev, allow skip if no secret is set, but if set, validate
+    if (cronSecret && key !== cronSecret) {
+      return new Response("Unauthorized", { status: 401 })
     }
   }
 

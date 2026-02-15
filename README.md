@@ -232,7 +232,7 @@ src/
 │   ├── auth/ # Authentication functions
 │   ├── store.ts # State management functions
 │   └── utils.ts # tailwindcss utils
-├── proxy.ts # the middleware for handling API requests
+├── proxy.ts # the proxy for handling API requests
 ├── models/ # Database models
 ├── styles/ # Global styles
 ├── types/ # Type definitions

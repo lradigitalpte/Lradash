@@ -14,7 +14,7 @@ export default async function AppLayout(props: Readonly<AppLayoutProps>) {
   const { locale } = resolvedParams
   const t = await getTranslations({ locale, namespace: "sidebar" })
 
-  // Auth check is handled by middleware (proxy.ts)
+  // Auth check is handled by proxy (proxy.ts)
   // No need to check here
 
   return (

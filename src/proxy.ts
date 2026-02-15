@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
 
-export default function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
 
-  // Allow auth API routes to pass through
-  if (pathname.startsWith("/api/auth")) {
+  // Allow auth API routes and monitor cron to pass through
+  if (pathname.startsWith("/api/auth") || pathname.startsWith("/api/monitor/cron")) {
+    return NextResponse.next()
+  }
+
+  // Allow public assets/images with extensions
+  if (pathname.match(/\.(png|jpg|jpeg|gif|svg|ico|webp)$/)) {
     return NextResponse.next()
   }
 
@@ -21,14 +26,30 @@ export default function middleware(req: NextRequest) {
   }
 
   // Allow access to login/signup/home pages
-  if (pathname === "/login" || pathname === "/signup" || pathname === "/" || pathname.startsWith("/en/login") || pathname.startsWith("/en/signup")) {
+  if (
+    pathname === "/login" ||
+    pathname === "/signup" ||
+    pathname === "/" ||
+    pathname.startsWith("/en/login") ||
+    pathname.startsWith("/en/signup")
+  ) {
     return NextResponse.next()
   }
 
   // Redirect unauthenticated users to login for protected routes
   if (!isAuthenticated) {
-    const protectedPaths = ["/boards", "/dashboard", "/projects", "/tasks", "/team", "/calendar", "/reports", "/en/boards", "/en/dashboard"]
-    if (protectedPaths.some(path => pathname.startsWith(path))) {
+    const protectedPaths = [
+      "/boards",
+      "/dashboard",
+      "/projects",
+      "/tasks",
+      "/team",
+      "/calendar",
+      "/reports",
+      "/en/boards",
+      "/en/dashboard"
+    ]
+    if (protectedPaths.some((path) => pathname.startsWith(path))) {
       return NextResponse.redirect(new URL("/en/login", req.url))
     }
   }
