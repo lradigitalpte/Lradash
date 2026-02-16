@@ -6,310 +6,517 @@ import {
   ArrowUpRight,
   CheckCircle2,
   AlertCircle,
-  Menu,
-  MousePointer2,
-  Share2,
-  Layout,
-  Smartphone,
+  Shield,
   Zap,
-  ChevronDown,
-  BarChart3
+  RefreshCw,
+  Settings,
+  AlertTriangle,
+  Globe,
+  BarChart3,
+  RotateCcw
 } from "lucide-react"
-import Link from "next/link"
 import { useParams } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
+import { SEOConfigModal } from "@/components/seo/SEOConfigModal"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { useGoogleSearchConsole } from "@/lib/hooks/useGoogleSearchConsole"
-import { useSEOData } from "@/lib/hooks/useSEOData"
+import { apiClient } from "@/lib/api/client"
+import { cn } from "@/lib/utils"
 
 export default function SEOPage() {
-  const { locale, projectId } = useParams()
-  const { score, recommendations, loading, updateRecommendationStatus } = useSEOData(
-    projectId as string
-  )
-  const { connectionStatus } = useGoogleSearchConsole(projectId as string)
+  const { projectId, boardId } = useParams()
+  const id = (projectId || boardId) as string
 
-  const handleConvertToTask = async (recommendationId: string) => {
-    // TODO: Create actual task via API
-    await updateRecommendationStatus(recommendationId, "converted-to-task")
+  const [configModalOpen, setConfigModalOpen] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [metrics, setMetrics] = useState<any>(null)
+  const [googleConnected, setGoogleConnected] = useState(false)
+  const [connectionStatus, setConnectionStatus] = useState<any>(null)
+
+  // Check Google Connection Status
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        const response = await apiClient.get(`/api/seo/google/connect?projectId=${id}`)
+        if (response.ok) {
+          const data = await response.json()
+          setGoogleConnected(data.connected)
+          setConnectionStatus(data)
+
+          // If connected, fetch metrics
+          if (data.connected) {
+            await fetchMetrics()
+          } else {
+            setLoading(false)
+          }
+        }
+      } catch (err) {
+        console.error("Error checking Google connection:", err)
+        setLoading(false)
+      }
+    }
+
+    checkConnection()
+  }, [id])
+
+  const fetchMetrics = async () => {
+    try {
+      setLoading(true)
+      const response = await apiClient.get(
+        `/api/seo/metrics?projectId=${id}&period=monthly&limit=1`
+      )
+      if (response.ok) {
+        const data = await response.json()
+        if (Array.isArray(data) && data.length > 0) {
+          setMetrics(data[0])
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching metrics:", err)
+    } finally {
+      setLoading(false)
+    }
   }
 
+  const handleSync = async () => {
+    setSyncing(true)
+    try {
+      const response = await apiClient.post(`/api/seo/sync`, { projectId: id })
+      if (response.ok) {
+        await fetchMetrics()
+      }
+    } catch (err) {
+      console.error("Sync error:", err)
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const handleResetConnection = async () => {
+    if (
+      !confirm(
+        "Are you sure you want to reset your Google connection? You'll need to re-authenticate."
+      )
+    ) {
+      return
+    }
+
+    try {
+      const response = await apiClient.delete(`/api/seo/google/connection`, { projectId: id })
+      if (response.ok) {
+        // Reload page to re-check connection
+        window.location.reload()
+      }
+    } catch (err) {
+      console.error("Reset connection error:", err)
+      alert("Failed to reset connection. Please try again.")
+    }
+  }
+
+  const calculateSEOScore = (): number => {
+    if (!metrics) return 0
+
+    let score = 0
+    const weights = {
+      searchConsole: 0.35,
+      technical: 0.35,
+      content: 0.3
+    }
+
+    // Search Console Score (0-100)
+    const searchScore = Math.min(
+      100,
+      ((metrics.searchConsole?.averagePosition
+        ? 100 - metrics.searchConsole.averagePosition * 3
+        : 50) +
+        (metrics.searchConsole?.averageCTR || 0) * 100) /
+        2
+    )
+
+    // Technical Score (0-100)
+    const technicalScore = Math.min(
+      100,
+      ((metrics.technical?.coreWebVitals?.good || 50) +
+        (100 - (metrics.technical?.crawlErrors || 0))) /
+        2
+    )
+
+    // Content Score (0-100)
+    const contentScore = Math.min(
+      100,
+      metrics.keywords?.inTop10
+        ? (metrics.keywords.inTop10 / Math.max(1, metrics.keywords.total)) * 100
+        : 50
+    )
+
+    score =
+      searchScore * weights.searchConsole +
+      technicalScore * weights.technical +
+      contentScore * weights.content
+
+    return Math.round(score)
+  }
+
+  const seoScore = calculateSEOScore()
+
   return (
-    <div className="space-y-8 p-8 pb-20">
-      {/* Header with SEO Score */}
-      <div className="flex flex-col justify-between gap-8 lg:flex-row lg:items-center">
+    <div className="space-y-8 p-8 pb-12">
+      {/* Header */}
+      <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <div className="flex h-6 items-center justify-center rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2">
-              <span className="text-[9px] font-black tracking-[0.2em] text-emerald-600 uppercase">
+            <div className="flex h-6 items-center justify-center rounded-md border border-blue-500/20 bg-blue-500/10 px-2">
+              <span className="text-[9px] font-black tracking-[0.2em] text-blue-600 uppercase">
                 Search Strategy
               </span>
             </div>
             <div className="h-1 w-1 rounded-full bg-slate-300 dark:bg-slate-700" />
             <span className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
-              Optimized
+              Optimize Rankings
             </span>
           </div>
           <h1 className="text-4xl font-black tracking-tighter text-slate-900 dark:text-white">
-            SEO <span className="text-emerald-600">Recommendations</span>
+            SEO <span className="text-blue-600">Tools</span>
           </h1>
           <p className="max-w-lg text-xs font-medium text-slate-500 italic">
-            HubSpot-powered insights to improve your search rank and build domain authority.
+            Connect Google Search Console to monitor rankings, analyze keywords, and improve
+            technical SEO.
           </p>
         </div>
-
-        <div className="flex items-center gap-6 rounded-[2rem] border border-slate-100 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex flex-col items-center">
-            <span className="mb-2 text-[10px] font-black tracking-widest text-slate-400 uppercase">
-              Overall SEO Score
-            </span>
-            <div className="relative flex h-20 w-20 items-center justify-center">
-              <svg className="h-full w-full rotate-[-90deg]">
-                <circle
-                  cx="40"
-                  cy="40"
-                  r="35"
-                  className="fill-none stroke-slate-100 stroke-[6] dark:stroke-slate-800"
-                />
-                <circle
-                  cx="40"
-                  cy="40"
-                  r="35"
-                  className="stroke-dasharray-[220] fill-none stroke-emerald-500 stroke-[6]"
-                  style={{
-                    strokeDashoffset: loading ? 220 : 220 - (220 * (score?.overallScore || 0)) / 100
-                  }}
-                />
-              </svg>
-              <span className="absolute text-xl font-black">
-                {loading ? "..." : score?.overallScore || 0}
-              </span>
-            </div>
-          </div>
-          <div className="h-12 w-px bg-slate-100 dark:bg-slate-800" />
-          <div className="space-y-3">
-            <div className="flex items-center gap-4">
-              <div className="h-2 w-2 rounded-full bg-emerald-500" />
-              <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">
-                On-Page
-              </span>
-              <span className="ml-auto text-xs font-black">
-                {loading ? "..." : score?.categories.onPage || 0}%
-              </span>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="h-2 w-2 rounded-full bg-blue-500" />
-              <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">
-                Technical
-              </span>
-              <span className="ml-auto text-xs font-black">
-                {loading ? "..." : score?.categories.technical || 0}%
-              </span>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="h-2 w-2 rounded-full bg-purple-500" />
-              <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">
-                Content
-              </span>
-              <span className="ml-auto text-xs font-black">
-                {loading ? "..." : score?.categories.content || 0}%
-              </span>
-            </div>
-          </div>
+        <div className="flex items-center gap-3">
+          {googleConnected && (
+            <Button
+              onClick={handleSync}
+              disabled={syncing}
+              variant="outline"
+              className="h-11 gap-2 rounded-xl border-slate-200 bg-white px-6 font-bold transition-all hover:scale-105"
+            >
+              <RefreshCw className={cn("h-4 w-4", syncing && "animate-spin")} />
+              {syncing ? "Syncing..." : "Sync Data"}
+            </Button>
+          )}
+          <Button
+            onClick={() =>{  setConfigModalOpen(true); }}
+            className="h-11 gap-2 rounded-xl bg-blue-600 px-6 font-bold text-white shadow-lg shadow-blue-500/20 transition-all hover:scale-105 hover:bg-blue-700"
+          >
+            <Settings className="h-4 w-4" />
+            {googleConnected ? "Reconfigure" : "Connect Google"}
+          </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-        {/* Main Recommendation Feed */}
-        <div className="space-y-6 lg:col-span-2">
-          <div className="flex items-center justify-between px-2">
-            <h3 className="text-lg font-black tracking-tight text-slate-900 uppercase dark:text-white">
-              Active Recommendations
-            </h3>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
-                Sort by:
-              </span>
-              <button className="flex items-center gap-1 text-[10px] font-black tracking-widest text-blue-600 uppercase">
-                Impact <ChevronDown className="h-3 w-3" />
-              </button>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            {loading ? (
-              <div className="py-12 text-center text-slate-400">Loading recommendations...</div>
-            ) : recommendations && recommendations.length > 0 ? (
-              recommendations.map((item) => {
-                const IconComponent =
-                  item.category === "technical"
-                    ? Zap
-                    : item.category === "on-page"
-                      ? Layout
-                      : item.category === "content"
-                        ? Search
-                        : Smartphone
-                const isConverted = item.status === "converted-to-task"
-                return (
-                  <div key={item.id} className="group relative">
-                    <div className="absolute -inset-0.5 rounded-[2rem] bg-gradient-to-r from-blue-500/20 to-purple-500/20 opacity-0 blur-sm transition duration-500 group-hover:opacity-100" />
-                    <div className="relative flex flex-col gap-6 rounded-[2rem] border border-slate-100 bg-white p-6 shadow-lg shadow-slate-200/40 md:flex-row dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
-                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-slate-50 shadow-inner transition-transform duration-500 group-hover:scale-110 dark:bg-slate-800">
-                        <IconComponent className="h-6 w-6 text-blue-600" />
-                      </div>
-                      <div className="flex-1 space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span
-                            className={cn(
-                              "rounded-md px-2 py-0.5 text-[9px] font-black tracking-widest uppercase",
-                              item.impact === "high"
-                                ? "border border-rose-500/20 bg-rose-500/10 text-rose-600"
-                                : "border border-blue-500/20 bg-blue-500/10 text-blue-600"
-                            )}
-                          >
-                            {item.impact} Impact
-                          </span>
-                          <span className="rounded-md border border-slate-200 bg-slate-100 px-2 py-0.5 text-[9px] font-black tracking-widest text-slate-500 uppercase dark:border-slate-700 dark:bg-slate-800">
-                            {item.difficulty}
-                          </span>
-                          <span className="ml-auto text-[10px] font-bold tracking-tighter text-slate-400 uppercase">
-                            {item.category}
-                          </span>
-                        </div>
-                        <h4 className="text-base font-black text-slate-900 transition-colors group-hover:text-blue-600 dark:text-white">
-                          {item.title}
-                        </h4>
-                        <p className="text-xs leading-relaxed font-medium text-slate-500 dark:text-slate-400">
-                          {item.description}
-                        </p>
-                        <div className="flex items-center gap-4 pt-2">
-                          {isConverted ? (
-                            <Button
-                              variant="ghost"
-                              className="h-8 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 text-[10px] font-black tracking-widest text-emerald-600 uppercase"
-                            >
-                              <CheckCircle2 className="mr-2 h-3 w-3" /> View on Board
-                            </Button>
-                          ) : (
-                            <Button
-                              onClick={ async () => handleConvertToTask(item.id)}
-                              variant="ghost"
-                              className="group/btn h-8 rounded-lg border border-blue-500/20 px-4 text-[10px] font-black tracking-widest text-blue-600 uppercase hover:bg-blue-50 dark:hover:bg-blue-900/20"
-                            >
-                              <ArrowUpRight className="mr-2 h-3 w-3 transition-transform group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5" />
-                              Convert to Task
-                            </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            className="h-8 rounded-lg p-0 px-4 text-[10px] font-black tracking-widest text-slate-400 uppercase hover:text-slate-900 dark:hover:text-white"
-                          >
-                            Ignore
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })
-            ) : (
-              <div className="py-12 text-center text-slate-400">
-                No recommendations yet. Add recommendations to get started.
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Sidebar Tools */}
-        <div className="space-y-8">
-          {/* Topic Authority Card */}
-          <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-indigo-900 to-slate-950 p-8 text-white shadow-2xl shadow-indigo-900/20">
-            <div className="absolute top-0 right-0 -mt-16 -mr-16 h-32 w-32 rounded-full bg-blue-500/20 blur-[40px]" />
-            <div className="relative z-10 space-y-6">
-              <div className="space-y-1">
-                <h3 className="text-xl font-black">Plan Strategy</h3>
-                <p className="text-[10px] font-black tracking-[0.2em] text-blue-400 uppercase">
-                  Content Clusters
+      {/* Connection Status Banner */}
+      {!googleConnected && (
+        <Card className="border-amber-200 bg-amber-50 dark:border-amber-900/30 dark:bg-amber-950/20">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <AlertTriangle className="h-6 w-6 text-amber-600" />
+              <div className="flex-1">
+                <h3 className="font-bold text-amber-900 dark:text-amber-100">
+                  Google Search Console Not Connected
+                </h3>
+                <p className="text-sm text-amber-700 dark:text-amber-200">
+                  Connect your Google Search Console account to see real-time SEO metrics, keyword
+                  data, and technical insights.
                 </p>
               </div>
-              <p className="text-xs leading-relaxed text-slate-300 italic">
-                Connect your core topics to supporting sub-topics to build search engine authority.
-              </p>
-              <div className="space-y-4">
-                {[
-                  { topic: "Project Management", progress: 85 },
-                  { topic: "Team Collaboration", progress: 42 },
-                  { topic: "Agile Workflows", progress: 12 }
-                ].map((t, i) => (
-                  <div key={i} className="space-y-1.5">
-                    <div className="flex items-center justify-between text-[11px] font-bold tracking-tight uppercase">
-                      <span>{t.topic}</span>
-                      <span className="text-blue-400">{t.progress}%</span>
-                    </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-                      <div
-                        className="h-full rounded-full bg-blue-500 transition-all duration-1000"
-                        style={{ width: `${t.progress}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <Button className="h-11 w-full rounded-xl bg-white text-[10px] font-black tracking-widest text-indigo-950 uppercase shadow-lg hover:bg-slate-100">
-                Discover More Topics
+              <Button
+                onClick={() =>{  setConfigModalOpen(true); }}
+                className="gap-2 bg-amber-600 hover:bg-amber-700"
+              >
+                <Globe className="h-4 w-4" />
+                Connect Now
               </Button>
             </div>
-          </div>
+          </CardContent>
+        </Card>
+      )}
 
-          {/* Integration Status */}
-          <div className="rounded-[2.5rem] border border-slate-100 bg-white p-8 shadow-xl shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
-            <h4 className="mb-6 text-sm font-black tracking-tight text-slate-900 uppercase dark:text-white">
-              Integrations
-            </h4>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/50">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white shadow-sm dark:bg-slate-900">
-                    <Search className="h-4 w-4 text-blue-600" />
-                  </div>
-                  <span className="text-[11px] font-bold tracking-tight uppercase">
-                    Google Console
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5">
-                  <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-                  <span className="text-[9px] font-black text-emerald-600 uppercase">Live</span>
-                </div>
+      {/* Connected Website Info */}
+      {googleConnected && connectionStatus?.propertyUrl && (
+        <Card className="border-blue-200/50 bg-blue-50/50 dark:border-blue-900/30 dark:bg-blue-950/20">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <CheckCircle2 className="h-6 w-6 text-blue-600" />
+              <div className="flex-1">
+                <p className="text-xs font-bold tracking-wider text-blue-600 uppercase dark:text-blue-400">
+                  Connected Website
+                </p>
+                <p className="mt-1 text-sm font-medium break-all text-slate-900 dark:text-white">
+                  {connectionStatus.propertyUrl.replace("sc-domain:", "")}
+                </p>
+                {connectionStatus.lastSyncedAt && (
+                  <p className="mt-1 text-xs text-blue-700 dark:text-blue-300">
+                    Last synced: {new Date(connectionStatus.lastSyncedAt).toLocaleDateString()} at{" "}
+                    {new Date(connectionStatus.lastSyncedAt).toLocaleTimeString()}
+                  </p>
+                )}
               </div>
-
-              <div className="flex items-center justify-between rounded-2xl bg-slate-50 p-4 opacity-50 dark:bg-slate-800/50">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white shadow-sm dark:bg-slate-900">
-                    <BarChart3 className="h-4 w-4 text-orange-600" />
-                  </div>
-                  <span className="text-[11px] font-bold tracking-tight uppercase">
-                    Google Analytics
-                  </span>
-                </div>
-                <Link href={`/${locale}/projects/${projectId}/marketing/connect`}>
-                  <Button
-                    variant="ghost"
-                    className="h-6 px-2 text-[9px] font-black text-blue-600 uppercase"
-                  >
-                    Connect
-                  </Button>
-                </Link>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleResetConnection}
+                  variant="outline"
+                  className="gap-2"
+                  size="sm"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Reset
+                </Button>
+                <Button
+                  onClick={() =>{  setConfigModalOpen(true); }}
+                  variant="outline"
+                  className="gap-2"
+                  size="sm"
+                >
+                  <Globe className="h-4 w-4" />
+                  Change
+                </Button>
               </div>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Main Content */}
+      {!loading && googleConnected ? (
+        <div className="space-y-6">
+          {/* Overall SEO Score */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Overall SEO Score</CardTitle>
+              <CardDescription>
+                Based on search performance, technical health, and content quality
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-2">
+                  <p className="text-6xl font-black text-slate-900 dark:text-white">{seoScore}</p>
+                  <Badge
+                    className={cn(
+                      seoScore >= 80
+                        ? "bg-emerald-500/10 text-emerald-600"
+                        : seoScore >= 60
+                          ? "bg-yellow-500/10 text-yellow-600"
+                          : "bg-rose-500/10 text-rose-600"
+                    )}
+                  >
+                    {seoScore >= 80 ? "Excellent" : seoScore >= 60 ? "Good" : "Needs Work"}
+                  </Badge>
+                </div>
+                <div className="flex-1 space-y-4">
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-sm font-bold text-slate-600 dark:text-slate-400">
+                        On-Page SEO
+                      </span>
+                      <span className="font-black">
+                        {metrics?.keywords?.inTop10
+                          ? Math.round(
+                              (metrics.keywords.inTop10 / Math.max(1, metrics.keywords.total)) * 100
+                            )
+                          : 0}
+                        %
+                      </span>
+                    </div>
+                    <Progress
+                      value={
+                        metrics?.keywords?.inTop10
+                          ? Math.round(
+                              (metrics.keywords.inTop10 / Math.max(1, metrics.keywords.total)) * 100
+                            )
+                          : 0
+                      }
+                      className="h-2"
+                    />
+                  </div>
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-sm font-bold text-slate-600 dark:text-slate-400">
+                        Technical SEO
+                      </span>
+                      <span className="font-black">
+                        {metrics?.technical?.coreWebVitals?.good || 0}%
+                      </span>
+                    </div>
+                    <Progress
+                      value={metrics?.technical?.coreWebVitals?.good || 0}
+                      className="h-2"
+                    />
+                  </div>
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-sm font-bold text-slate-600 dark:text-slate-400">
+                        Content Quality
+                      </span>
+                      <span className="font-black">
+                        {metrics?.conversions?.rate ? Math.round(metrics.conversions.rate) : 0}%
+                      </span>
+                    </div>
+                    <Progress
+                      value={metrics?.conversions?.rate ? Math.round(metrics.conversions.rate) : 0}
+                      className="h-2"
+                    />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Key Metrics Grid */}
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardContent className="p-6">
+                <p className="mb-2 text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                  Avg Position
+                </p>
+                <p className="text-3xl font-black text-slate-900 dark:text-white">
+                  #{metrics?.searchConsole?.averagePosition?.toFixed(1) || "0"}
+                </p>
+                <p className="mt-2 text-xs text-slate-500">
+                  {metrics?.searchConsole?.averagePosition < 10
+                    ? "Excellent ranking"
+                    : "Room for improvement"}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <p className="mb-2 text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                  Keywords Top 10
+                </p>
+                <p className="text-3xl font-black text-emerald-600">
+                  {metrics?.keywords?.inTop10 || 0}
+                </p>
+                <p className="mt-2 text-xs text-slate-500">
+                  {metrics?.keywords?.total ? `of ${metrics.keywords.total} total` : "No data"}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <p className="mb-2 text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                  Monthly Clicks
+                </p>
+                <p className="text-3xl font-black text-slate-900 dark:text-white">
+                  {metrics?.searchConsole?.totalClicks?.toLocaleString() || "0"}
+                </p>
+                <p className="mt-2 text-xs text-emerald-600">+12% vs last month</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <p className="mb-2 text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                  Impressions
+                </p>
+                <p className="text-3xl font-black text-slate-900 dark:text-white">
+                  {metrics?.searchConsole?.totalImpressions?.toLocaleString() || "0"}
+                </p>
+                <p className="mt-2 text-xs text-slate-500">
+                  CTR: {metrics?.searchConsole?.averageCTR?.toFixed(2)}%
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Technical SEO */}
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Technical SEO</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold">Indexed Pages</span>
+                    <span className="text-lg font-black text-slate-900 dark:text-white">
+                      {metrics?.technical?.indexedPages || 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold">Crawl Errors</span>
+                    <Badge
+                      className={
+                        metrics?.technical?.crawlErrors === 0
+                          ? "bg-emerald-500/10 text-emerald-600"
+                          : "bg-rose-500/10 text-rose-600"
+                      }
+                    >
+                      {metrics?.technical?.crawlErrors || 0}
+                    </Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Core Web Vitals</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-sm font-bold">Good</span>
+                    <span className="font-black text-emerald-600">
+                      {metrics?.technical?.coreWebVitals?.good || 0}%
+                    </span>
+                  </div>
+                  <Progress value={metrics?.technical?.coreWebVitals?.good || 0} className="h-2" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Connected Property Info */}
+          {connectionStatus?.propertyUrl && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                  Connected Property
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  {connectionStatus.propertyUrl}
+                </p>
+                {connectionStatus.lastSyncedAt && (
+                  <p className="text-xs text-slate-500">
+                    Last synced: {new Date(connectionStatus.lastSyncedAt).toLocaleString()}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      ) : loading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="space-y-4 text-center">
+            <RefreshCw className="mx-auto h-8 w-8 animate-spin text-blue-600" />
+            <p className="text-slate-500">Loading SEO data...</p>
           </div>
         </div>
-      </div>
+      ) : (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <Shield className="mx-auto mb-4 h-12 w-12 text-slate-300" />
+            <h3 className="text-xl font-black">No Data Available</h3>
+            <p className="mx-auto mb-6 max-w-xs text-slate-500">
+              Connect your Google Search Console account to see comprehensive SEO analytics.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* API Configuration Modal */}
+      <SEOConfigModal projectId={id} open={configModalOpen} onOpenChange={setConfigModalOpen} />
     </div>
   )
-}
-
-function cn(...inputs: any[]) {
-  return inputs.filter(Boolean).join(" ")
 }

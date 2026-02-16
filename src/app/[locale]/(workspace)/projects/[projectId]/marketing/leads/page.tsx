@@ -156,7 +156,7 @@ export default function LeadsPage() {
                   </div>
                 </div>
               </div>
-              <div className="flex shrink-0 flex-col items-center rounded-[2rem] border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+              <div className="flex shrink-0 flex-col items-center rounded-4xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
                 <div className="mb-1 text-4xl font-black text-rose-500">92</div>
                 <div className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
                   Avg. Lead Quality
@@ -168,7 +168,7 @@ export default function LeadsPage() {
 
         {/* Sidebar: New Leads */}
         <div className="space-y-8">
-          <div className="rounded-[2.5rem] border border-slate-100 bg-white p-8 shadow-xl shadow-slate-200/40 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
+          <div className="rounded-3xl border border-slate-100 bg-white p-8 shadow-xl shadow-slate-200/40 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
             <h4 className="mb-6 text-sm font-black tracking-tight text-slate-900 uppercase dark:text-white">
               Recent Hot Leads
             </h4>
@@ -183,7 +183,7 @@ export default function LeadsPage() {
                   className="group flex cursor-pointer items-center justify-between rounded-2xl bg-slate-50 p-4 transition-colors hover:bg-rose-50/50 dark:bg-slate-800/50 dark:hover:bg-rose-500/5"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 text-xs font-black text-white shadow-lg shadow-rose-500/20">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-rose-500 to-rose-600 text-xs font-black text-white shadow-lg shadow-rose-500/20">
                       {lead.name.charAt(0)}
                     </div>
                     <div>
@@ -210,8 +210,8 @@ export default function LeadsPage() {
             </Button>
           </div>
 
-          <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-slate-900 to-slate-950 p-8 text-white shadow-xl shadow-slate-900/40">
-            <div className="absolute right-0 bottom-0 -mr-16 -mb-16 h-32 w-32 rounded-full bg-rose-500/10 blur-[40px]" />
+          <div className="relative overflow-hidden rounded-3xl bg-linear-to-br from-slate-900 to-slate-950 p-8 text-white shadow-xl shadow-slate-900/40">
+            <div className="absolute right-0 bottom-0 -mr-16 -mb-16 h-32 w-32 rounded-full bg-rose-500/10 blur-2xl" />
             <div className="relative z-10 space-y-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10">
                 <UserPlus className="h-6 w-6 text-rose-500" />

@@ -6,6 +6,7 @@ const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || "refresh-secret
 export interface TokenPayload {
   userId: string
   email: string
+  role?: string
   organizationId?: string
 }
 

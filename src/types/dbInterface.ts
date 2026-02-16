@@ -47,6 +47,7 @@ export interface User {
     emailNotifications: boolean
   }
   emailVerified?: Date
+  role?: string
   status: "ACTIVE" | "INACTIVE" | "SUSPENDED"
   createdAt: Date
   updatedAt: Date

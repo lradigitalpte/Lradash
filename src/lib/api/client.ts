@@ -74,24 +74,29 @@ const makeRequest = async (url: string, options: RequestInit = {}): Promise<Resp
 }
 
 export const apiClient = {
-  get:  async (url: string) => makeRequest(url, { method: "GET" }),
+  get: async (url: string) => makeRequest(url, { method: "GET" }),
 
-  post:  async (url: string, body: unknown) =>
+  post: async (url: string, body: unknown) =>
     makeRequest(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
     }),
 
-  put:  async (url: string, body: unknown) =>
+  put: async (url: string, body: unknown) =>
     makeRequest(url, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
     }),
 
-  delete:  async (url: string) => makeRequest(url, { method: "DELETE" }),
-  patch:  async (url: string, body: unknown) =>
+  delete: async (url: string, body?: unknown) =>
+    makeRequest(url, {
+      method: "DELETE",
+      headers: body ? { "Content-Type": "application/json" } : {},
+      body: body ? JSON.stringify(body) : undefined
+    }),
+  patch: async (url: string, body: unknown) =>
     makeRequest(url, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },

@@ -4,14 +4,23 @@ import {
   LayoutDashboard,
   Search,
   BookOpen,
-  BarChart3,
-  Users2,
   ChevronRight,
-  ArrowLeft
+  ArrowLeft,
+  Calendar,
+  CheckSquare
 } from "lucide-react"
 import Link from "next/link"
 import { useParams, usePathname } from "next/navigation"
 
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarFooter
+} from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
 
 export function MarketingSubSidebar() {
@@ -36,25 +45,25 @@ export function MarketingSubSidebar() {
       bgColor: "bg-emerald-500/10"
     },
     {
-      label: "Content Strategy",
+      label: "SEO Planning",
+      href: `/${locale}/projects/${projectId}/marketing/seo-planning`,
+      icon: CheckSquare,
+      color: "text-teal-500",
+      bgColor: "bg-teal-500/10"
+    },
+    {
+      label: "Strategy",
       href: `/${locale}/projects/${projectId}/marketing/content`,
       icon: BookOpen,
       color: "text-purple-500",
       bgColor: "bg-purple-500/10"
     },
     {
-      label: "Performance",
-      href: `/${locale}/projects/${projectId}/marketing/performance`,
-      icon: BarChart3,
-      color: "text-amber-500",
-      bgColor: "bg-amber-500/10"
-    },
-    {
-      label: "Lead Gen",
-      href: `/${locale}/projects/${projectId}/marketing/leads`,
-      icon: Users2,
-      color: "text-rose-500",
-      bgColor: "bg-rose-500/10"
+      label: "Calendar",
+      href: `/${locale}/projects/${projectId}/marketing/calendar`,
+      icon: Calendar,
+      color: "text-indigo-500",
+      bgColor: "bg-indigo-500/10"
     }
   ]
 
@@ -66,8 +75,8 @@ export function MarketingSubSidebar() {
   }
 
   return (
-    <div className="flex h-full w-64 flex-col overflow-hidden border-r border-slate-200/60 bg-white dark:border-slate-800/60 dark:bg-slate-950">
-      <div className="border-b border-slate-100 p-6 dark:border-slate-800/50">
+    <Sidebar className="border-r border-slate-200/60 bg-white dark:border-slate-800/60 dark:bg-slate-950">
+      <SidebarHeader className="border-b border-slate-100 p-6 dark:border-slate-800/50">
         <Link
           href={`/${locale}/projects/${projectId}`}
           className="group mb-6 flex items-center gap-2 text-[10px] font-black tracking-widest text-slate-400 uppercase transition-colors hover:text-blue-600"
@@ -88,51 +97,61 @@ export function MarketingSubSidebar() {
             </span>
           </div>
         </div>
-      </div>
+      </SidebarHeader>
 
-      <nav className="custom-scrollbar flex-1 space-y-1 overflow-y-auto p-4">
-        {marketingNavItems.map((item) => {
-          const active = isActive(item.href)
-          const Icon = item.icon
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "group flex items-center justify-between rounded-xl px-4 py-3 transition-all duration-300",
-                active
-                  ? "border border-slate-100 bg-slate-50 shadow-sm dark:border-slate-800 dark:bg-slate-900"
-                  : "hover:bg-slate-50/50 dark:hover:bg-slate-900/30"
-              )}
-            >
-              <div className="flex items-center gap-3">
-                <div
+      <SidebarContent className="p-4">
+        <SidebarMenu className="space-y-1">
+          {marketingNavItems.map((item) => {
+            const active = isActive(item.href)
+            const Icon = item.icon
+
+            return (
+              <SidebarMenuItem key={item.href}>
+                <SidebarMenuButton
+                  asChild
+                  isActive={active}
                   className={cn(
-                    "flex h-8 w-8 items-center justify-center rounded-lg transition-transform duration-300 group-hover:scale-110",
-                    active ? item.bgColor : "bg-slate-100 dark:bg-slate-800"
-                  )}
-                >
-                  <Icon className={cn("h-4 w-4", active ? item.color : "text-slate-400")} />
-                </div>
-                <span
-                  className={cn(
-                    "text-[11px] font-black tracking-wider uppercase",
+                    "h-12 w-full rounded-xl transition-all duration-300",
                     active
-                      ? "text-slate-900 dark:text-white"
-                      : "text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300"
+                      ? "bg-slate-50 shadow-sm dark:bg-slate-900"
+                      : "hover:bg-slate-50/50 dark:hover:bg-slate-900/30"
                   )}
                 >
-                  {item.label}
-                </span>
-              </div>
-              {active && <ChevronRight className="h-3 w-3 text-slate-300" />}
-            </Link>
-          )
-        })}
-      </nav>
+                  <Link
+                    href={item.href}
+                    className="flex h-full w-full items-center justify-between px-4"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={cn(
+                          "flex h-8 w-8 items-center justify-center rounded-lg transition-transform duration-300 group-hover:scale-110",
+                          active ? item.bgColor : "bg-slate-100 dark:bg-slate-800"
+                        )}
+                      >
+                        <Icon className={cn("h-4 w-4", active ? item.color : "text-slate-400")} />
+                      </div>
+                      <span
+                        className={cn(
+                          "text-[11px] font-black tracking-wider uppercase",
+                          active
+                            ? "text-slate-900 dark:text-white"
+                            : "text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300"
+                        )}
+                      >
+                        {item.label}
+                      </span>
+                    </div>
+                    {active && <ChevronRight className="h-3 w-3 text-slate-300" />}
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )
+          })}
+        </SidebarMenu>
+      </SidebarContent>
 
-      <div className="border-t border-slate-100 p-4 dark:border-slate-800/50">
-        <div className="rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 p-4 text-white shadow-xl shadow-blue-500/20">
+      <SidebarFooter className="border-t border-slate-100 p-4 dark:border-slate-800/50">
+        <div className="rounded-2xl bg-linear-to-br from-blue-600 to-indigo-700 p-4 text-white shadow-xl shadow-blue-500/20">
           <p className="mb-1 text-[10px] font-black tracking-widest uppercase">SEO Health</p>
           <div className="mb-2 flex items-end gap-2">
             <span className="text-2xl font-black">94%</span>
@@ -142,7 +161,7 @@ export function MarketingSubSidebar() {
             <div className="h-full w-[94%] bg-white" />
           </div>
         </div>
-      </div>
-    </div>
+      </SidebarFooter>
+    </Sidebar>
   )
 }

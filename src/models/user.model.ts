@@ -8,6 +8,7 @@ const userSchema = new mongoose.Schema(
     name: { type: String, required: true },
     passwordHash: { type: String }, // For email+password auth
     avatar: { type: String },
+    role: { type: String, default: "MEMBER" },
     defaultOrganizationId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Organization"

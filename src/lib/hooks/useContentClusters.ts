@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react"
 
+import { apiClient } from "@/lib/api/client"
+
 interface ContentCluster {
   id: string
   projectId: string
@@ -22,20 +24,21 @@ export function useContentClusters(projectId: string) {
     async function fetchClusters() {
       try {
         setLoading(true)
-        const token = localStorage.getItem("auth_token") || ""
+        const response = await apiClient.get(`/api/projects/${projectId}/marketing/clusters`)
 
-        const res = await fetch(`/api/projects/${projectId}/marketing/clusters`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-
-        if (res.ok) {
-          const data = await res.json()
+        if (response.ok) {
+          const data = await response.json()
           setClusters(data)
+        } else {
+          console.warn(`Failed to fetch clusters: ${response.status}`)
+          setClusters([])
         }
 
         setLoading(false)
       } catch (err) {
+        console.error("Fetch clusters error:", err)
         setError(err instanceof Error ? err.message : "Failed to fetch clusters")
+        setClusters([])
         setLoading(false)
       }
     }
@@ -47,14 +50,9 @@ export function useContentClusters(projectId: string) {
 
   const addCluster = async (name: string, subtopics: string[] = []) => {
     try {
-      const token = localStorage.getItem("auth_token") || ""
-      const res = await fetch(`/api/projects/${projectId}/marketing/clusters`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ name, subtopics })
+      const res = await apiClient.post(`/api/projects/${projectId}/marketing/clusters`, {
+        name,
+        subtopics
       })
 
       if (res.ok) {
@@ -69,14 +67,9 @@ export function useContentClusters(projectId: string) {
 
   const updateCluster = async (clusterId: string, updates: Partial<ContentCluster>) => {
     try {
-      const token = localStorage.getItem("auth_token") || ""
-      const res = await fetch(`/api/projects/${projectId}/marketing/clusters`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ clusterId, ...updates })
+      const res = await apiClient.put(`/api/projects/${projectId}/marketing/clusters`, {
+        clusterId,
+        ...updates
       })
 
       if (res.ok) {
@@ -90,13 +83,8 @@ export function useContentClusters(projectId: string) {
 
   const deleteCluster = async (clusterId: string) => {
     try {
-      const token = localStorage.getItem("auth_token") || ""
-      const res = await fetch(
-        `/api/projects/${projectId}/marketing/clusters?clusterId=${clusterId}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` }
-        }
+      const res = await apiClient.delete(
+        `/api/projects/${projectId}/marketing/clusters?clusterId=${clusterId}`
       )
 
       if (res.ok) {

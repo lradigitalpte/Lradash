@@ -19,7 +19,9 @@ import {
   Shield,
   Briefcase,
   Share2,
-  Info
+  Info,
+  Search,
+  BarChart3
 } from "lucide-react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
@@ -481,6 +483,14 @@ export default function ProjectPage() {
                 color: "purple",
                 href: "team",
                 accent: "bg-purple-50 text-purple-600"
+              },
+              {
+                label: "SEO Dashboard",
+                desc: "Search Performance",
+                icon: BarChart3,
+                color: "emerald",
+                href: "marketing/hub",
+                accent: "bg-emerald-50 text-emerald-600"
               }
             ].map((module, i) => (
               <Link key={i} href={`/${locale}/projects/${projectId}/${module.href}`}>

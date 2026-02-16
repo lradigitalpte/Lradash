@@ -73,21 +73,18 @@ export default function BoardGanttPage() {
             variant="outline"
             className="rounded-xl border-slate-200 shadow-sm dark:border-slate-800"
             onClick={() => {
-              alert("Export function would go here")
+              window.print()
             }}
           >
             <Download className="mr-2 h-4 w-4" />
-            Export
+            Export PDF
           </Button>
-          <Button
-            className="rounded-xl bg-blue-600 shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5 hover:bg-blue-700"
-            onClick={() => {
-              alert("Create Task function would go here")
-            }}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Create Task
-          </Button>
+          <Link href={`/${locale}/boards/${boardId}/tasks`}>
+            <Button className="rounded-xl bg-blue-600 shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5 hover:bg-blue-700">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Task
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -95,7 +92,7 @@ export default function BoardGanttPage() {
       <div className="group relative">
         <div className="absolute -inset-1 rounded-[2.5rem] bg-gradient-to-r from-blue-600 to-indigo-600 opacity-5 blur transition duration-1000 group-hover:opacity-10 group-hover:duration-200" />
         <div className="relative flex-1 overflow-hidden rounded-[2.5rem] border border-white/20 bg-white/80 p-6 shadow-2xl shadow-slate-200/50 backdrop-blur-2xl dark:border-slate-800/50 dark:bg-slate-900/80 dark:shadow-none">
-          <GanttChart />
+          <GanttChart projectId={boardId} />
         </div>
       </div>
     </div>

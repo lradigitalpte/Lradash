@@ -18,6 +18,7 @@ import { useParams, usePathname } from "next/navigation"
 import { useState, useEffect } from "react"
 
 import Header from "@/components/layout/Header"
+import { MarketingSubSidebar } from "@/components/layout/MarketingSubSidebar"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -31,6 +32,7 @@ import {
   SidebarProvider,
   SidebarInset
 } from "@/components/ui/sidebar"
+import { apiClient } from "@/lib/api/client"
 import { cn } from "@/lib/utils"
 
 export default function ProjectLayout({ children }: { children: React.ReactNode }) {
@@ -48,7 +50,7 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
 
   const fetchProjectTitle = async () => {
     try {
-      const response = await fetch(`/api/projects/${projectId}`)
+      const response = await apiClient.get(`/api/projects/${projectId}`)
       if (response.ok) {
         const data = await response.json()
         setProjectTitle(data.title || "Project")
@@ -92,11 +94,11 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
     <SidebarProvider>
       <div className="flex h-screen w-full overflow-hidden bg-background font-sans">
         {/* Sidebar */}
-        {!isMarketingMode && (
+        {!isMarketingMode ? (
           <Sidebar className="border-r border-slate-200 dark:border-slate-800">
             <SidebarHeader className="border-b border-slate-100 bg-white p-6 dark:border-slate-800/50 dark:bg-slate-900">
               <div className="flex flex-col space-y-1">
-                <h2 className="truncate text-lg font-black tracking-[0.05em] tracking-tight text-slate-900 uppercase dark:text-white">
+                <h2 className="truncate text-lg font-black tracking-tight text-slate-900 uppercase dark:text-white">
                   {projectTitle}
                 </h2>
                 <p className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
@@ -125,7 +127,7 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
                         <Link href={item.href} className="flex items-center gap-4">
                           <Icon
                             className={cn(
-                              "h-5 w-5 stroke-[2]",
+                              "h-5 w-5 stroke-2",
                               active ? "text-white" : "text-slate-400"
                             )}
                           />
@@ -156,6 +158,8 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
               </SidebarMenu>
             </SidebarFooter>
           </Sidebar>
+        ) : (
+          <MarketingSubSidebar />
         )}
 
         {/* Main Content Area */}
@@ -165,12 +169,12 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
 
           {/* Content Wrapper */}
           <main className="relative flex-1 overflow-hidden">
-            <div className="custom-scrollbar relative h-full overflow-y-auto">
+            <div className="custom-scrollbar relative h-full overflow-x-hidden overflow-y-auto">
               {/* Background that covers full scrollable area */}
               <div className="absolute inset-0 -z-10 min-h-screen bg-slate-50/30 dark:bg-slate-950/30">
                 {/* Background elements for premium feel */}
-                <div className="pointer-events-none absolute top-0 right-0 h-[500px] w-[500px] translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-500/5 blur-[120px]" />
-                <div className="pointer-events-none absolute bottom-0 left-0 h-[500px] w-[500px] -translate-x-1/2 translate-y-1/2 rounded-full bg-indigo-500/5 blur-[120px]" />
+                <div className="pointer-events-none absolute top-0 right-0 h-125 w-125 translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-500/5 blur-[120px]" />
+                <div className="pointer-events-none absolute bottom-0 left-0 h-125 w-125 -translate-x-1/2 translate-y-1/2 rounded-full bg-indigo-500/5 blur-[120px]" />
               </div>
               {children}
             </div>
