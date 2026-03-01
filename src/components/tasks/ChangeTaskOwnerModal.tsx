@@ -24,6 +24,7 @@ interface ChangeTaskOwnerModalProps {
     title: string
     assignee?: { id: string; name: string }
   }
+  projectId?: string
   open: boolean
   onOpenChange: (open: boolean) => void
   onTaskUpdated?: (task: any) => void
@@ -31,6 +32,7 @@ interface ChangeTaskOwnerModalProps {
 
 export function ChangeTaskOwnerModal({
   task,
+  projectId,
   open,
   onOpenChange,
   onTaskUpdated
@@ -55,22 +57,25 @@ export function ChangeTaskOwnerModal({
   const fetchUsers = async () => {
     try {
       setLoading(true)
-      const response = await apiClient.get(`/api/users/search?username=${searchQuery}`)
+      const endpoint = projectId
+        ? `/api/projects/${projectId}/members`
+        : `/api/users/search?limit=50`
+      const response = await apiClient.get(endpoint)
       if (response.ok) {
         const data = await response.json()
-        setUsers(data.users || [])
+        // members endpoint returns array directly; users/search returns { users: [] }
+        setUsers(Array.isArray(data) ? data : data.users || [])
       }
     } catch (error) {
-      console.error("Failed to search users:", error)
-      toast.error("Failed to fetch users")
+      console.error("Failed to fetch members:", error)
+      toast.error("Failed to fetch team members")
     } finally {
       setLoading(false)
     }
   }
 
-  const handleSearch = async (query: string) => {
+  const handleSearch = (query: string) => {
     setSearchQuery(query)
-    await fetchUsers()
   }
 
   const handleSubmit = async () => {
@@ -194,7 +199,9 @@ export function ChangeTaskOwnerModal({
                 <Input
                   placeholder="Search team members..."
                   value={searchQuery}
-                  onChange={async (e) => handleSearch(e.target.value)}
+                  onChange={(e) => {
+                    handleSearch(e.target.value)
+                  }}
                   className="h-12 rounded-2xl border-slate-200 bg-slate-50 pl-10 text-sm font-medium focus-visible:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-800"
                 />
               </div>
@@ -238,7 +245,7 @@ export function ChangeTaskOwnerModal({
                       {selectedUserId === user._id && (
                         <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg shadow-blue-500/20">
                           <svg
-                            className="h-3.5 w-3.5 stroke-[3]"
+                            className="h-3.5 w-3.5 stroke-3"
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"

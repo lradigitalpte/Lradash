@@ -5,6 +5,66 @@ import { connectToDatabase } from "@/lib/db/connect"
 import { ProjectModel } from "@/models/project.model"
 import { UserModel } from "@/models/user.model"
 
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string }> }
+) {
+  try {
+    const authHeader = request.headers.get("authorization")
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const token = authHeader.substring(7)
+    const decoded = verifyAccessToken(token)
+    if (!decoded) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+    }
+
+    await connectToDatabase()
+
+    const { projectId } = await params
+
+    const project = await ProjectModel.findOne({ _id: projectId, deletedAt: null })
+      .populate("members", "name email avatar _id")
+      .populate("owner", "name email avatar _id")
+      .lean()
+
+    if (!project) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 })
+    }
+
+    // Build a deduplicated list: owner + members
+    const ownerObj = project.owner as any
+    const membersList = (project.members as any[]) || []
+
+    const allIds = new Set<string>()
+    const result: any[] = []
+
+    if (ownerObj && ownerObj._id) {
+      const id = ownerObj._id.toString()
+      allIds.add(id)
+      result.push({ _id: id, name: ownerObj.name, email: ownerObj.email, avatar: ownerObj.avatar })
+    }
+
+    for (const m of membersList) {
+      if (!m || !m._id) {
+        continue
+      }
+      const id = m._id.toString()
+      if (!allIds.has(id)) {
+        allIds.add(id)
+        result.push({ _id: id, name: m.name, email: m.email, avatar: m.avatar })
+      }
+    }
+
+    return NextResponse.json(result, { status: 200 })
+  } catch (error: any) {
+    console.error("Get members error:", error)
+    return NextResponse.json({ error: "Failed to fetch members" }, { status: 500 })
+  }
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }

@@ -124,6 +124,7 @@ export function CardSidebar({
         <div className="space-y-2">
           <MemberPicker
             currentMembers={card.members || []}
+            projectId={projectId}
             onAssign={onAssignMember}
             onUnassign={onUnassignMember}
           />

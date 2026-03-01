@@ -22,13 +22,16 @@ import {
   FileCode,
   FileImage,
   FileType,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Loader2
 } from "lucide-react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useState, useEffect, useMemo, useRef } from "react"
 import { toast } from "sonner"
 
+import { NewDirectoryModal } from "@/components/documents/NewDirectoryModal"
+import { UploadModal } from "@/components/documents/UploadModal"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -82,7 +85,24 @@ export default function DocumentsPage() {
   }
 
   const [documents, setDocuments] = useState<any[]>([])
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [folders, setFolders] = useState<{ _id: string; name: string }[]>([])
+  const [uploading, setUploading] = useState(false)
+  const [uploadModalOpen, setUploadModalOpen] = useState(false)
+  const [newDirectoryModalOpen, setNewDirectoryModalOpen] = useState(false)
+
+  const fetchFolders = async () => {
+    if (!projectId) {
+      return
+    }
+    try {
+      const res = await apiClient.get(`/api/projects/${projectId}/folders`)
+      if (res.ok) {
+        setFolders(await res.json())
+      }
+    } catch (err) {
+      console.error("Failed to fetch folders:", err)
+    }
+  }
 
   const fetchDocuments = async () => {
     if (!projectId) {
@@ -105,67 +125,8 @@ export default function DocumentsPage() {
 
   useEffect(() => {
     fetchDocuments()
+    fetchFolders()
   }, [projectId])
-
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) {
-      return
-    }
-
-    // checking file size (e.g. 5MB limit)
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("File is too large (max 5MB)")
-      return
-    }
-
-    // mapping mime types to our "types" logic roughly
-    let type = "File"
-    if (file.type.includes("pdf")) {
-      type = "PDF"
-    } else if (file.type.includes("image")) {
-      type = "Image"
-    } else if (file.type.includes("sheet") || file.type.includes("excel")) {
-      type = "Excel"
-    } else if (file.name.endsWith(".md")) {
-      type = "Markdown"
-    } else if (file.name.endsWith(".fig")) {
-      type = "Figma"
-    } // unlikely from browser but possible
-    else if (file.name.endsWith(".sql")) {
-      type = "SQL"
-    }
-
-    const sizeMB = (file.size / (1024 * 1024)).toFixed(2) + " MB"
-
-    try {
-      // In a real app, we would upload to S3 here and get a URL
-      // For now, we just create the metadata record
-      const response = await apiClient.post(`/api/projects/${projectId}/documents`, {
-        name: file.name,
-        type: type,
-        size: sizeMB,
-        folder: "General", // Default folder for now
-        url: "" // No actual URL for now
-      })
-
-      if (response.ok) {
-        const newDoc = await response.json()
-        setDocuments([newDoc, ...documents])
-        toast.success("File uploaded successfully")
-      } else {
-        throw new Error("Failed to upload")
-      }
-    } catch (error) {
-      console.error("Upload error:", error)
-      toast.error("Failed to upload file")
-    } finally {
-      // Reset input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ""
-      }
-    }
-  }
 
   const handleDelete = async (id: string) => {
     try {
@@ -190,6 +151,41 @@ export default function DocumentsPage() {
     )
   }, [searchQuery, documents])
 
+  // Calculate used storage and unique folders dynamically
+  const stats = useMemo(() => {
+    const totalSize = documents.reduce((sum, doc) => {
+      const match = doc.size.match(/[\d.]+/)
+      let bytes = 0
+      if (doc.size.includes("MB")) {
+        bytes = parseFloat(match?.[0] || "0") * 1024 * 1024
+      } else if (doc.size.includes("KB")) {
+        bytes = parseFloat(match?.[0] || "0") * 1024
+      } else if (doc.size.includes("GB")) {
+        bytes = parseFloat(match?.[0] || "0") * 1024 * 1024 * 1024
+      }
+      return sum + bytes
+    }, 0)
+
+    const sizeLabel =
+      totalSize < 1024 * 1024
+        ? (totalSize / 1024).toFixed(1) + " KB"
+        : totalSize < 1024 * 1024 * 1024
+          ? (totalSize / (1024 * 1024)).toFixed(1) + " MB"
+          : (totalSize / (1024 * 1024 * 1024)).toFixed(2) + " GB"
+
+    // Combine DB folders with any folder names found in documents (e.g. "General")
+    const folderNamesFromDocs = new Set(documents.map((d) => d.folder))
+    const folderNamesFromDB = new Set(folders.map((f) => f.name))
+    const allFolderNames = new Set([...folderNamesFromDB, ...folderNamesFromDocs])
+
+    return {
+      totalAssets: documents.length,
+      activeFolders: allFolderNames.size,
+      usedStorage: sizeLabel,
+      allFolderNames
+    }
+  }, [documents, folders])
+
   const getFileIcon = (type: string) => {
     switch (type) {
       case "PDF":
@@ -209,6 +205,23 @@ export default function DocumentsPage() {
 
   return (
     <div className="min-h-full space-y-8 bg-slate-50/50 p-8 font-sans dark:bg-slate-950/50">
+      <UploadModal
+        projectId={projectId}
+        folders={folders}
+        open={uploadModalOpen}
+        onOpenChange={setUploadModalOpen}
+        onUploadSuccess={(doc) => {
+          setDocuments((prev) => [doc, ...prev])
+        }}
+      />
+      <NewDirectoryModal
+        projectId={projectId}
+        open={newDirectoryModalOpen}
+        onOpenChange={setNewDirectoryModalOpen}
+        onFolderCreated={(folder) => {
+          setFolders((prev) => [...prev, folder])
+        }}
+      />
       {/* Back Button & Navigation */}
       <div className="flex items-center gap-4">
         <Link href={`/${locale}/projects/${projectId}`}>
@@ -252,18 +265,22 @@ export default function DocumentsPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
           <Button
             variant="outline"
             onClick={() => {
-              fileInputRef.current?.click()
+              setUploadModalOpen(true)
             }}
             className="h-12 gap-2 rounded-2xl border-slate-200 bg-white px-6 font-bold"
           >
             <Upload className="h-4 w-4" />
             Upload Resource
           </Button>
-          <Button className="h-12 gap-2 rounded-2xl bg-blue-600 px-8 font-black text-white shadow-xl shadow-blue-500/30 hover:bg-blue-700">
+          <Button
+            onClick={() => {
+              setNewDirectoryModalOpen(true)
+            }}
+            className="h-12 gap-2 rounded-2xl bg-blue-600 px-8 font-black text-white shadow-xl shadow-blue-500/30 hover:bg-blue-700"
+          >
             <Plus className="h-5 w-5" />
             New Directory
           </Button>
@@ -271,35 +288,25 @@ export default function DocumentsPage() {
       </div>
 
       {/* Stats Dashboard */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {[
           {
             label: "Total Assets",
-            value: documents.length,
+            value: stats.totalAssets,
             icon: Files,
-            color: "blue",
-            sub: "Increased +2 today"
+            color: "blue"
           },
           {
             label: "Active Folders",
-            value: "6",
+            value: stats.activeFolders,
             icon: Folder,
-            color: "orange",
-            sub: "Organized categories"
+            color: "orange"
           },
           {
             label: "Used Storage",
-            value: "23.4 MB",
+            value: stats.usedStorage,
             icon: HardDrive,
-            color: "purple",
-            sub: "4% of 1GB limit"
-          },
-          {
-            label: "Recent Views",
-            value: "128",
-            icon: Clock,
-            color: "green",
-            sub: "Updated just now"
+            color: "purple"
           }
         ].map((stat, idx) => (
           <Card
@@ -315,16 +322,11 @@ export default function DocumentsPage() {
                       ? "bg-blue-50 text-blue-600"
                       : stat.color === "orange"
                         ? "bg-orange-50 text-orange-600"
-                        : stat.color === "green"
-                          ? "bg-green-50 text-green-600"
-                          : "bg-purple-50 text-purple-600"
+                        : "bg-purple-50 text-purple-600"
                   )}
                 >
                   <stat.icon className="h-5 w-5" />
                 </div>
-                <Badge variant="outline" className="text-[10px] font-black text-slate-400">
-                  {stat.sub}
-                </Badge>
               </div>
               <div className="mb-1 text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
                 {stat.label}
@@ -336,38 +338,45 @@ export default function DocumentsPage() {
       </div>
 
       {/* Directories & Folders Section */}
-      <div className="space-y-4">
-        <h2 className="flex items-center gap-2 px-1 text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
-          <Folder className="h-3 w-3" />
-          Active Directories
-        </h2>
-        <div className="grid gap-6 md:grid-cols-4 lg:grid-cols-5">
-          {["Requirements", "Design", "Documentation", "Reports", "Technical"].map((folder) => (
-            <Card
-              key={folder}
-              className="group cursor-pointer rounded-[2rem] border-none bg-white p-6 shadow-lg shadow-slate-200/30 transition-all hover:ring-2 hover:ring-blue-500/20 dark:bg-slate-900"
+      {stats.activeFolders > 0 && (
+        <div className="space-y-4">
+          <h2 className="flex items-center gap-2 px-1 text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
+            <Folder className="h-3 w-3" />
+            Active Directories
+          </h2>
+          <div className="grid gap-6 md:grid-cols-4 lg:grid-cols-5">
+            {Array.from(stats.allFolderNames).map((folderName) => (
+              <Card
+                key={folderName}
+                className="group cursor-pointer rounded-4xl border-none bg-white p-6 shadow-lg shadow-slate-200/30 transition-all hover:ring-2 hover:ring-blue-500/20 dark:bg-slate-900"
+              >
+                <div className="flex flex-col items-center gap-3 text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-50 transition-transform group-hover:scale-110 dark:bg-slate-800">
+                    <Folder className="h-8 w-8 fill-amber-400/20 text-amber-400" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="font-black text-slate-900 dark:text-white">{folderName}</h3>
+                    <p className="text-[10px] font-bold tracking-tighter text-slate-400 uppercase">
+                      {documents.filter((d) => d.folder === folderName).length} active files
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            ))}
+            <button
+              onClick={() => {
+                setNewDirectoryModalOpen(true)
+              }}
+              className="group flex flex-col items-center justify-center gap-2 rounded-4xl border-2 border-dashed border-slate-200 p-6 text-slate-400 transition-all hover:bg-slate-50 hover:text-blue-500 dark:border-slate-800"
             >
-              <div className="flex flex-col items-center gap-3 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-[1.5rem] bg-slate-50 transition-transform group-hover:scale-110 dark:bg-slate-800">
-                  <Folder className="h-8 w-8 fill-amber-400/20 text-amber-400" />
-                </div>
-                <div className="space-y-1">
-                  <h3 className="font-black text-slate-900 dark:text-white">{folder}</h3>
-                  <p className="text-[10px] font-bold tracking-tighter text-slate-400 uppercase">
-                    {documents.filter((d) => d.folder === folder).length} active files
-                  </p>
-                </div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 transition-transform group-hover:scale-110">
+                <Plus className="h-5 w-5" />
               </div>
-            </Card>
-          ))}
-          <button className="group flex flex-col items-center justify-center gap-2 rounded-[2rem] border-2 border-dashed border-slate-200 p-6 text-slate-400 transition-all hover:bg-slate-50 hover:text-blue-500 dark:border-slate-800">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 transition-transform group-hover:scale-110">
-              <Plus className="h-5 w-5" />
-            </div>
-            <span className="text-xs font-black tracking-widest uppercase">New</span>
-          </button>
+              <span className="text-xs font-black tracking-widest uppercase">New</span>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Master Documents List */}
       <div className="space-y-5">
@@ -514,7 +523,11 @@ export default function DocumentsPage() {
                           align="end"
                           className="w-56 rounded-2xl border-slate-100 p-2 shadow-2xl"
                         >
-                          <DropdownMenuItem className="gap-3 rounded-xl py-3">
+                          <DropdownMenuItem
+                            className="gap-3 rounded-xl py-3"
+                            onClick={() => doc.url && window.open(doc.url, "_blank")}
+                            disabled={!doc.url}
+                          >
                             <Download className="h-4 w-4 text-blue-500" />
                             <div className="flex flex-col">
                               <span className="text-sm font-bold">Download Asset</span>

@@ -20,10 +20,16 @@ interface User {
 interface MemberPickerProps {
   onSelect: (user: User) => void
   currentAssigneeId?: string
+  projectId?: string
   className?: string
 }
 
-export function MemberPicker({ onSelect, currentAssigneeId, className }: MemberPickerProps) {
+export function MemberPicker({
+  onSelect,
+  currentAssigneeId,
+  projectId,
+  className
+}: MemberPickerProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
   const [users, setUsers] = useState<User[]>([])
@@ -32,23 +38,45 @@ export function MemberPicker({ onSelect, currentAssigneeId, className }: MemberP
   const fetchUsers = async (searchQuery: string) => {
     try {
       setLoading(true)
-      const response = await apiClient.get(`/api/users/search?username=${searchQuery}`)
+      const endpoint = projectId
+        ? `/api/projects/${projectId}/members`
+        : `/api/users/search?username=${searchQuery}`
+      const response = await apiClient.get(endpoint)
       if (response.ok) {
         const data = await response.json()
-        setUsers(data.users || [])
+        // members endpoint returns array directly; users/search returns { users: [] }
+        const list: User[] = Array.isArray(data) ? data : data.users || []
+        // local filter when using members endpoint
+        setUsers(
+          searchQuery && projectId
+            ? list.filter(
+                (u) =>
+                  u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  u.email.toLowerCase().includes(searchQuery.toLowerCase())
+              )
+            : list
+        )
       }
     } catch (error) {
-      console.error("Failed to search users:", error)
+      console.error("Failed to fetch members:", error)
     } finally {
       setLoading(false)
     }
   }
 
+  // Fetch full member list once when popover opens
   useEffect(() => {
     if (open) {
+      fetchUsers(projectId ? "" : query)
+    }
+  }, [open])
+
+  // When no projectId, re-fetch on server for each query change
+  useEffect(() => {
+    if (open && !projectId) {
       fetchUsers(query)
     }
-  }, [open, query])
+  }, [query])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -66,7 +94,7 @@ export function MemberPicker({ onSelect, currentAssigneeId, className }: MemberP
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-[300px] overflow-hidden rounded-3xl border-slate-200 bg-white/90 p-0 shadow-2xl backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90"
+        className="w-75 overflow-hidden rounded-3xl border-slate-200 bg-white/90 p-0 shadow-2xl backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/90"
         align="start"
       >
         <div className="border-b border-slate-100 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-800/30">
@@ -75,12 +103,14 @@ export function MemberPicker({ onSelect, currentAssigneeId, className }: MemberP
             <Input
               placeholder="Search neuro-linked operators..."
               value={query}
-              onChange={(e) =>{  setQuery(e.target.value); }}
+              onChange={(e) => {
+                setQuery(e.target.value)
+              }}
               className="h-10 rounded-xl border-slate-200 bg-white pl-9 text-xs font-medium focus-visible:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-950"
             />
           </div>
         </div>
-        <div className="custom-scrollbar max-h-[300px] overflow-y-auto p-2">
+        <div className="custom-scrollbar max-h-75 overflow-y-auto p-2">
           {loading && users.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-slate-400">
               <Loader2 className="mb-3 h-6 w-6 animate-spin opacity-20" />
@@ -110,7 +140,7 @@ export function MemberPicker({ onSelect, currentAssigneeId, className }: MemberP
                   </div>
                   {currentAssigneeId === user._id && (
                     <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg shadow-blue-500/20">
-                      <Check className="h-3.5 w-3.5 stroke-[3]" />
+                      <Check className="h-3.5 w-3.5 stroke-3" />
                     </div>
                   )}
                 </button>

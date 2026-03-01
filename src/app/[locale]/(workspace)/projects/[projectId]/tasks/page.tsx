@@ -13,12 +13,12 @@ import {
   Activity,
   Calendar,
   ChevronRight,
+  ChevronLeft,
   User,
   Zap,
   Sparkles,
   Layers,
   Target,
-  ArrowUpRight,
   Info,
   UserPlus,
   Trash2,
@@ -57,7 +57,7 @@ import {
   TableRow
 } from "@/components/ui/table"
 import { apiClient } from "@/lib/api/client"
-import { cn } from "@/lib/utils"
+import { cn, isOverdue } from "@/lib/utils"
 
 export default function TasksPage() {
   const params = useParams()
@@ -68,7 +68,11 @@ export default function TasksPage() {
   const [workPackages, setWorkPackages] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [filterStatus, setFilterStatus] = useState<string>("ALL")
+  const [myTasksOnly, setMyTasksOnly] = useState(false)
+  const [currentUser, setCurrentUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const PAGE_SIZE = 10
 
   // Modal states
   const [viewTaskModalOpen, setViewTaskModalOpen] = useState(false)
@@ -81,7 +85,18 @@ export default function TasksPage() {
     if (projectId) {
       fetchData()
     }
+    fetchCurrentUser()
   }, [projectId])
+
+  const fetchCurrentUser = async () => {
+    try {
+      const res = await apiClient.get("/api/auth/me")
+      if (res.ok) {
+        const data = await res.json()
+        setCurrentUser(data)
+      }
+    } catch {}
+  }
 
   const fetchData = async () => {
     try {
@@ -176,9 +191,23 @@ export default function TasksPage() {
         task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         task.description?.toLowerCase().includes(searchQuery.toLowerCase())
       const matchesFilter = filterStatus === "ALL" || task.status === filterStatus
-      return matchesSearch && matchesFilter
+      const matchesMine =
+        !myTasksOnly ||
+        (currentUser &&
+          (task.assignee?._id === currentUser.id ||
+            task.assignee?.id === currentUser.id ||
+            task.assignee === currentUser.id))
+      return matchesSearch && matchesFilter && matchesMine
     })
-  }, [tasks, searchQuery, filterStatus])
+  }, [tasks, searchQuery, filterStatus, myTasksOnly, currentUser])
+
+  // Reset to page 1 whenever filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, filterStatus, myTasksOnly])
+
+  const totalPages = Math.max(1, Math.ceil(filteredTasks.length / PAGE_SIZE))
+  const pagedTasks = filteredTasks.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -253,47 +282,47 @@ export default function TasksPage() {
         </div>
       </div>
 
-      {/* 3. Intelligence Stats Dashboard */}
+      {/* 3. Stats */}
       <div className="grid gap-6 pt-4 md:grid-cols-4">
         {[
           {
-            label: "Total Tasks",
+            label: "Total",
             value: tasks.length,
             icon: Layers,
             color: "blue",
-            sub: "Total tasks"
+            sub: "All tasks"
           },
           {
-            label: "Pending",
+            label: "To Do",
             value: tasks.filter((t) => t.status === "TODO").length,
             icon: Target,
             color: "slate",
-            sub: "To be started"
+            sub: "Not started"
           },
           {
             label: "In Progress",
             value: tasks.filter((t) => t.status === "IN_PROGRESS" || t.status === "DOING").length,
             icon: Zap,
             color: "orange",
-            sub: "Currently working"
+            sub: "Active"
           },
           {
             label: "Completed",
             value: tasks.filter((t) => t.status === "DONE").length,
             icon: CheckCircle2,
             color: "green",
-            sub: "Finished units"
+            sub: "Done"
           }
         ].map((stat, idx) => (
           <Card
             key={idx}
-            className="group overflow-hidden rounded-4xl border-none bg-white shadow-2xl shadow-slate-200/50 transition-all hover:-translate-y-1 dark:bg-slate-900 dark:shadow-none"
+            className="group overflow-hidden rounded-3xl border-none bg-white shadow-md shadow-slate-200/50 transition-all hover:-translate-y-0.5 dark:bg-slate-900 dark:shadow-none"
           >
-            <CardContent className="p-8">
-              <div className="mb-4 flex items-center justify-between">
+            <CardContent className="p-5">
+              <div className="mb-3 flex items-center justify-between">
                 <div
                   className={cn(
-                    "flex h-12 w-12 items-center justify-center rounded-2xl shadow-inner transition-colors",
+                    "flex h-9 w-9 items-center justify-center rounded-xl transition-colors",
                     stat.color === "blue"
                       ? "bg-blue-50 text-blue-600"
                       : stat.color === "orange"
@@ -303,17 +332,17 @@ export default function TasksPage() {
                           : "bg-slate-50 text-slate-600"
                   )}
                 >
-                  <stat.icon className="h-5 w-5" />
+                  <stat.icon className="h-4 w-4" />
                 </div>
-                <div className="text-[10px] font-black tracking-widest text-slate-300 uppercase transition-colors group-hover:text-blue-500">
+                <div className="text-[9px] font-black tracking-widest text-slate-300 uppercase transition-colors group-hover:text-blue-500">
                   Live
                 </div>
               </div>
-              <div className="mb-1 text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
+              <div className="mb-0.5 text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
                 {stat.label}
               </div>
-              <div className="text-3xl font-black text-slate-900 dark:text-white">{stat.value}</div>
-              <p className="mt-2 block text-[9px] font-bold tracking-widest text-slate-400 uppercase">
+              <div className="text-2xl font-black text-slate-900 dark:text-white">{stat.value}</div>
+              <p className="mt-1 block text-[9px] font-bold tracking-widest text-slate-400 uppercase">
                 {stat.sub}
               </p>
             </CardContent>
@@ -336,6 +365,21 @@ export default function TasksPage() {
             />
           </div>
           <div className="flex shrink-0 gap-2">
+            <Button
+              variant={myTasksOnly ? "default" : "outline"}
+              onClick={() => {
+                setMyTasksOnly(!myTasksOnly)
+              }}
+              className={cn(
+                "h-12 gap-2 rounded-2xl px-5 font-bold transition-all",
+                myTasksOnly
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20"
+                  : "border-slate-100 bg-white hover:bg-slate-50 dark:bg-slate-900"
+              )}
+            >
+              <User className="h-4 w-4" />
+              {myTasksOnly ? "My Tasks" : "All Tasks"}
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -399,13 +443,16 @@ export default function TasksPage() {
       </div>
 
       {/* 5. Tasks Table */}
-      <Card className="overflow-hidden rounded-[2.5rem] border-none bg-white shadow-2xl shadow-slate-200/50 dark:bg-slate-900">
+      <Card className="overflow-hidden rounded-3xl border border-slate-100/60 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
         <Table>
-          <TableHeader className="h-16 bg-slate-50/50 dark:bg-slate-900/50">
+          <TableHeader className="h-10 bg-slate-50/50 dark:bg-slate-900/50">
             <TableRow className="border-b border-slate-100 dark:border-slate-800">
-              <TableHead className="w-20 pl-8" />
+              <TableHead className="w-14 pl-6" />
               <TableHead className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
                 Task Name
+              </TableHead>
+              <TableHead className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                Status
               </TableHead>
               <TableHead className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
                 Priority
@@ -416,13 +463,13 @@ export default function TasksPage() {
               <TableHead className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
                 Due Date
               </TableHead>
-              <TableHead className="w-20 pr-8" />
+              <TableHead className="w-14 pr-6" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredTasks.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-32 text-center">
+                <TableCell colSpan={7} className="py-32 text-center">
                   <div className="flex flex-col items-center gap-6">
                     <div className="relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-4xl bg-slate-50 shadow-inner dark:bg-slate-950">
                       <Sparkles className="h-10 w-10 text-slate-200" />
@@ -446,13 +493,13 @@ export default function TasksPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredTasks.map((task) => (
+              pagedTasks.map((task) => (
                 <TableRow
                   key={task._id}
-                  className="group h-24 border-b border-slate-50 transition-colors hover:bg-slate-50/50 dark:border-slate-800/50 dark:hover:bg-slate-800/30"
+                  className="group h-12 border-b border-slate-50 transition-colors hover:bg-slate-50/50 dark:border-slate-800/50 dark:hover:bg-slate-800/30"
                 >
-                  <TableCell className="pl-8">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-100 bg-white shadow-sm transition-transform group-hover:scale-110 dark:border-slate-700 dark:bg-slate-800">
+                  <TableCell className="pl-6">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-100 bg-white shadow-sm transition-transform group-hover:scale-110 dark:border-slate-700 dark:bg-slate-800">
                       {getStatusIcon(task.status)}
                     </div>
                   </TableCell>
@@ -485,6 +532,29 @@ export default function TasksPage() {
                     </div>
                   </TableCell>
                   <TableCell>
+                    {(() => {
+                      const s = task.status
+                      const map: Record<string, { label: string; cls: string }> = {
+                        TODO: { label: "To Do", cls: "bg-slate-100 text-slate-500" },
+                        IN_PROGRESS: { label: "In Progress", cls: "bg-blue-50 text-blue-600" },
+                        DOING: { label: "In Progress", cls: "bg-blue-50 text-blue-600" },
+                        DONE: { label: "Completed", cls: "bg-emerald-50 text-emerald-600" }
+                      }
+                      const item = map[s] ?? { label: s, cls: "bg-slate-100 text-slate-500" }
+                      return (
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "h-5 rounded-full px-2 text-[9px] font-black tracking-tighter uppercase",
+                            item.cls
+                          )}
+                        >
+                          {item.label}
+                        </Badge>
+                      )
+                    })()}
+                  </TableCell>
+                  <TableCell>
                     <Badge
                       variant="secondary"
                       className={cn(
@@ -501,53 +571,79 @@ export default function TasksPage() {
                   </TableCell>
                   <TableCell>
                     {task.assignee ? (
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-10 w-10 rounded-2xl border-4 border-white shadow-xl transition-transform group-hover:-translate-y-1 dark:border-slate-900">
-                          <AvatarImage src={task.assignee.avatar} />
-                          <AvatarFallback className="bg-blue-600 text-xs font-black text-white">
-                            {task.assignee.name?.slice(0, 1).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex flex-col">
-                          <span className="text-xs font-black text-slate-900 dark:text-white">
-                            {task.assignee.name}
-                          </span>
-                          <span className="text-[9px] font-bold tracking-widest text-slate-400 uppercase">
-                            Assignee
-                          </span>
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] font-black text-white">
+                          {(task.assignee.name || "?").slice(0, 1).toUpperCase()}
                         </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 font-medium text-slate-300 italic">
-                        <User className="h-4 w-4" />
-                        <span className="text-xs text-[9px] font-bold tracking-widest uppercase">
-                          Unassigned
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                          {task.assignee.name}
                         </span>
                       </div>
+                    ) : (
+                      <span className="text-[10px] font-bold tracking-widest text-slate-300 uppercase italic">
+                        Unassigned
+                      </span>
                     )}
                   </TableCell>
                   <TableCell>
                     {task.dueDate ? (
-                      <div className="flex flex-col">
-                        <span className="flex items-center gap-1.5 text-sm font-black tabular-nums">
-                          <Calendar className="h-3 w-3 text-slate-300" />
-                          {new Date(task.dueDate).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric"
-                          })}
-                        </span>
-                        <span className="mt-0.5 text-[9px] font-black tracking-widest text-slate-300 uppercase">
-                          Deadline
-                        </span>
-                      </div>
+                      (() => {
+                        const overdue = isOverdue(task.dueDate) && task.status !== "DONE"
+                        return (
+                          <div
+                            className={cn(
+                              "inline-flex flex-col gap-0.5 rounded-lg border px-2.5 py-1.5",
+                              overdue
+                                ? "border-rose-200 bg-rose-50 dark:border-rose-900/40 dark:bg-rose-900/10"
+                                : "border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/40"
+                            )}
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <Clock
+                                className={cn(
+                                  "h-3 w-3",
+                                  overdue ? "animate-pulse text-rose-500" : "text-slate-400"
+                                )}
+                              />
+                              <span
+                                className={cn(
+                                  "text-[11px] font-bold uppercase tabular-nums",
+                                  overdue ? "text-rose-600" : "text-slate-600 dark:text-slate-300"
+                                )}
+                              >
+                                {new Date(task.dueDate).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric"
+                                })}
+                              </span>
+                            </div>
+                            <span
+                              className={cn(
+                                "text-[9px] font-bold tracking-widest uppercase",
+                                overdue ? "text-rose-400" : "text-slate-300"
+                              )}
+                            >
+                              {overdue ? "Critical Delay" : "Deadline"}
+                            </span>
+                          </div>
+                        )
+                      })()
                     ) : (
-                      <span className="text-xs font-black tracking-widest text-slate-300 uppercase">
-                        TBD
-                      </span>
+                      <div className="flex items-center gap-1.5 text-slate-300">
+                        <div className="h-1.5 w-1.5 rounded-full bg-slate-200 dark:bg-slate-700" />
+                        <div className="flex flex-col">
+                          <span className="text-[10px] font-bold tracking-wide text-slate-400 uppercase">
+                            Open Ended
+                          </span>
+                          <span className="text-[9px] text-slate-300 dark:text-slate-600">
+                            No expiry set
+                          </span>
+                        </div>
+                      </div>
                     )}
                   </TableCell>
-                  <TableCell className="pr-8">
+                  <TableCell className="pr-6">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -625,20 +721,79 @@ export default function TasksPage() {
         </Table>
       </Card>
 
-      {/* 6. System Footer Hint */}
-      <div className="flex items-center justify-between rounded-4xl border border-white/20 bg-white/40 px-10 py-6 backdrop-blur-sm dark:bg-slate-900/40">
-        <div className="flex items-center gap-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600 shadow-inner">
-            <Info className="h-5 w-5" />
+      {/* 6. Footer: Pagination + Hint */}
+      <div className="space-y-4">
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white px-5 py-3 dark:border-slate-800 dark:bg-slate-900">
+            <span className="text-[11px] font-bold text-slate-400">
+              Showing {(currentPage - 1) * PAGE_SIZE + 1} to{" "}
+              {Math.min(currentPage * PAGE_SIZE, filteredTasks.length)} of {filteredTasks.length}
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage === 1}
+                onClick={() => {
+                  setCurrentPage((p) => Math.max(1, p - 1))
+                }}
+                className="h-8 gap-1.5 rounded-xl border-slate-100 px-3 text-[10px] font-black tracking-widest uppercase disabled:opacity-40"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                Previous
+              </Button>
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    onClick={() => {
+                      setCurrentPage(page)
+                    }}
+                    className={cn(
+                      "h-8 w-8 rounded-lg text-[11px] font-black transition-all",
+                      page === currentPage
+                        ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+                        : "text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    )}
+                  >
+                    {page}
+                  </button>
+                ))}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage === totalPages}
+                onClick={() => {
+                  setCurrentPage((p) => Math.min(totalPages, p + 1))
+                }}
+                className="h-8 gap-1.5 rounded-xl border-slate-100 px-3 text-[10px] font-black tracking-widest uppercase disabled:opacity-40"
+              >
+                Next
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            <span className="text-[11px] font-bold text-slate-400">
+              Page {currentPage} of {totalPages}
+            </span>
           </div>
-          <p className="max-w-lg text-xs leading-relaxed font-bold text-slate-500 italic">
-            All tasks are synchronized in real-time with the project board and calendar modules.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+        )}
+
+        {/* Hint row */}
+        <div className="flex items-center justify-between rounded-2xl border border-slate-100/60 bg-white/40 px-6 py-4 backdrop-blur-sm dark:border-slate-800/50 dark:bg-slate-900/40">
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+              <Info className="h-4 w-4" />
+            </div>
+            <p className="text-xs font-bold text-slate-500 italic">
+              Tasks are shared across all project members. Use &quot;My Tasks&quot; to filter your
+              own.
+            </p>
+          </div>
           <Button
             variant="link"
-            className="group gap-2 p-0 text-[10px] font-black tracking-[0.2em] text-blue-600 uppercase"
+            className="group gap-1.5 p-0 text-[10px] font-black tracking-widest text-blue-600 uppercase"
           >
             View Activity Logs
             <ChevronRight className="h-3 w-3 transition-transform group-hover:translate-x-1" />
@@ -650,6 +805,7 @@ export default function TasksPage() {
       {selectedTask && (
         <TaskDetailModal
           task={selectedTask}
+          projectId={projectId}
           open={viewTaskModalOpen}
           onOpenChange={setViewTaskModalOpen}
           onTaskUpdated={handleTaskUpdated}
@@ -670,6 +826,7 @@ export default function TasksPage() {
       {selectedTask && (
         <ChangeTaskOwnerModal
           task={selectedTask}
+          projectId={projectId}
           open={changeOwnerModalOpen}
           onOpenChange={setChangeOwnerModalOpen}
           onTaskUpdated={handleTaskUpdated}

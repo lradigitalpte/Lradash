@@ -19,45 +19,76 @@ interface User {
 
 interface MemberPickerProps {
   currentMembers: any[]
+  projectId?: string
   onAssign: (user: User) => void
   onUnassign: (userId: string) => void
 }
 
-export function MemberPicker({ currentMembers, onAssign, onUnassign }: MemberPickerProps) {
+export function MemberPicker({
+  currentMembers,
+  projectId,
+  onAssign,
+  onUnassign
+}: MemberPickerProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(false)
   const debouncedSearch = useDebounce(search, 300)
 
+  const [allMembers, setAllMembers] = useState<User[]>([])
+
   useEffect(() => {
     if (open) {
       fetchUsers()
     }
-  }, [debouncedSearch, open])
+  }, [open])
+
+  // local filter when projectId is set; server search otherwise
+  useEffect(() => {
+    if (open && !projectId) {
+      fetchUsers()
+    }
+  }, [debouncedSearch])
 
   const fetchUsers = async () => {
     setLoading(true)
     try {
       const accessToken = localStorage.getItem("accessToken")
-      const response = await fetch(
-        `/api/users/search?username=${encodeURIComponent(debouncedSearch)}`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`
-          }
-        }
-      )
+      const endpoint = projectId
+        ? `/api/projects/${projectId}/members`
+        : `/api/users/search?username=${encodeURIComponent(debouncedSearch)}`
+      const response = await fetch(endpoint, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      })
       if (response.ok) {
         const data = await response.json()
-        setUsers(data.users || [])
+        const list: User[] = Array.isArray(data) ? data : data.users || []
+        if (projectId) {
+          setAllMembers(list)
+        }
+        setUsers(list)
       }
     } catch (error) {
-      console.error("Failed to fetch users:", error)
+      console.error("Failed to fetch members:", error)
     } finally {
       setLoading(false)
     }
   }
+
+  // When using project members, filter locally on each search change
+  useEffect(() => {
+    if (projectId && allMembers.length > 0) {
+      const q = debouncedSearch.toLowerCase()
+      setUsers(
+        q
+          ? allMembers.filter(
+              (u) => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+            )
+          : allMembers
+      )
+    }
+  }, [debouncedSearch, allMembers])
 
   const isAssigned = (userId: string) => {
     return currentMembers.some((m) => m._id === userId || m.id === userId)
@@ -88,7 +119,6 @@ export function MemberPicker({ currentMembers, onAssign, onUnassign }: MemberPic
               setSearch(e.target.value)
             }}
             className="h-8 border-none bg-transparent p-0 text-xs shadow-none focus-visible:ring-0"
-            autoFocus
           />
         </div>
         <div className="max-h-64 overflow-y-auto p-2">

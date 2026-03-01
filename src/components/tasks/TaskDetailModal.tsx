@@ -50,6 +50,7 @@ import { MemberPicker } from "./MemberPicker"
 
 interface TaskDetailModalProps {
   task?: Task & { projectTitle?: string }
+  projectId?: string
   open: boolean
   onOpenChange: (open: boolean) => void
   onSave?: (task: Task) => void
@@ -58,6 +59,7 @@ interface TaskDetailModalProps {
 
 export function TaskDetailModal({
   task,
+  projectId,
   open,
   onOpenChange,
   onSave,
@@ -274,6 +276,7 @@ export function TaskDetailModal({
                         <MemberPicker
                           className="h-8 w-8 rounded-lg border-dashed border-none bg-transparent p-0 text-slate-300 shadow-none hover:bg-white hover:text-blue-600 dark:hover:bg-slate-800"
                           currentAssigneeId={task.assignee.id}
+                          projectId={projectId}
                           onSelect={(user) =>
                             onSave?.({
                               ...task,
@@ -284,6 +287,7 @@ export function TaskDetailModal({
                       </div>
                     ) : (
                       <MemberPicker
+                        projectId={projectId}
                         onSelect={(user) =>
                           onSave?.({ ...task, assignee: { id: user._id, name: user.name } } as any)
                         }

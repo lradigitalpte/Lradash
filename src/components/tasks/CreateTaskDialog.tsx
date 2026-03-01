@@ -1,7 +1,7 @@
 "use client"
 
 import { format } from "date-fns"
-import { Plus, Calendar as CalendarIcon, Package } from "lucide-react"
+import { Plus, Calendar as CalendarIcon, Package, User } from "lucide-react"
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
 
@@ -46,19 +46,22 @@ export function CreateTaskDialog({
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [workPackages, setWorkPackages] = useState<any[]>([])
+  const [members, setMembers] = useState<any[]>([])
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     priority: "MEDIUM",
     status: "TODO",
     dueDate: undefined as Date | undefined,
-    workPackageId: workPackageId || "none"
+    workPackageId: workPackageId || "none",
+    assigneeId: "none"
   })
 
-  // Fetch work packages when dialog opens
+  // Fetch work packages and members when dialog opens
   useEffect(() => {
     if (open) {
       fetchWorkPackages()
+      fetchMembers()
     }
   }, [open])
 
@@ -71,6 +74,18 @@ export function CreateTaskDialog({
       }
     } catch (error) {
       console.error("Failed to fetch work packages:", error)
+    }
+  }
+
+  const fetchMembers = async () => {
+    try {
+      const response = await apiClient.get(`/api/projects/${projectId}/members`)
+      if (response.ok) {
+        const data = await response.json()
+        setMembers(Array.isArray(data) ? data : [])
+      }
+    } catch (error) {
+      console.error("Failed to fetch members:", error)
     }
   }
 
@@ -87,7 +102,8 @@ export function CreateTaskDialog({
       const response = await apiClient.post(`/api/projects/${projectId}/tasks`, {
         ...formData,
         dueDate: formData.dueDate?.toISOString(),
-        workPackageId: formData.workPackageId === "none" ? undefined : formData.workPackageId
+        workPackageId: formData.workPackageId === "none" ? undefined : formData.workPackageId,
+        assigneeId: formData.assigneeId === "none" ? undefined : formData.assigneeId
       })
 
       if (!response.ok) {
@@ -102,7 +118,8 @@ export function CreateTaskDialog({
         priority: "MEDIUM",
         status: "TODO",
         dueDate: undefined,
-        workPackageId: workPackageId || "none"
+        workPackageId: workPackageId || "none",
+        assigneeId: "none"
       })
 
       if (onTaskCreated) {
@@ -126,7 +143,7 @@ export function CreateTaskDialog({
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-150">
         <DialogHeader>
           <DialogTitle>Create New Task</DialogTitle>
           <DialogDescription>
@@ -144,7 +161,9 @@ export function CreateTaskDialog({
                 id="title"
                 placeholder="Enter task title"
                 value={formData.title}
-                onChange={(e) =>{  setFormData({ ...formData, title: e.target.value }); }}
+                onChange={(e) => {
+                  setFormData({ ...formData, title: e.target.value })
+                }}
                 required
               />
             </div>
@@ -156,7 +175,9 @@ export function CreateTaskDialog({
                 id="description"
                 placeholder="Enter task description (optional)"
                 value={formData.description}
-                onChange={(e) =>{  setFormData({ ...formData, description: e.target.value }); }}
+                onChange={(e) => {
+                  setFormData({ ...formData, description: e.target.value })
+                }}
                 rows={4}
               />
             </div>
@@ -169,7 +190,9 @@ export function CreateTaskDialog({
               </Label>
               <Select
                 value={formData.workPackageId}
-                onValueChange={(value) =>{  setFormData({ ...formData, workPackageId: value }); }}
+                onValueChange={(value) => {
+                  setFormData({ ...formData, workPackageId: value })
+                }}
               >
                 <SelectTrigger id="workPackage">
                   <SelectValue placeholder="Select a work package or leave empty" />
@@ -188,13 +211,41 @@ export function CreateTaskDialog({
               </p>
             </div>
 
+            {/* Assignee */}
+            <div className="grid gap-2">
+              <Label htmlFor="assignee" className="flex items-center gap-2">
+                <User className="h-4 w-4" />
+                Assign To
+              </Label>
+              <Select
+                value={formData.assigneeId}
+                onValueChange={(value) => {
+                  setFormData({ ...formData, assigneeId: value })
+                }}
+              >
+                <SelectTrigger id="assignee">
+                  <SelectValue placeholder="Select a team member" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Unassigned</SelectItem>
+                  {members.map((member) => (
+                    <SelectItem key={member._id || member.id} value={member._id || member.id}>
+                      {member.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Priority and Status Row */}
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="priority">Priority</Label>
                 <Select
                   value={formData.priority}
-                  onValueChange={(value) =>{  setFormData({ ...formData, priority: value }); }}
+                  onValueChange={(value) => {
+                    setFormData({ ...formData, priority: value })
+                  }}
                 >
                   <SelectTrigger id="priority">
                     <SelectValue placeholder="Select priority" />
@@ -211,7 +262,9 @@ export function CreateTaskDialog({
                 <Label htmlFor="status">Status</Label>
                 <Select
                   value={formData.status}
-                  onValueChange={(value) =>{  setFormData({ ...formData, status: value }); }}
+                  onValueChange={(value) => {
+                    setFormData({ ...formData, status: value })
+                  }}
                 >
                   <SelectTrigger id="status">
                     <SelectValue placeholder="Select status" />
@@ -246,7 +299,9 @@ export function CreateTaskDialog({
                   <Calendar
                     mode="single"
                     selected={formData.dueDate}
-                    onSelect={(date) =>{  setFormData({ ...formData, dueDate: date }); }}
+                    onSelect={(date) => {
+                      setFormData({ ...formData, dueDate: date })
+                    }}
                     initialFocus
                   />
                 </PopoverContent>
@@ -258,7 +313,9 @@ export function CreateTaskDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={() =>{  setOpen(false); }}
+              onClick={() => {
+                setOpen(false)
+              }}
               disabled={loading}
             >
               Cancel

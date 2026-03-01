@@ -1,28 +1,14 @@
 "use client"
 
-import { Loader2, Mail, Shield, UserPlus, Send, Copy, Check } from "lucide-react"
-import { useState } from "react"
+import { Loader2, Search, UserPlus, Check } from "lucide-react"
+import { useState, useEffect, useMemo } from "react"
 import { toast } from "sonner"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from "@/components/ui/select"
 import { apiClient } from "@/lib/api/client"
+import { cn } from "@/lib/utils"
 
 interface InviteMemberDialogProps {
   projectId: string
@@ -37,180 +23,175 @@ export function InviteMemberDialog({
   onOpenChange,
   onInviteSent
 }: InviteMemberDialogProps) {
-  const [email, setEmail] = useState("")
-  const [role, setRole] = useState("MEMBER")
-  const [loading, setLoading] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [orgUsers, setOrgUsers] = useState<any[]>([])
+  const [projectMemberIds, setProjectMemberIds] = useState<Set<string>>(new Set())
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+  const [adding, setAdding] = useState(false)
+  const [search, setSearch] = useState("")
 
-  const handleInvite = async () => {
-    if (!email.trim()) {
-      toast.error("Please enter an email address")
+  useEffect(() => {
+    if (!open) {
       return
     }
+    setSearch("")
+    setSelectedUserId(null)
+    fetchData()
+  }, [open])
 
-    setLoading(true)
+  const fetchData = async () => {
+    setLoadingUsers(true)
     try {
-      const response = await apiClient.post(`/api/projects/${projectId}/members`, {
-        email,
-        role
-      })
+      const [orgRes, membersRes] = await Promise.all([
+        apiClient.get("/api/organizations/current"),
+        apiClient.get(`/api/projects/${projectId}/members`)
+      ])
 
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || "Failed to invite member")
+      if (orgRes.ok) {
+        const orgData = await orgRes.json()
+        // org members: [{ userId, userName, userEmail }]
+        setOrgUsers(orgData.members || [])
       }
 
-      toast.success(`Member added successfully`, {
-        description: `${email} has been added to the project.`
-      })
-
-      setEmail("")
-      setRole("MEMBER")
-      onOpenChange(false)
-      onInviteSent?.()
-    } catch (error: any) {
-      console.error("Invite error:", error)
-      toast.error(error.message || "Failed to invite member")
+      if (membersRes.ok) {
+        const membersData = await membersRes.json()
+        // project members: [{ _id, name, email }]
+        const ids = new Set<string>((membersData as any[]).map((m: any) => m._id))
+        setProjectMemberIds(ids)
+      }
+    } catch (err) {
+      console.error("Failed to load users:", err)
     } finally {
-      setLoading(false)
+      setLoadingUsers(false)
     }
   }
 
-  const copyInviteLink = () => {
-    const link = `${window.location.origin}/join/project/${projectId}`
-    navigator.clipboard.writeText(link)
-    setCopied(true)
-    toast.success("Invite link copied to clipboard!")
-    setTimeout(() => {
-      setCopied(false)
-    }, 2000)
+  // Org users not yet in project
+  const available = useMemo(() => {
+    const q = search.toLowerCase()
+    return orgUsers.filter((u) => {
+      if (projectMemberIds.has(u.userId)) {
+        return false
+      }
+      if (!q) {
+        return true
+      }
+      return u.userName?.toLowerCase().includes(q) || u.userEmail?.toLowerCase().includes(q)
+    })
+  }, [orgUsers, projectMemberIds, search])
+
+  const handleAdd = async () => {
+    if (!selectedUserId) {
+      return
+    }
+    setAdding(true)
+    try {
+      const response = await apiClient.post(`/api/projects/${projectId}/members`, {
+        userId: selectedUserId
+      })
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || "Failed to add member")
+      }
+      const user = orgUsers.find((u) => u.userId === selectedUserId)
+      toast.success(`${user?.userName || "User"} added to project`)
+      onOpenChange(false)
+      onInviteSent?.()
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add member")
+    } finally {
+      setAdding(false)
+    }
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="overflow-hidden border-none p-0 shadow-2xl sm:max-w-[500px]">
-        <div className="relative h-32 bg-gradient-to-br from-blue-600 to-indigo-700 p-8 text-white">
-          <div className="absolute top-8 right-8 translate-x-4 -translate-y-4 transform opacity-20">
-            <UserPlus className="h-24 w-24" />
+        <div className="relative h-28 bg-linear-to-br from-blue-600 to-indigo-700 p-8 text-white">
+          <div className="absolute top-6 right-8 opacity-10">
+            <UserPlus className="h-20 w-20" />
           </div>
-          <DialogTitle className="mb-2 text-2xl font-black">Invite Collaborator</DialogTitle>
-          <DialogDescription className="font-medium text-blue-100 opacity-80">
-            Grow your project team and start building together.
+          <DialogTitle className="mb-1 text-2xl font-black">Add Member</DialogTitle>
+          <DialogDescription className="font-medium text-blue-100/80">
+            Select an organisation member to add to this project.
           </DialogDescription>
         </div>
 
-        <div className="space-y-6 bg-white p-8 dark:bg-slate-950">
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label
-                htmlFor="email"
-                className="text-[10px] font-black tracking-widest text-slate-400 uppercase"
-              >
-                Email Address
-              </Label>
-              <div className="group relative">
-                <Mail className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-blue-500" />
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="colleague@example.com"
-                  className="h-12 rounded-xl border-slate-200 bg-slate-50 pl-10 focus:ring-2 focus:ring-blue-500/20 dark:bg-slate-900"
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value)
-                  }}
-                  disabled={loading}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label
-                htmlFor="role"
-                className="text-[10px] font-black tracking-widest text-slate-400 uppercase"
-              >
-                Project Role
-              </Label>
-              <Select value={role} onValueChange={setRole} disabled={loading}>
-                <SelectTrigger
-                  id="role"
-                  className="h-12 rounded-xl border-slate-200 bg-slate-50 dark:bg-slate-900"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl border-slate-200 shadow-xl">
-                  <SelectItem value="MEMBER" className="rounded-lg py-3">
-                    <div className="flex flex-col">
-                      <span className="flex items-center gap-2 font-bold">
-                        Member
-                        <Badge
-                          variant="outline"
-                          className="h-4 px-1 text-[9px] font-black uppercase"
-                        >
-                          Default
-                        </Badge>
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">
-                        Standard access, can view and edit assigned tasks.
-                      </span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="ADMIN" className="rounded-lg py-3">
-                    <div className="flex flex-col">
-                      <span className="flex items-center gap-2 font-bold text-blue-600">
-                        <Shield className="h-3 w-3" />
-                        Admin
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">
-                        Full control over settings, members, and all activities.
-                      </span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="VIEWER" className="rounded-lg py-3">
-                    <div className="flex flex-col">
-                      <span className="font-bold">Viewer</span>
-                      <span className="text-[10px] text-muted-foreground">
-                        Read-only access to stay informed on progress.
-                      </span>
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+        <div className="space-y-4 bg-white p-6 dark:bg-slate-950">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input
+              placeholder="Search by name or email..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value)
+              }}
+              className="h-11 rounded-xl border-slate-200 bg-slate-50 pl-9 text-sm dark:bg-slate-900"
+            />
           </div>
 
-          <div className="flex flex-col gap-3 border-t pt-4">
-            <Button
-              onClick={handleInvite}
-              disabled={loading}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 font-bold shadow-xl shadow-blue-500/20 hover:bg-blue-700"
-            >
-              {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  <Send className="h-4 w-4" />
-                  Send Professional Invite
-                </>
-              )}
-            </Button>
-
-            <div className="relative py-2">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-slate-100" />
+          {/* User list */}
+          <div className="max-h-72 overflow-y-auto rounded-xl border border-slate-100 dark:border-slate-800">
+            {loadingUsers ? (
+              <div className="flex items-center justify-center py-12 text-slate-400">
+                <Loader2 className="h-5 w-5 animate-spin" />
               </div>
-              <div className="relative flex justify-center text-[10px] font-black tracking-widest text-slate-300 uppercase">
-                <span className="bg-white px-2 dark:bg-slate-950">or share link</span>
+            ) : available.length === 0 ? (
+              <div className="py-10 text-center text-sm font-medium text-slate-400">
+                {search
+                  ? "No members match your search"
+                  : "All organisation members are already in this project"}
               </div>
-            </div>
+            ) : (
+              available.map((u) => (
+                <button
+                  key={u.userId}
+                  onClick={() => {
+                    setSelectedUserId(u.userId === selectedUserId ? null : u.userId)
+                  }}
+                  className={cn(
+                    "flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50",
+                    selectedUserId === u.userId && "bg-blue-50 dark:bg-blue-900/20"
+                  )}
+                >
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-black text-white">
+                    {(u.userName || "?").slice(0, 1).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold text-slate-900 dark:text-white">
+                      {u.userName}
+                    </p>
+                    <p className="truncate text-[11px] text-slate-400">{u.userEmail}</p>
+                  </div>
+                  {selectedUserId === u.userId && (
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-white">
+                      <Check className="h-3.5 w-3.5" />
+                    </div>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
 
+          {/* Footer */}
+          <div className="flex gap-3 pt-1">
             <Button
               variant="outline"
-              onClick={copyInviteLink}
-              className="h-12 gap-2 rounded-xl border-slate-200 font-bold hover:bg-slate-50"
+              className="flex-1 rounded-xl border-slate-200 font-bold"
+              onClick={() => {
+                onOpenChange(false)
+              }}
+              disabled={adding}
             >
-              {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-              {copied ? "Link Copied!" : "Copy Project Invitation Link"}
+              Cancel
+            </Button>
+            <Button
+              className="flex-1 rounded-xl bg-blue-600 font-bold text-white shadow-lg shadow-blue-500/20 hover:bg-blue-700"
+              onClick={handleAdd}
+              disabled={!selectedUserId || adding}
+            >
+              {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add to Project"}
             </Button>
           </div>
         </div>

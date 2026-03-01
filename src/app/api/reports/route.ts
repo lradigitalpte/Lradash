@@ -60,7 +60,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { title, description, fileUrl, fileName, fileType, dueDate, weekNumber, year } = body
+    const { title, description, fileUrl, fileName, fileType, fileSize, dueDate, weekNumber, year } =
+      body
 
     const report = await ReportModel.create({
       title,
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
       fileType,
       fileUrl,
       fileName,
-      fileSize: "0 KB" // In a real app, calculate this
+      fileSize: fileSize ?? "0 KB"
     })
 
     return NextResponse.json(report, { status: 201 })

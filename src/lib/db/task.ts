@@ -184,12 +184,6 @@ async function ensureUserIsMember(projectId: string, userId: string): Promise<vo
     throw new Error("Project not found")
   }
 
-  const boardId = project.board
-  const board = await BoardModel.findById(boardId)
-  if (!board) {
-    throw new Error("Board not found")
-  }
-
   const getObjectIdString = (id: any): string => {
     if (!id) {
       return ""
@@ -202,18 +196,24 @@ async function ensureUserIsMember(projectId: string, userId: string): Promise<vo
 
   const isProjectMember = project.members.some((member) => getObjectIdString(member) === userId)
 
-  const isBoardMember = board.members.some((member) => getObjectIdString(member) === userId)
-
   if (!isProjectMember) {
     await ProjectModel.findByIdAndUpdate(projectId, {
       $addToSet: { members: userId }
     })
   }
 
-  if (!isBoardMember) {
-    await BoardModel.findByIdAndUpdate(boardId, {
-      $addToSet: { members: userId }
-    })
+  // Only sync board membership if this project has an associated board
+  const boardId = (project as any).board
+  if (boardId) {
+    const board = await BoardModel.findById(boardId)
+    if (board) {
+      const isBoardMember = board.members.some((member) => getObjectIdString(member) === userId)
+      if (!isBoardMember) {
+        await BoardModel.findByIdAndUpdate(boardId, {
+          $addToSet: { members: userId }
+        })
+      }
+    }
   }
 }
 

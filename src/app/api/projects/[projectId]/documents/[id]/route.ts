@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { verifyAccessToken } from "@/lib/auth/tokens"
+import { deleteFromS3, keyFromUrl } from "@/lib/aws/s3"
 import { connectToDatabase } from "@/lib/db/connect"
 import { DocumentModel } from "@/models/document.model"
 
@@ -38,6 +39,16 @@ export async function DELETE(
     // if (document.uploader.toString() !== decoded.userId && decoded.role !== 'admin') ...
 
     await DocumentModel.deleteOne({ _id: id })
+
+    // Remove from S3 if a url was stored
+    if (document.url) {
+      const key = keyFromUrl(document.url)
+      if (key) {
+        await deleteFromS3(key).catch((err) => {
+          console.warn("S3 delete warning:", err?.message)
+        })
+      }
+    }
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
