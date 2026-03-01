@@ -15,6 +15,7 @@ import {
   Zap,
   Shield,
   Activity,
+  BarChart3,
   Box,
   Globe,
   Lock,
@@ -77,6 +78,7 @@ export default function AppSidebar() {
     { title: "Team", href: "/team", icon: Users, accentColor: "rose" },
     { title: "Reports", href: "/reports", icon: FileText, accentColor: "amber" },
     { title: "Monitor", href: "/monitor", icon: Activity, accentColor: "red" },
+    { title: "Analytics", href: "/analytics", icon: BarChart3, accentColor: "indigo" },
     ...(isAdmin
       ? [{ title: "Admin", href: "/admin", icon: Shield, accentColor: "violet" } as NavItem]
       : [])
