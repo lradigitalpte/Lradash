@@ -34,7 +34,9 @@ const userSchema = new mongoose.Schema(
       enum: ["ACTIVE", "INACTIVE", "SUSPENDED"],
       default: "ACTIVE"
     },
-    deletedAt: { type: Date, default: null } // Soft delete
+    deletedAt: { type: Date, default: null }, // Soft delete
+    // Firebase Cloud Messaging tokens for push notifications
+    fcmTokens: { type: [String], default: [] }
   },
   {
     timestamps: true

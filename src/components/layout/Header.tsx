@@ -1,6 +1,7 @@
 "use client"
 
-import { Bell, Search, Zap, Activity } from "lucide-react"
+import { formatDistanceToNow } from "date-fns"
+import { Bell, Search, Zap, Activity, CheckCheck } from "lucide-react"
 import { useState } from "react"
 
 import { SearchInput } from "@/components/common"
@@ -16,46 +17,19 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import { useNotifications } from "@/hooks/useNotifications"
 import { cn } from "@/lib/utils"
 
 import LanguageSwitcher from "./LanguageSwitcher"
 import ThemeToggle from "./ThemeToggle"
 import { UserNav } from "./UserNav"
 
-// Mock notifications - in real app, this would come from a hook
-const mockNotifications = [
-  {
-    id: "1",
-    title: "New Task: Architectural Wireframes",
-    description: "You have been assigned to create the architectural wireframes.",
-    time: "5m ago",
-    read: false,
-    priority: "high"
-  },
-  {
-    id: "2",
-    title: "New Comment: Design Review",
-    description: "John left a comment on the Design Review board.",
-    time: "1h ago",
-    read: false,
-    priority: "medium"
-  },
-  {
-    id: "3",
-    title: "Project Milestone: System Setup",
-    description: "The system setup phase has been successfully completed.",
-    time: "2h ago",
-    read: true,
-    priority: "low"
-  }
-]
-
 export default function Header() {
   const [searchOpen, setSearchOpen] = useState(false)
-  const unreadCount = mockNotifications.filter((n) => !n.read).length
+  const { notifications, unreadCount, loading, markRead, markAllRead } = useNotifications()
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-slate-200/60 bg-white/60 backdrop-blur-xl supports-[backdrop-filter]:bg-white/60 dark:border-slate-800/60 dark:bg-slate-950/60">
+    <header className="sticky top-0 z-40 w-full border-b border-slate-200/60 bg-white/60 backdrop-blur-xl supports-backdrop-filter:bg-white/60 dark:border-slate-800/60 dark:bg-slate-950/60">
       <div className="flex h-16 items-center gap-4 px-6 lg:px-10">
         {/* Left section */}
         <div className="flex items-center gap-4">
@@ -88,7 +62,6 @@ export default function Header() {
               <div className="relative">
                 <Search className="absolute top-1/2 left-4 z-10 h-4 w-4 -translate-y-1/2 text-blue-500" />
                 <input
-                  autoFocus
                   type="text"
                   placeholder="Search projects..."
                   className="h-10 w-full rounded-2xl border-none bg-slate-50 pr-6 pl-12 text-xs font-bold shadow-inner transition-all placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 dark:bg-slate-900"
@@ -132,7 +105,7 @@ export default function Header() {
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="w-96 rounded-[2rem] border-slate-200/60 bg-white/95 p-2 shadow-2xl backdrop-blur-xl dark:border-slate-800/60 dark:bg-slate-900/95"
+              className="w-96 rounded-4xl border-slate-200/60 bg-white/95 p-2 shadow-2xl backdrop-blur-xl dark:border-slate-800/60 dark:bg-slate-900/95"
             >
               <DropdownMenuLabel className="p-6">
                 <div className="flex items-center justify-between">
@@ -149,42 +122,65 @@ export default function Header() {
                       variant="ghost"
                       size="sm"
                       className="h-8 rounded-xl px-4 text-[10px] font-black tracking-widest text-blue-600 uppercase hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        markAllRead()
+                      }}
                     >
-                      Mark as Read
+                      <CheckCheck className="mr-1.5 h-3.5 w-3.5" />
+                      Mark all read
                     </Button>
                   )}
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator className="mx-2 opacity-50" />
-              <div className="custom-scrollbar max-h-[400px] overflow-y-auto px-1 py-2">
-                {mockNotifications.map((notification) => (
-                  <DropdownMenuItem
-                    key={notification.id}
-                    className={cn(
-                      "mb-1 flex cursor-pointer flex-col items-start gap-2 rounded-2xl p-4 transition-all",
-                      !notification.read
-                        ? "bg-slate-50 dark:bg-slate-800/50"
-                        : "hover:bg-slate-50 dark:hover:bg-slate-800/30"
-                    )}
-                  >
-                    <div className="flex w-full items-start justify-between gap-4">
-                      <div className="flex items-center gap-2">
-                        {!notification.read && (
-                          <div className="h-1.5 w-1.5 rounded-full bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.6)]" />
-                        )}
-                        <span className="text-[11px] font-black tracking-tight text-slate-900 uppercase dark:text-white">
-                          {notification.title}
+              <div className="custom-scrollbar max-h-100 overflow-y-auto px-1 py-2">
+                {loading && (
+                  <div className="py-8 text-center text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                    Loading…
+                  </div>
+                )}
+                {!loading && notifications.length === 0 && (
+                  <div className="py-8 text-center text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                    No notifications
+                  </div>
+                )}
+                {!loading &&
+                  notifications.map((notification) => (
+                    <DropdownMenuItem
+                      key={notification.id}
+                      className={cn(
+                        "mb-1 flex cursor-pointer flex-col items-start gap-2 rounded-2xl p-4 transition-all",
+                        !notification.read
+                          ? "bg-slate-50 dark:bg-slate-800/50"
+                          : "hover:bg-slate-50 dark:hover:bg-slate-800/30"
+                      )}
+                      onClick={() => {
+                        if (!notification.read) {
+                          markRead(notification.id)
+                        }
+                      }}
+                    >
+                      <div className="flex w-full items-start justify-between gap-4">
+                        <div className="flex items-center gap-2">
+                          {!notification.read && (
+                            <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.6)]" />
+                          )}
+                          <span className="text-[11px] font-black tracking-tight text-slate-900 uppercase dark:text-white">
+                            {notification.title}
+                          </span>
+                        </div>
+                        <span className="text-[9px] font-black tracking-widest whitespace-nowrap text-slate-400 uppercase">
+                          {formatDistanceToNow(new Date(notification.createdAt), {
+                            addSuffix: true
+                          })}
                         </span>
                       </div>
-                      <span className="text-[9px] font-black tracking-widest text-slate-400 uppercase">
-                        {notification.time}
-                      </span>
-                    </div>
-                    <p className="pl-1 text-xs leading-relaxed font-medium text-slate-500 italic dark:text-slate-400">
-                      {notification.description}
-                    </p>
-                  </DropdownMenuItem>
-                ))}
+                      <p className="pl-1 text-xs leading-relaxed font-medium text-slate-500 italic dark:text-slate-400">
+                        {notification.body}
+                      </p>
+                    </DropdownMenuItem>
+                  ))}
               </div>
               <DropdownMenuSeparator className="mx-2 opacity-50" />
               <DropdownMenuItem className="justify-center rounded-2xl p-4 text-[10px] font-black tracking-[0.2em] text-blue-600 uppercase transition-all hover:bg-blue-50 dark:hover:bg-blue-900/20">

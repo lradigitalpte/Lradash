@@ -46,6 +46,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem
 } from "@/components/ui/sidebar"
+import { useAdminAccess } from "@/hooks/useAdmin"
 import { useBoards } from "@/hooks/useBoards"
 import { Link, usePathname } from "@/i18n/navigation"
 import { cn } from "@/lib/utils"
@@ -62,6 +63,7 @@ export default function AppSidebar() {
   const t = useTranslations("sidebar")
   const pathname = usePathname()
   const { myBoards, teamBoards, loading } = useBoards()
+  const isAdmin = useAdminAccess()
   const [myBoardsOpen, setMyBoardsOpen] = useState(true)
   const [teamBoardsOpen, setTeamBoardsOpen] = useState(true)
   const [quickAddOpen, setQuickAddOpen] = useState(false)
@@ -74,7 +76,10 @@ export default function AppSidebar() {
     { title: "Calendar", href: "/calendar", icon: CalendarDays, accentColor: "orange" },
     { title: "Team", href: "/team", icon: Users, accentColor: "rose" },
     { title: "Reports", href: "/reports", icon: FileText, accentColor: "amber" },
-    { title: "Monitor", href: "/monitor", icon: Activity, accentColor: "red" }
+    { title: "Monitor", href: "/monitor", icon: Activity, accentColor: "red" },
+    ...(isAdmin
+      ? [{ title: "Admin", href: "/admin", icon: Shield, accentColor: "violet" } as NavItem]
+      : [])
   ]
 
   const isActive = (href: string) => {

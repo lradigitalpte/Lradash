@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { verifyAccessToken } from "@/lib/auth/tokens"
 import { getAllUserTasks, createPersonalTask } from "@/lib/db/task"
+import { getUserByEmail } from "@/lib/db/user"
+import { dispatchNotification } from "@/lib/notifications/dispatcher"
 
 /**
  * GET /api/tasks
@@ -84,6 +86,25 @@ export async function POST(request: NextRequest) {
       priority || "MEDIUM",
       status || "TODO"
     )
+
+    // Fire-and-forget notification to the task creator
+    const creator = await getUserByEmail(decoded.email)
+    if (creator) {
+      dispatchNotification({
+        recipientUserId: String(creator._id),
+        type: "task_created",
+        title: `Task Created: ${title}`,
+        body: description
+          ? `${description.slice(0, 100)}${description.length > 100 ? "…" : ""}`
+          : `New task "${title}" has been created.`,
+        taskId: String(task._id),
+        triggeredBy: {
+          userId: String(creator._id),
+          name: creator.name ?? decoded.email,
+          avatar: creator.avatar ?? undefined
+        }
+      }).catch(() => {}) // don't block the response
+    }
 
     return NextResponse.json(task, {
       status: 201,

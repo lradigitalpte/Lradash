@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { verifyAccessToken } from "@/lib/auth/tokens"
 import { updateTaskInDb, deleteTaskInDb, getTaskById } from "@/lib/db/task"
+import { getUserByEmail } from "@/lib/db/user"
+import { dispatchNotification } from "@/lib/notifications/dispatcher"
 
 /**
  * GET /api/tasks/[id]
@@ -58,6 +60,37 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { id: taskId } = await params
 
     const updatedTask = await updateTaskInDb(taskId, userEmail, body)
+
+    // Fire-and-forget notification
+    const updater = await getUserByEmail(userEmail)
+    if (updater) {
+      // Determine what changed for a meaningful message
+      const changedFields = Object.keys(body).filter((k) => k !== "updatedAt")
+      const changeDesc =
+        changedFields.length === 1
+          ? `${changedFields[0]} was updated`
+          : `${changedFields.length} fields were updated`
+
+      const notifType =
+        body.status === "DONE" || body.status === "COMPLETED"
+          ? ("task_completed" as const)
+          : body.assignee
+            ? ("task_assigned" as const)
+            : ("task_updated" as const)
+
+      dispatchNotification({
+        recipientUserId: String(updater._id),
+        type: notifType,
+        title: `Task Updated: ${(updatedTask as any)?.title ?? taskId}`,
+        body: `${changeDesc} by ${updater.name ?? userEmail}.`,
+        taskId,
+        triggeredBy: {
+          userId: String(updater._id),
+          name: updater.name ?? userEmail,
+          avatar: updater.avatar ?? undefined
+        }
+      }).catch(() => {})
+    }
 
     return NextResponse.json(updatedTask)
   } catch (error: any) {
