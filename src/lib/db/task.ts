@@ -92,16 +92,19 @@ async function convertTaskToPlainObject(taskDoc: TaskBase): Promise<TaskType> {
       assigneeUser && assigneeId
         ? {
             id: assigneeId,
-            name: assigneeUser.name
+            name: assigneeUser.name,
+            avatar: assigneeUser.avatar || undefined
           }
         : undefined,
     creator: {
       id: creatorId,
-      name: creatorUser.name
+      name: creatorUser.name,
+      avatar: creatorUser.avatar || undefined
     },
     lastModifier: {
       id: modifierId,
-      name: modifierUser.name
+      name: modifierUser.name,
+      avatar: modifierUser.avatar || undefined
     },
     priority: (taskDoc.priority as TaskPriority) || TaskPriority.MEDIUM,
     isArchived: taskDoc.isArchived || false,

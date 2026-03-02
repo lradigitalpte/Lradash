@@ -22,8 +22,8 @@ export async function fetchBoardsFromDb(userEmail: string): Promise<Board[]> {
     const boardsFromDb = await BoardModel.find({
       $or: [{ owner: user._id }, { members: user._id }]
     } as any)
-      .populate("owner", "name")
-      .populate("members", "name")
+      .populate("owner", "name avatar")
+      .populate("members", "name avatar")
       .lean()
 
     return boardsFromDb.map((board) => convertBoardToPlainObject(board as BoardDocument, new Map()))
@@ -73,9 +73,11 @@ function convertBoardToPlainObject(
     members: (boardDoc.members || []).filter(Boolean).map((member: any) => {
       const id = member._id ? member._id.toString() : getObjectIdString(member)
       const name = member.name || "Unknown User"
+      const image = member.avatar || undefined
       return {
         id,
-        name
+        name,
+        image
       }
     }),
     organizationId: boardDoc.organizationId.toString(),

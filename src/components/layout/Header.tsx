@@ -171,9 +171,12 @@ export default function Header() {
                           </span>
                         </div>
                         <span className="text-[9px] font-black tracking-widest whitespace-nowrap text-slate-400 uppercase">
-                          {formatDistanceToNow(new Date(notification.createdAt), {
-                            addSuffix: true
-                          })}
+                          {notification.createdAt &&
+                          !isNaN(new Date(notification.createdAt).getTime())
+                            ? formatDistanceToNow(new Date(notification.createdAt), {
+                                addSuffix: true
+                              })
+                            : "recently"}
                         </span>
                       </div>
                       <p className="pl-1 text-xs leading-relaxed font-medium text-slate-500 italic dark:text-slate-400">

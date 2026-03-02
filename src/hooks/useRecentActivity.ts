@@ -35,7 +35,8 @@ export function useRecentActivity(limit: number = 10): Activity[] {
                 id: `${task._id}-created`,
                 type: "created",
                 user: {
-                  name: typeof task.creator === "object" ? task.creator.name : "Unknown"
+                  name: typeof task.creator === "object" ? task.creator.name : "Unknown",
+                  image: typeof task.creator === "object" ? task.creator.avatar : undefined
                 },
                 target: task.title,
                 timestamp: task.createdAt || new Date()
@@ -48,7 +49,9 @@ export function useRecentActivity(limit: number = 10): Activity[] {
                 id: `${task._id}-completed`,
                 type: "completed",
                 user: {
-                  name: typeof task.lastModifier === "object" ? task.lastModifier.name : "Unknown"
+                  name: typeof task.lastModifier === "object" ? task.lastModifier.name : "Unknown",
+                  image:
+                    typeof task.lastModifier === "object" ? task.lastModifier.avatar : undefined
                 },
                 target: task.title,
                 timestamp: task.updatedAt || new Date()

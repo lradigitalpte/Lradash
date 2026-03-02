@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { UserProfilePopover } from "@/components/common"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -20,6 +21,7 @@ interface User {
   id: string
   email: string
   name: string
+  avatar?: string
 }
 
 export function UserNav() {
@@ -100,8 +102,9 @@ export function UserNav() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+        <Button variant="ghost" className="relative h-8 w-8 rounded-full p-0">
           <Avatar className="h-8 w-8">
+            {user?.avatar && <AvatarImage src={user.avatar} alt={user.name} />}
             <AvatarFallback className="bg-primary text-xs font-bold text-primary-foreground">
               {initials}
             </AvatarFallback>
@@ -112,14 +115,23 @@ export function UserNav() {
         {user ? (
           <>
             <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col space-y-1">
-                <p className="text-sm leading-none font-medium">{user.name}</p>
-                <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
-              </div>
+              <UserProfilePopover
+                name={user.name}
+                email={user.email}
+                image={user.avatar}
+                showPopover={false}
+              />
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
           </>
         ) : null}
+        <DropdownMenuItem
+          onClick={() => {
+            router.push("/en/settings")
+          }}
+        >
+          Settings
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={handleLogout}>Log Out</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

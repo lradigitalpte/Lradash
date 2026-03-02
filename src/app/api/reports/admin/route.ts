@@ -63,9 +63,20 @@ export async function GET(request: NextRequest) {
       query.year = Number(year)
     }
 
-    const reports = await ReportModel.find(query).sort({ submittedAt: -1 }).lean()
+    const reports = await ReportModel.find(query)
+      .populate("submittedBy.id", "name email avatar")
+      .sort({ submittedAt: -1 })
+      .lean()
 
-    return NextResponse.json(reports)
+    // Map to ensure avatar is included from the populated user data
+    const enrichedReports = reports.map((report: any) => {
+      if (report.submittedBy && typeof report.submittedBy.id === "object") {
+        report.submittedBy.avatar = report.submittedBy.id.avatar || report.submittedBy.avatar
+      }
+      return report
+    })
+
+    return NextResponse.json(enrichedReports)
   } catch (err) {
     console.error("Admin reports error:", err)
     return NextResponse.json({ error: "Failed to fetch reports" }, { status: 500 })

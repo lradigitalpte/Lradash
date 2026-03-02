@@ -14,6 +14,30 @@ const projectSchema = new mongoose.Schema(
     owner: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     members: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     dueDate: { type: Date, default: null },
+    status: {
+      type: String,
+      enum: ["ACTIVE", "ON_HOLD", "COMPLETED"],
+      default: "ACTIVE"
+    },
+    priority: {
+      type: String,
+      enum: ["LOW", "MEDIUM", "HIGH", "URGENT"],
+      default: "MEDIUM"
+    },
+    visibility: {
+      type: String,
+      enum: ["PUBLIC", "PRIVATE"],
+      default: "PRIVATE"
+    },
+    notificationSettings: {
+      email: { type: Boolean, default: false },
+      assigned: { type: Boolean, default: true },
+      mentions: { type: Boolean, default: true },
+      deadlines: { type: Boolean, default: true },
+      statusChanges: { type: Boolean, default: false },
+      memberJoins: { type: Boolean, default: false },
+      overdueAlerts: { type: Boolean, default: true }
+    },
     isArchived: { type: Boolean, default: false },
     deletedAt: { type: Date, default: null } // Soft delete
   },

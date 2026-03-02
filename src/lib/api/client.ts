@@ -37,6 +37,10 @@ const refreshToken = async (): Promise<string | null> => {
         if (data.user) {
           localStorage.setItem("user", JSON.stringify(data.user))
         }
+        // Notify any listeners (e.g. SSE hook) that a fresh token is available
+        window.dispatchEvent(
+          new CustomEvent("token-refreshed", { detail: { accessToken: data.accessToken } })
+        )
         return data.accessToken
       }
       return null

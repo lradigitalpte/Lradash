@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
+
+import { verifyAccessToken } from "@/lib/auth/tokens"
 import { connectToDatabase } from "@/lib/db/connect"
 import { UserModel } from "@/models/user.model"
-import { verifyAccessToken } from "@/lib/auth/tokens"
 
 export async function GET(request: NextRequest) {
   try {
@@ -37,7 +38,8 @@ export async function GET(request: NextRequest) {
       {
         id: user._id.toString(),
         email: user.email,
-        name: user.name
+        name: user.name,
+        avatar: user.avatar || null
       },
       {
         status: 200,

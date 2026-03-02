@@ -20,7 +20,8 @@ import {
   ProgressBar,
   SegmentedProgress,
   StatCard,
-  StatusBadge
+  StatusBadge,
+  UserAvatar
 } from "@/components/common"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -360,7 +361,7 @@ export default function DashboardPage() {
                             </div>
                             {board.members && board.members.length > 0 && (
                               <AvatarGroup
-                                users={board.members.map((m) => ({ name: m.name }))}
+                                users={board.members.map((m) => ({ name: m.name, image: m.image }))}
                                 max={3}
                                 size="xs"
                               />
@@ -528,12 +529,7 @@ export default function DashboardPage() {
                   {allBoards.length > 0 && allBoards[0].members ? (
                     allBoards[0].members.slice(0, 5).map((member, index) => (
                       <div key={index} className="group flex items-center gap-4 p-2 pl-0">
-                        <div className="relative">
-                          <div className="absolute -inset-0.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 opacity-0 blur transition duration-500 group-hover:opacity-100" />
-                          <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-xs font-black text-white ring-4 ring-white dark:bg-white dark:text-slate-900 dark:ring-slate-900">
-                            {member.name.charAt(0).toUpperCase()}
-                          </div>
-                        </div>
+                        <UserAvatar name={member.name} image={member.image} size="sm" />
                         <div className="flex flex-col">
                           <span className="text-sm font-black tracking-tight text-slate-900 uppercase dark:text-white">
                             {member.name}

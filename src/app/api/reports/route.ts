@@ -30,9 +30,21 @@ export async function GET(request: NextRequest) {
       organizationId: user.defaultOrganizationId,
       "submittedBy.id": user._id,
       deletedAt: null
-    }).sort({ createdAt: -1 })
+    })
+      .populate("submittedBy.id", "name email avatar")
+      .sort({ createdAt: -1 })
 
-    return NextResponse.json(reports)
+    // Map to ensure avatar is included from the populated user data
+    const enrichedReports = reports.map((report: any) => {
+      const reportObj = report.toObject ? report.toObject() : report
+      if (reportObj.submittedBy && typeof reportObj.submittedBy.id === "object") {
+        reportObj.submittedBy.avatar =
+          reportObj.submittedBy.id.avatar || reportObj.submittedBy.avatar
+      }
+      return reportObj
+    })
+
+    return NextResponse.json(enrichedReports)
   } catch (error) {
     console.error("Fetch reports error:", error)
     return NextResponse.json({ error: "Failed to fetch reports" }, { status: 500 })

@@ -564,7 +564,11 @@ export default function ReportsPage() {
                             </span>
                             <span className="h-1 w-1 rounded-full bg-slate-200 dark:bg-slate-700" />
                             <span className="flex items-center gap-1.5">
-                              <UserAvatar name={report.submittedBy.name} size="xs" />
+                              <UserAvatar
+                                name={report.submittedBy.name}
+                                image={report.submittedBy.avatar}
+                                size="xs"
+                              />
                               {report.submittedBy.name}
                             </span>
                             {report.fileName && (

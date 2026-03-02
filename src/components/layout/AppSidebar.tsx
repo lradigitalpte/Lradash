@@ -12,15 +12,10 @@ import {
   Settings,
   Users,
   FileText,
-  Zap,
   Shield,
   Activity,
   BarChart3,
-  Box,
-  Globe,
-  Lock,
-  CreditCard,
-  Mail
+  Box
 } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useState } from "react"
@@ -28,14 +23,6 @@ import { useState } from "react"
 import { Icons } from "@/components/layout/Icons"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger
-} from "@/components/ui/dropdown-menu"
 import {
   Sidebar,
   SidebarContent,
@@ -67,9 +54,7 @@ export default function AppSidebar() {
   const isAdmin = useAdminAccess()
   const [myBoardsOpen, setMyBoardsOpen] = useState(true)
   const [teamBoardsOpen, setTeamBoardsOpen] = useState(true)
-  const [quickAddOpen, setQuickAddOpen] = useState(false)
-
-  const mainNavItems: NavItem[] = [
+  const baseNavItems: NavItem[] = [
     { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard, accentColor: "blue" },
     { title: "Workspace", href: "/boards", icon: Home, accentColor: "indigo" },
     { title: "Projects", href: "/projects", icon: FolderKanban, accentColor: "purple" },
@@ -77,10 +62,16 @@ export default function AppSidebar() {
     { title: "Calendar", href: "/calendar", icon: CalendarDays, accentColor: "orange" },
     { title: "Team", href: "/team", icon: Users, accentColor: "rose" },
     { title: "Reports", href: "/reports", icon: FileText, accentColor: "amber" },
-    { title: "Monitor", href: "/monitor", icon: Activity, accentColor: "red" },
-    { title: "Analytics", href: "/analytics", icon: BarChart3, accentColor: "indigo" },
+    { title: "Monitor", href: "/monitor", icon: Activity, accentColor: "red" }
+  ]
+
+  const mainNavItems: NavItem[] = [
+    ...baseNavItems,
     ...(isAdmin
-      ? [{ title: "Admin", href: "/admin", icon: Shield, accentColor: "violet" } as NavItem]
+      ? ([
+          { title: "Analytics", href: "/analytics", icon: BarChart3, accentColor: "indigo" },
+          { title: "Admin", href: "/admin", icon: Shield, accentColor: "violet" }
+        ] as NavItem[])
       : [])
   ]
 
@@ -106,65 +97,6 @@ export default function AppSidebar() {
 
       <SidebarContent className="px-4">
         <div className="flex-1 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {/* Quick Add Section */}
-          <SidebarGroup className="mb-2 py-3">
-            <DropdownMenu open={quickAddOpen} onOpenChange={setQuickAddOpen}>
-              <DropdownMenuTrigger asChild>
-                <Button className="flex h-11 w-full items-center justify-center gap-2 rounded-[1.25rem] bg-blue-600 text-[10px] font-black tracking-widest text-white uppercase shadow-lg shadow-blue-500/20 hover:bg-blue-700">
-                  <Plus className="h-4 w-4 stroke-[3]" />
-                  Quick Add
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                side="right"
-                sideOffset={10}
-                className="z-50 w-56 rounded-2xl bg-white shadow-xl dark:bg-slate-900"
-              >
-                <DropdownMenuLabel className="px-4 py-2 text-[10px] font-black tracking-widest text-slate-400 uppercase">
-                  Add Monitor
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="p-0">
-                  <Link
-                    href="/monitor/websites"
-                    className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-xs font-bold text-slate-600 hover:bg-blue-50 dark:text-slate-400 dark:hover:bg-blue-900/20"
-                  >
-                    <Globe className="h-4 w-4 text-blue-600" />
-                    <span>Website Monitor</span>
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem className="p-0">
-                  <Link
-                    href="/monitor/ssl"
-                    className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-xs font-bold text-slate-600 hover:bg-emerald-50 dark:text-slate-400 dark:hover:bg-emerald-900/20"
-                  >
-                    <Shield className="h-4 w-4 text-emerald-600" />
-                    <span>SSL Certificate</span>
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem className="p-0">
-                  <Link
-                    href="/monitor/ssl"
-                    className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-xs font-bold text-slate-600 hover:bg-purple-50 dark:text-slate-400 dark:hover:bg-purple-900/20"
-                  >
-                    <Lock className="h-4 w-4 text-purple-600" />
-                    <span>Domain Registration</span>
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem className="p-0">
-                  <Link
-                    href="/monitor/subscriptions"
-                    className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-xs font-bold text-slate-600 hover:bg-amber-50 dark:text-slate-400 dark:hover:bg-amber-900/20"
-                  >
-                    <CreditCard className="h-4 w-4 text-amber-600" />
-                    <span>Subscription</span>
-                  </Link>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarGroup>
-
           <SidebarGroup className="py-2">
             <SidebarGroupLabel className="mb-4 px-4 text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
               Main Menu

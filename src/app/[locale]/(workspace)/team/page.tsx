@@ -37,6 +37,7 @@ interface Member {
   userId: string
   userName: string
   userEmail: string
+  userAvatar?: string
   role: string
   joinedAt: string
 }
@@ -258,6 +259,7 @@ export default function TeamPage() {
                         <div className="flex items-center gap-5">
                           <UserAvatar
                             name={member.userName}
+                            image={member.userAvatar}
                             size="lg"
                             className="shadow-lg ring-4 ring-white transition-transform duration-500 group-hover:scale-110 dark:ring-slate-900"
                           />
@@ -308,7 +310,7 @@ export default function TeamPage() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={ async () => handleDeleteMember(member._id)}
+                                onClick={async () => handleDeleteMember(member._id)}
                                 className="h-12 w-12 rounded-2xl text-slate-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-900/10"
                               >
                                 <Trash2 className="h-5 w-5" />

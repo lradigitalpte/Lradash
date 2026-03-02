@@ -31,6 +31,7 @@ import { useParams } from "next/navigation"
 import { useState, useEffect, useMemo } from "react"
 import { toast } from "sonner"
 
+import { UserAvatar } from "@/components/common"
 import { ChangeTaskOwnerModal } from "@/components/tasks/ChangeTaskOwnerModal"
 import { ConvertToBoardTaskModal } from "@/components/tasks/ConvertToBoardTaskModal"
 import { CreateTaskDialog } from "@/components/tasks/CreateTaskDialog"
@@ -572,9 +573,11 @@ export default function TasksPage() {
                   <TableCell>
                     {task.assignee ? (
                       <div className="flex items-center gap-2">
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] font-black text-white">
-                          {(task.assignee.name || "?").slice(0, 1).toUpperCase()}
-                        </div>
+                        <UserAvatar
+                          name={task.assignee.name}
+                          image={task.assignee.avatar}
+                          size="sm"
+                        />
                         <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
                           {task.assignee.name}
                         </span>
