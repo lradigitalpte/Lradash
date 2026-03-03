@@ -93,7 +93,7 @@ export default function ProjectTeamPage() {
     email: m.email,
     role: m._id === projectData?.owner?._id || m._id === projectData?.owner ? "ADMIN" : "MEMBER",
     avatar: m.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${m.name}`,
-    joined: m.createdAt || "2024-02-01",
+    joined: m.createdAt ? new Date(m.createdAt).toISOString() : new Date().toISOString(),
     status: "Active"
   }))
 

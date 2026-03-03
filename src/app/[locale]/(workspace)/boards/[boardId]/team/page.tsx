@@ -88,7 +88,9 @@ export default function BoardTeamPage() {
       email: (m as any).email || `${m.name.toLowerCase().replace(" ", ".")}@example.com`,
       role: "MEMBER",
       avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${m.name}`,
-      joined: "2024-02-01",
+      joined: (m as any).createdAt
+        ? new Date((m as any).createdAt).toISOString()
+        : new Date().toISOString(),
       status: "Active"
     })) || []
 

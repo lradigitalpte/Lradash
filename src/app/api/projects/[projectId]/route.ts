@@ -49,8 +49,8 @@ export async function GET(
       organizationId: organizationId,
       deletedAt: null
     })
-      .populate("owner", "name email avatar")
-      .populate("members", "name email avatar")
+      .populate("owner", "name email avatar createdAt")
+      .populate("members", "name email avatar createdAt")
       .lean()
 
     if (!project) {
