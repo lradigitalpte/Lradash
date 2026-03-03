@@ -7,8 +7,9 @@ import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 
 import { useTaskStore } from "@/lib/store"
-import { useAuth } from "./useAuth"
 import { SignInFormValue, SignInValidation } from "@/types/authUserForm"
+
+import { useAuth } from "./useAuth"
 
 interface AuthFormState {
   message?: string
@@ -21,6 +22,7 @@ export default function useAuthForm() {
   const { login } = useAuth()
   const router = useRouter()
   const [status, setStatus] = useState<AuthFormState>({ status: "idle" })
+  const [isLoading, setIsLoading] = useState(false)
 
   const form = useForm<SignInFormValue>({
     resolver: zodResolver(SignInValidation),
@@ -31,22 +33,25 @@ export default function useAuthForm() {
   })
 
   const onSubmit = async (data: SignInFormValue) => {
+    setIsLoading(true)
     setStatus({ status: "loading" })
-    
+
     try {
       const result = await login(data.email, data.password)
 
       if (!result.success) {
+        setIsLoading(false)
         setStatus({ status: "error", message: result.error })
         toast.error(result.error || "Login failed")
         return
       }
-      
+
       await setUserInfo(data.email)
-      
+
       // Redirect immediately
       window.location.href = "/en/boards"
     } catch (error) {
+      setIsLoading(false)
       const message = error instanceof Error ? error.message : "Login failed"
       setStatus({ status: "error", message })
       toast.error(message)
@@ -55,7 +60,7 @@ export default function useAuthForm() {
 
   return {
     form,
-    loading: isNavigating,
+    loading: isLoading || isNavigating,
     onSubmit,
     status
   }

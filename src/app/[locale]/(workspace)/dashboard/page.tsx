@@ -247,67 +247,78 @@ export default function DashboardPage() {
                 </Button>
               </CardHeader>
               <CardContent className="px-10 pb-10">
-                {projectStats.projectsWithProgress.length === 0 ? (
-                  <div className="space-y-6 py-20 text-center">
-                    <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-[3rem] border border-dashed border-indigo-200 bg-indigo-50/50 text-indigo-200 dark:border-indigo-800 dark:bg-indigo-900/10">
-                      <FolderKanban className="h-10 w-10" />
+                {(() => {
+                  // Filter projects to only show those where current user is a member
+                  const userProjectsWithProgress = projectStats.projectsWithProgress.filter(
+                    ({ project }) => {
+                      const isMember =
+                        project.members && project.members.some((m) => m.id === userId)
+                      return isMember
+                    }
+                  )
+
+                  return userProjectsWithProgress.length === 0 ? (
+                    <div className="space-y-6 py-20 text-center">
+                      <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-[3rem] border border-dashed border-indigo-200 bg-indigo-50/50 text-indigo-200 dark:border-indigo-800 dark:bg-indigo-900/10">
+                        <FolderKanban className="h-10 w-10" />
+                      </div>
+                      <div>
+                        <h4 className="mb-2 text-2xl font-black text-slate-900 italic dark:text-white">
+                          No Active Projects
+                        </h4>
+                        <p className="text-sm font-medium text-slate-500 italic">
+                          You're not a member of any active projects yet.
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        className="h-14 rounded-2xl border-slate-200 px-8 font-black shadow-sm"
+                        asChild
+                      >
+                        <Link href="/boards?new=true">Create Your First Project</Link>
+                      </Button>
                     </div>
-                    <div>
-                      <h4 className="mb-2 text-2xl font-black text-slate-900 italic dark:text-white">
-                        No Active Projects
-                      </h4>
-                      <p className="text-sm font-medium text-slate-500 italic">
-                        You don't have any active projects yet.
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      className="h-14 rounded-2xl border-slate-200 px-8 font-black shadow-sm"
-                      asChild
-                    >
-                      <Link href="/boards?new=true">Create Your First Project</Link>
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="grid gap-6">
-                    {projectStats.projectsWithProgress
-                      .slice(0, 5)
-                      .map(({ project, progress, taskCount }) => (
-                        <div
-                          key={project._id}
-                          className="group rounded-[2rem] border border-slate-100 bg-white/50 p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:bg-white hover:shadow-xl hover:shadow-slate-200/40 dark:border-slate-800/50 dark:bg-slate-800/30 dark:hover:bg-slate-800"
-                        >
-                          <div className="flex flex-col space-y-4">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-4">
-                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 font-black text-white dark:bg-white dark:text-slate-900">
-                                  {project.title.slice(0, 2).toUpperCase()}
+                  ) : (
+                    <div className="grid gap-6 lg:grid-cols-2">
+                      {userProjectsWithProgress
+                        .slice(0, 6)
+                        .map(({ project, progress, taskCount }) => (
+                          <div
+                            key={project._id}
+                            className="group rounded-[2rem] border border-slate-100 bg-white/50 p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:bg-white hover:shadow-xl hover:shadow-slate-200/40 dark:border-slate-800/50 dark:bg-slate-800/30 dark:hover:bg-slate-800"
+                          >
+                            <div className="flex flex-col space-y-4">
+                              <div className="flex items-center justify-between gap-4">
+                                <div className="flex min-w-0 items-center gap-4">
+                                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-900 font-black text-white dark:bg-white dark:text-slate-900">
+                                    {project.title.slice(0, 2).toUpperCase()}
+                                  </div>
+                                  <div className="flex min-w-0 flex-col">
+                                    <span className="truncate font-bold tracking-wide text-slate-900 uppercase transition-colors group-hover:text-blue-600 dark:text-white">
+                                      {project.title}
+                                    </span>
+                                    <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                                      {taskCount} Tasks Assigned
+                                    </span>
+                                  </div>
                                 </div>
-                                <div className="flex flex-col">
-                                  <span className="font-bold tracking-wide text-slate-900 uppercase transition-colors group-hover:text-blue-600 dark:text-white">
-                                    {project.title}
-                                  </span>
-                                  <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
-                                    {taskCount} Tasks Assigned
+                                <div className="shrink-0 rounded-xl bg-blue-50 p-3 dark:bg-blue-900/20">
+                                  <span className="text-sm font-black text-blue-600 tabular-nums">
+                                    {progress}%
                                   </span>
                                 </div>
                               </div>
-                              <div className="rounded-xl bg-blue-50 p-3 dark:bg-blue-900/20">
-                                <span className="text-sm font-black text-blue-600 tabular-nums">
-                                  {progress}%
-                                </span>
-                              </div>
+                              <ProgressBar
+                                value={progress}
+                                size="sm"
+                                className="bg-slate-100 dark:bg-slate-700"
+                              />
                             </div>
-                            <ProgressBar
-                              value={progress}
-                              size="sm"
-                              className="bg-slate-100 dark:bg-slate-700"
-                            />
                           </div>
-                        </div>
-                      ))}
-                  </div>
-                )}
+                        ))}
+                    </div>
+                  )
+                })()}
               </CardContent>
             </Card>
 

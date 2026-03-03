@@ -262,57 +262,6 @@ export function TaskDetailModal({
                       onRemoveLabel={handleRemoveLabel}
                     />
                   )}
-
-                  <div className="space-y-3">
-                    <h3 className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
-                      Assigned To
-                    </h3>
-                    {task.assignee ? (
-                      <div className="group flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 py-2 pr-2 pl-4 shadow-sm dark:border-slate-800/50 dark:bg-slate-800/50">
-                        <UserAvatar name={task.assignee.name} size="sm" />
-                        <span className="flex-1 text-sm font-bold text-slate-700 dark:text-slate-300">
-                          {task.assignee.name}
-                        </span>
-                        <MemberPicker
-                          className="h-8 w-8 rounded-lg border-dashed border-none bg-transparent p-0 text-slate-300 shadow-none hover:bg-white hover:text-blue-600 dark:hover:bg-slate-800"
-                          currentAssigneeId={task.assignee.id}
-                          projectId={projectId}
-                          onSelect={(user) =>
-                            onSave?.({
-                              ...task,
-                              assignee: { id: user._id, name: user.name }
-                            } as any)
-                          }
-                        />
-                      </div>
-                    ) : (
-                      <MemberPicker
-                        projectId={projectId}
-                        onSelect={(user) =>
-                          onSave?.({ ...task, assignee: { id: user._id, name: user.name } } as any)
-                        }
-                      />
-                    )}
-                  </div>
-
-                  <div className="space-y-3">
-                    <h3 className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
-                      Timeline
-                    </h3>
-                    <div
-                      className={cn(
-                        "flex items-center gap-3 rounded-2xl border px-4 py-2 shadow-sm transition-all",
-                        taskOverdue
-                          ? "border-rose-100 bg-rose-50 text-rose-600 dark:border-rose-800 dark:bg-rose-900/20"
-                          : "border-slate-100 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400"
-                      )}
-                    >
-                      <CalendarIcon className="h-4 w-4 stroke-[2.5]" />
-                      <span className="text-sm font-bold">
-                        {task.dueDate ? formatDate(task.dueDate) : "No deadline"}
-                      </span>
-                    </div>
-                  </div>
                 </div>
 
                 {/* Description */}
@@ -463,6 +412,46 @@ export function TaskDetailModal({
                       <SelectItem value="ARCHIVED">Archived</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="space-y-3">
+                  <h3 className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
+                    Assigned To
+                  </h3>
+                  {task.assignee ? (
+                    <div className="group flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-xs font-bold text-white shadow-lg">
+                        {task.assignee?.name?.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold text-slate-900 dark:text-white">
+                          {task.assignee?.name}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100"
+                        onClick={() => {
+                          onSave?.({ ...task, assignee: null } as any)
+                          toast.success("Task unassigned")
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-3 dark:border-slate-700 dark:bg-slate-900/30">
+                      <MemberPicker
+                        projectId={projectId}
+                        onSelect={(member) => {
+                          onSave?.({ ...task, assignee: member } as any)
+                          toast.success(`Task assigned to ${member?.name}`)
+                        }}
+                        className="w-full"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <CardSidebar

@@ -188,6 +188,11 @@ export default function TasksPage() {
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
+      // Filter out deleted tasks
+      if (task.deletedAt) {
+        return false
+      }
+
       const matchesSearch =
         task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         task.description?.toLowerCase().includes(searchQuery.toLowerCase())

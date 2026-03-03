@@ -148,7 +148,7 @@ async function getBoardByProjectId(projectId: string): Promise<string | undefine
 export async function getTaskById(taskId: string): Promise<Task> {
   try {
     await connectToDatabase()
-    const task = await TaskModel.findById(taskId)
+    const task = await TaskModel.findOne({ _id: taskId, deletedAt: null })
     if (!task) {
       throw new Error(`Task with id ${taskId} not found`)
     }
@@ -172,7 +172,8 @@ export async function getTaskById(taskId: string): Promise<Task> {
 export async function getTasksByProjectId(projectId: string): Promise<Task[]> {
   try {
     await connectToDatabase()
-    const tasks = await TaskModel.find({ project: projectId }).lean()
+    // Filter out deleted tasks (where deletedAt is null or doesn't exist)
+    const tasks = await TaskModel.find({ project: projectId, deletedAt: null }).lean()
     const taskPromises = tasks.map(async (task) => convertTaskToPlainObject(task as TaskBase))
     return await Promise.all(taskPromises)
   } catch (error) {

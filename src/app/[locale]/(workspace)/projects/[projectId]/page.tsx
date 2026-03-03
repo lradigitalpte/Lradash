@@ -66,7 +66,11 @@ export default function ProjectPage() {
     }
   }
 
-  const projectTasks = useMemo(() => project?.tasks || [], [project])
+  const projectTasks = useMemo(() => {
+    // Filter out deleted tasks (where deletedAt is null or doesn't exist)
+    return (project?.tasks || []).filter((t: any) => !t.deletedAt)
+  }, [project])
+
   const totalTasks = projectTasks.length
   const todoTasks = projectTasks.filter((t: any) => t.status === "TODO").length
   const inProgressTasks = projectTasks.filter(
@@ -75,7 +79,7 @@ export default function ProjectPage() {
   const doneTasks = projectTasks.filter((t: any) => t.status === "DONE").length
   const completionRate = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0
 
-  // Get recent tasks (last 5 tasks sorted by updated date)
+  // Get recent tasks (last 5 tasks sorted by updated date, excluding deleted tasks)
   const recentTasks = useMemo(() => {
     return [...projectTasks]
       .sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())

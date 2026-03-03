@@ -62,12 +62,12 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
 
   const navItems = [
     { label: "Overview", href: `/${locale}/projects/${projectId}`, icon: Home },
-    { label: "Tasks", href: `/${locale}/projects/${projectId}/tasks`, icon: CheckSquare },
     {
       label: "Work Packages",
       href: `/${locale}/projects/${projectId}/work-packages`,
       icon: ListTodo
     },
+    { label: "Tasks", href: `/${locale}/projects/${projectId}/tasks`, icon: CheckSquare },
     { label: "Gantt Chart", href: `/${locale}/projects/${projectId}/gantt`, icon: GanttChart },
     { label: "Board", href: `/${locale}/projects/${projectId}/board`, icon: LayoutGrid },
     { label: "Calendar", href: `/${locale}/projects/${projectId}/calendar`, icon: Calendar },
