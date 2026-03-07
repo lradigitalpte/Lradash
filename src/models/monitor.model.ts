@@ -66,11 +66,15 @@ const monitorSchema = new Schema<IMonitor>(
     metadata: {
       type: Schema.Types.Mixed,
       default: {}
+    },
+    projectId: {
+      type: Schema.Types.ObjectId,
+      ref: "Project",
+      default: null,
+      index: true
     }
   },
-  {
-    timestamps: true
-  }
+  { timestamps: true }
 )
 
 // Index for efficient querying by cron job

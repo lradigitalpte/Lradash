@@ -1,10 +1,9 @@
 "use client"
 
 import {
-  User,
   Tag,
   CheckSquare,
-  Calendar,
+  Calendar as CalendarIcon,
   Paperclip,
   Copy,
   Archive,
@@ -15,10 +14,11 @@ import {
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 
-import { MemberPicker } from "./MemberPicker"
+import { CardLabels } from "./CardLabels"
 import { WorkPackagePicker } from "./WorkPackagePicker"
 
 interface Card {
@@ -41,11 +41,13 @@ interface CardSidebarProps {
   card: Card
   boardId: string
   projectId: string
+  labels: Array<{ name: string; color: string }>
   onAddLabel: (label: { name: string; color: string }) => void
+  onRemoveLabel: (index: number) => void
   onAddChecklistItem: (text: string) => void
   onChangeCover: (color: string) => void
-  onAssignMember: (user: any) => void
-  onUnassignMember: (userId: string) => void
+  dueDate?: string | null
+  onDueDateChange?: (date: string | null) => void
   onSelectWorkPackage: (wpId: string | null) => void
   onDelete?: () => void
   onArchive?: () => void
@@ -55,11 +57,13 @@ export function CardSidebar({
   card,
   boardId,
   projectId,
+  labels,
   onAddLabel,
+  onRemoveLabel,
   onAddChecklistItem,
   onChangeCover,
-  onAssignMember,
-  onUnassignMember,
+  dueDate,
+  onDueDateChange,
   onSelectWorkPackage,
   onDelete,
   onArchive
@@ -121,36 +125,62 @@ export function CardSidebar({
         <h3 className="mb-3 px-1 text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
           Add to Card
         </h3>
-        <div className="space-y-2">
-          <MemberPicker
-            currentMembers={card.members || []}
-            projectId={projectId}
-            onAssign={onAssignMember}
-            onUnassign={onUnassignMember}
-          />
+        <div className="space-y-4">
           <WorkPackagePicker
             boardId={boardId}
             projectId={projectId}
             currentWorkPackageId={card.workPackage}
             onSelect={onSelectWorkPackage}
           />
-          <SidebarButton
-            icon={Tag}
-            label="Labels"
-            onClick={() => toast.info("Label picker opened")}
-          />
+          <div className="space-y-2">
+            <h4 className="text-[10px] font-black tracking-wider text-slate-500 uppercase">
+              Labels
+            </h4>
+            <CardLabels labels={labels} onAddLabel={onAddLabel} onRemoveLabel={onRemoveLabel} />
+          </div>
           <SidebarButton
             icon={CheckSquare}
             label="Checklist"
-            onClick={() => {
-              onAddChecklistItem("New task")
-            }}
+            onClick={() =>{  onAddChecklistItem("New task"); }}
           />
-          <SidebarButton
-            icon={Calendar}
-            label="Due Date"
-            onClick={() => toast.info("Date picker opened")}
-          />
+          {onDueDateChange && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    "h-10 w-full justify-start rounded-xl text-[11px] font-black tracking-wider uppercase transition-all hover:scale-[1.02] active:scale-[0.98]",
+                    "border-slate-200 hover:border-blue-500/30 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800"
+                  )}
+                >
+                  <CalendarIcon className="mr-3 h-4 w-4 stroke-[2.5]" />
+                  Due Date {dueDate ? new Date(dueDate).toLocaleDateString() : ""}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                className="w-auto rounded-2xl border-slate-200 p-0 dark:border-slate-800"
+                align="start"
+              >
+                <Calendar
+                  mode="single"
+                  selected={dueDate ? new Date(dueDate) : undefined}
+                  onSelect={(d) =>{  onDueDateChange(d ? d.toISOString() : null); }}
+                  initialFocus
+                />
+                <div className="border-t border-slate-100 p-2 dark:border-slate-800">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full text-xs"
+                    onClick={() =>{  onDueDateChange(null); }}
+                  >
+                    Clear date
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
           <SidebarButton
             icon={Paperclip}
             label="Attachment"

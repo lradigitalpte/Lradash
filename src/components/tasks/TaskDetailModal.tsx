@@ -4,7 +4,6 @@ import {
   AlignLeft,
   Calendar as CalendarIcon,
   CheckSquare,
-  Clock,
   Eye,
   Link2,
   Loader2,
@@ -20,7 +19,7 @@ import {
   Activity,
   UserPlus
 } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useRef, useState, useEffect } from "react"
 import { toast } from "sonner"
 
 import { UserAvatar, ProgressBar } from "@/components/common"
@@ -36,6 +35,7 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { apiClient } from "@/lib/api/client"
+import { uploadFileToS3 } from "@/lib/upload"
 import { cn, formatDate, isOverdue } from "@/lib/utils"
 import { Task } from "@/types/dbInterface"
 
@@ -76,6 +76,8 @@ export function TaskDetailModal({
   )
   const [status, setStatus] = useState(task?.status || "TODO")
   const [priority, setPriority] = useState(task?.priority || "MEDIUM")
+  const [attaching, setAttaching] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (task) {
@@ -156,6 +158,21 @@ export function TaskDetailModal({
     onSave?.({ ...task, labels: newLabels } as any)
   }
 
+  const handleDueDateChange = async (date: string | null) => {
+    try {
+      const response = await apiClient.patch(`/api/tasks/${task._id}`, {
+        dueDate: date ?? undefined
+      })
+      if (response.ok) {
+        const updatedTask = await response.json()
+        onTaskUpdated?.(updatedTask)
+        toast.success(date ? "Due date set" : "Due date cleared")
+      }
+    } catch {
+      toast.error("Failed to update due date")
+    }
+  }
+
   const handleArchive = async () => {
     try {
       const response = await apiClient.patch(`/api/tasks/${task._id}`, {
@@ -190,6 +207,77 @@ export function TaskDetailModal({
 
   const handleChangeCover = (color: string) => {
     onSave?.({ ...task, coverColor: color } as any)
+  }
+
+  const handleAttachFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (!file || !projectId) return
+    setAttaching(true)
+    try {
+      const { publicUrl } = await uploadFileToS3(file, {
+        projectId,
+        taskId: task._id?.toString?.() ?? (task as any)._id
+      })
+      const newAttachment = {
+        name: file.name,
+        url: publicUrl,
+        type: file.type || "application/octet-stream",
+        size: file.size,
+        createdAt: new Date()
+      }
+      const newAttachments = [...(task.attachments || []), newAttachment]
+      const patchRes = await apiClient.patch(`/api/tasks/${task._id}`, {
+        attachments: newAttachments
+      })
+      if (!patchRes.ok) throw new Error("Failed to save attachment")
+      const updatedTask = await patchRes.json()
+      onTaskUpdated?.(updatedTask)
+      toast.success("File attached")
+      if (projectId) {
+        const sizeLabel =
+          file.size < 1024
+            ? `${file.size} B`
+            : file.size < 1024 * 1024
+              ? `${(file.size / 1024).toFixed(1)} KB`
+              : `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+        await apiClient.post(`/api/projects/${projectId}/documents`, {
+          name: file.name,
+          type: file.type?.startsWith("image/")
+            ? "Image"
+            : file.type?.startsWith("video/")
+              ? "Video"
+              : file.type?.includes("pdf")
+                ? "PDF"
+                : "File",
+          size: sizeLabel,
+          folder: "From tasks",
+          url: publicUrl,
+          taskId: task._id?.toString?.() ?? (task as any)._id,
+          taskTitle: task.title
+        })
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to attach file")
+    } finally {
+      setAttaching(false)
+    }
+  }
+
+  const handleRemoveAttachment = async (index: number) => {
+    const newAttachments = task.attachments?.filter((_, i) => i !== index) ?? []
+    try {
+      const res = await apiClient.patch(`/api/tasks/${task._id}`, {
+        attachments: newAttachments
+      })
+      if (res.ok) {
+        const updatedTask = await res.json()
+        onTaskUpdated?.(updatedTask)
+        toast.success("Attachment removed")
+      } else throw new Error("Failed to remove")
+    } catch {
+      toast.error("Failed to remove attachment")
+    }
   }
 
   // Adapter for CardSidebar since it expects a Card type
@@ -301,30 +389,26 @@ export function TaskDetailModal({
                         </p>
                       </div>
                     </div>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      className="hidden"
+                      onChange={handleAttachFile}
+                      accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.md,.csv,.xls,.xlsx,.json"
+                    />
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => {
-                        const name = prompt("Enter asset name:")
-                        if (name) {
-                          const newAttachment = {
-                            name,
-                            url: "https://via.placeholder.com/150",
-                            type: "image/png",
-                            size: 1024 * 1024,
-                            createdAt: new Date()
-                          }
-                          onSave?.({
-                            ...task,
-                            attachments: [...(task.attachments || []), newAttachment]
-                          } as any)
-                          toast.success("Asset linked to initiative")
-                        }
-                      }}
+                      disabled={attaching || !projectId}
+                      onClick={() => fileInputRef.current?.click()}
                       className="h-10 rounded-xl border-slate-200 px-6 text-[10px] font-black tracking-widest uppercase hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800"
                     >
-                      <Plus className="mr-2 h-3.5 w-3.5" />
-                      Link Asset
+                      {attaching ? (
+                        <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Plus className="mr-2 h-3.5 w-3.5" />
+                      )}
+                      {attaching ? "Uploading…" : "Attach file"}
                     </Button>
                   </div>
 
@@ -335,13 +419,23 @@ export function TaskDetailModal({
                           key={idx}
                           className="group relative flex items-center gap-4 rounded-2xl border border-slate-100 bg-white/50 p-4 transition-all duration-500 hover:border-blue-500/30 hover:shadow-xl hover:shadow-blue-500/5 dark:border-slate-800 dark:bg-slate-900/50"
                         >
-                          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 transition-colors group-hover:bg-blue-600 group-hover:text-white dark:bg-slate-800">
+                          <a
+                            href={file.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-100 transition-colors group-hover:bg-blue-600 group-hover:text-white dark:bg-slate-800"
+                          >
                             <Link2 className="h-5 w-5" />
-                          </div>
+                          </a>
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-bold tracking-tight text-slate-900 uppercase dark:text-white">
+                            <a
+                              href={file.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block truncate text-sm font-bold tracking-tight text-slate-900 underline-offset-2 hover:underline dark:text-white"
+                            >
                               {file.name}
-                            </p>
+                            </a>
                             <p className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
                               {(file.size || 0) / 1024 > 1024
                                 ? `${((file.size || 0) / (1024 * 1024)).toFixed(1)} MB`
@@ -351,10 +445,7 @@ export function TaskDetailModal({
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => {
-                              const newAttachments = task.attachments?.filter((_, i) => i !== idx)
-                              onSave?.({ ...task, attachments: newAttachments } as any)
-                            }}
+                            onClick={ async () => handleRemoveAttachment(idx)}
                             className="text-slate-300 opacity-0 transition-all group-hover:opacity-100 hover:text-rose-600"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -458,44 +549,23 @@ export function TaskDetailModal({
                   card={cardAdapter as any}
                   boardId=""
                   projectId=""
+                  labels={labels}
                   onAddLabel={handleAddLabel}
+                  onRemoveLabel={handleRemoveLabel}
                   onAddChecklistItem={handleAddChecklistItem}
                   onChangeCover={handleChangeCover}
-                  onAssignMember={() => {}}
-                  onUnassignMember={() => {}}
+                  dueDate={
+                    task.dueDate != null
+                      ? typeof task.dueDate === "string"
+                        ? task.dueDate
+                        : new Date(task.dueDate).toISOString()
+                      : undefined
+                  }
+                  onDueDateChange={handleDueDateChange}
                   onSelectWorkPackage={() => {}}
                   onArchive={handleArchive}
                   onDelete={handleDelete}
                 />
-
-                <div className="group relative overflow-hidden rounded-[2rem] bg-slate-900 p-8 text-white shadow-2xl dark:bg-white dark:text-slate-900">
-                  <div className="absolute top-0 right-0 -mt-16 -mr-16 h-32 w-32 rounded-full bg-white/10 blur-3xl dark:bg-slate-900/5" />
-                  <div className="relative space-y-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 dark:bg-slate-100">
-                        <Clock className="h-6 w-6" />
-                      </div>
-                      <div className="text-right text-[10px] font-black tracking-widest uppercase opacity-60">
-                        System Context
-                      </div>
-                    </div>
-                    <div>
-                      <h4 className="text-lg leading-tight font-black tracking-tight uppercase">
-                        Task Integrity
-                      </h4>
-                      <p className="mt-2 text-[11px] font-medium italic opacity-70">
-                        Created {formatDate(task.createdAt)} by {task.creator?.name || "System"}
-                      </p>
-                    </div>
-                    <Button
-                      variant="secondary"
-                      className="h-12 w-full rounded-xl bg-white text-[10px] font-black tracking-widest text-slate-900 uppercase shadow-xl transition-all hover:scale-105 dark:bg-slate-900 dark:text-white"
-                      onClick={() => toast.info("Task synchronized with cloud storage")}
-                    >
-                      Sync Task
-                    </Button>
-                  </div>
-                </div>
               </div>
             </div>
           </div>

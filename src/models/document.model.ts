@@ -10,8 +10,19 @@ const documentSchema = new mongoose.Schema(
     project: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Project",
-      required: true
+      required: false
     },
+    board: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Board",
+      required: false
+    },
+    taskId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Task",
+      default: null
+    },
+    taskTitle: { type: String, default: null },
     organizationId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Organization",
@@ -30,6 +41,7 @@ const documentSchema = new mongoose.Schema(
 
 // Indexes
 documentSchema.index({ project: 1, createdAt: -1 })
+documentSchema.index({ board: 1, createdAt: -1 })
 documentSchema.index({ organizationId: 1 })
 
 // Check if model already exists to prevent overwrite error

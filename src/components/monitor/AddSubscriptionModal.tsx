@@ -22,6 +22,13 @@ import {
   FormLabel
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select"
 import { apiClient } from "@/lib/api/client"
 import { cn } from "@/lib/utils"
 import { IMonitor, MonitorType } from "@/types/monitor"
@@ -40,6 +47,24 @@ export function AddSubscriptionModal({
   initialData
 }: AddSubscriptionModalProps) {
   const [loading, setLoading] = useState(false)
+  const [projects, setProjects] = useState<{ id: string; title: string }[]>([])
+
+  useEffect(() => {
+    if (open) {
+      apiClient
+        .get("/api/projects")
+        .then( async (r) => r.json())
+        .then(
+          (
+            data: { projects?: { id: string; title: string }[] } | { id: string; title: string }[]
+          ) => {
+            const list = Array.isArray(data) ? data : (data.projects ?? [])
+            setProjects(list)
+          }
+        )
+        .catch(() =>{  setProjects([]); })
+    }
+  }, [open])
 
   const form = useForm({
     defaultValues: {
@@ -54,7 +79,8 @@ export function AddSubscriptionModal({
       paymentMethod: initialData?.metadata?.paymentMethod || "",
       vendor: initialData?.target || "",
       notes: initialData?.metadata?.notes || "",
-      frequency: initialData?.frequency ? (initialData.frequency / 1440).toFixed(0) : "1"
+      frequency: initialData?.frequency ? (initialData.frequency / 1440).toFixed(0) : "1",
+      projectId: (initialData as any)?.projectId ?? (initialData as any)?.project?._id ?? "none"
     }
   })
 
@@ -87,7 +113,8 @@ export function AddSubscriptionModal({
           paymentMethod: values.paymentMethod,
           notes: values.notes,
           renewalDate: new Date(values.renewalDate)
-        }
+        },
+        projectId: values.projectId && values.projectId !== "none" ? values.projectId : null
       }
 
       let response
@@ -320,6 +347,37 @@ export function AddSubscriptionModal({
                       {...field}
                     />
                   </FormControl>
+                </FormItem>
+              )}
+            />
+
+            {/* Link to project (cost tracking) */}
+            <FormField
+              control={form.control}
+              name="projectId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-sm font-black tracking-widest text-slate-700 uppercase dark:text-slate-300">
+                    Link to project
+                  </FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || "none"}>
+                    <FormControl>
+                      <SelectTrigger className="rounded-xl border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
+                        <SelectValue placeholder="No project" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="none">No project</SelectItem>
+                      {projects.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription className="text-[10px] text-slate-500">
+                    Optional. Links this subscription to a project for cost tracking.
+                  </FormDescription>
                 </FormItem>
               )}
             />

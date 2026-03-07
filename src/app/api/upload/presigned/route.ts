@@ -16,16 +16,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    const { fileName, fileType, projectId, folder } = await request.json()
+    const { fileName, fileType, projectId, boardId, folder, subFolder } = await request.json()
 
     if (!fileName || !fileType) {
       return NextResponse.json({ error: "fileName and fileType are required" }, { status: 400 })
     }
 
-    // Sanitise filename for use as S3 key segment
     const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_")
-    // Support projectId (documents) or generic folder (reports, etc.)
-    const prefix = projectId ? `projects/${projectId}` : (folder ?? "uploads")
+    // projectId => projects/{id}; boardId + subFolder => boards/{boardId}/tasks/{taskId}; else folder or uploads
+    let prefix: string
+    if (boardId && subFolder) {
+      prefix = `boards/${boardId}/${subFolder}`
+    } else if (projectId) {
+      prefix = subFolder ? `projects/${projectId}/${subFolder}` : `projects/${projectId}`
+    } else {
+      prefix = subFolder ? `${folder ?? "uploads"}/${subFolder}` : (folder ?? "uploads")
+    }
     const key = `${prefix}/${Date.now()}-${safeName}`
 
     const uploadUrl = await createPresignedUploadUrl(key, fileType)

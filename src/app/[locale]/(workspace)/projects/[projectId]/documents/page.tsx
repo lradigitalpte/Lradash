@@ -486,9 +486,16 @@ export default function DocumentsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
-                        <Folder className="h-3 w-3 text-amber-500" />
-                        {doc.folder}
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
+                          <Folder className="h-3 w-3 text-amber-500" />
+                          {doc.folder}
+                        </div>
+                        {doc.taskTitle && (
+                          <span className="text-[10px] font-medium text-blue-600 dark:text-blue-400">
+                            From task: {doc.taskTitle}
+                          </span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="text-xs font-black text-slate-500 tabular-nums">

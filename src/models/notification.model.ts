@@ -8,6 +8,7 @@ export type NotificationType =
   | "status_change"
   | "mention"
   | "comment_reply"
+  | "announcement_created"
 
 export interface INotificationDoc {
   _id: string
@@ -50,7 +51,8 @@ const notificationSchema = new mongoose.Schema(
         "task_completed",
         "status_change",
         "mention",
-        "comment_reply"
+        "comment_reply",
+        "announcement_created"
       ],
       required: true
     },

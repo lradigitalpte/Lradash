@@ -50,13 +50,18 @@ export default function BoardDashboardPage() {
   const fetchBoard = async () => {
     try {
       setLoading(true)
-      const response = await apiClient.get(`/api/projects/${boardId}`)
-      if (!response.ok) {
+      const [boardRes, tasksRes] = await Promise.all([
+        apiClient.get(`/api/boards/${boardId}`),
+        apiClient.get(`/api/boards/${boardId}/tasks`)
+      ])
+      if (!boardRes.ok) {
         setError("Board not found")
+        setLoading(false)
         return
       }
-      const data = await response.json()
-      setBoard(data)
+      const boardData = await boardRes.json()
+      const tasksData = tasksRes.ok ? await tasksRes.json() : []
+      setBoard({ ...boardData, tasks: Array.isArray(tasksData) ? tasksData : [] })
     } catch (err) {
       setError("Failed to load board")
       console.error(err)

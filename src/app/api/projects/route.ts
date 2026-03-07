@@ -41,10 +41,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Organization not found" }, { status: 401 })
     }
 
+    const userId = decoded.userId
+    const userIdObj =
+      typeof userId === "string" && mongoose.Types.ObjectId.isValid(userId)
+        ? new mongoose.Types.ObjectId(userId)
+        : userId
+
+    // Only projects where current user is owner or a member (personal = only owner sees it until they add people)
     const projects = await ProjectModel.find({
       organizationId: organizationId,
-      deletedAt: null
-    })
+      deletedAt: null,
+      $or: [{ owner: userIdObj }, { members: userIdObj }]
+    } as any)
       .populate("owner", "name email avatar")
       .populate("members", "name email avatar")
       .lean()

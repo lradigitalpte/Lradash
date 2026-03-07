@@ -25,6 +25,7 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useState, useEffect, useMemo } from "react"
 
+import { BoardTaskDetailModal } from "@/components/tasks/BoardTaskDetailModal"
 import { CreateTaskDialog } from "@/components/tasks/CreateTaskDialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -53,30 +54,40 @@ export default function BoardTasksPage() {
   const params = useParams()
   const boardId = params?.boardId as string
   const locale = params?.locale as string
-  const [project, setProject] = useState<any>(null)
+  const [board, setBoard] = useState<{ title?: string } | null>(null)
   const [tasks, setTasks] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [filterStatus, setFilterStatus] = useState<string>("ALL")
   const [loading, setLoading] = useState(true)
+  const [selectedTask, setSelectedTask] = useState<any>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
 
   useEffect(() => {
     if (boardId) {
-      fetchProject()
+      fetchBoardAndTasks()
     }
   }, [boardId])
 
-  const fetchProject = async () => {
+  const fetchBoardAndTasks = async () => {
     try {
       setLoading(true)
-      const response = await apiClient.get(`/api/projects/${boardId}`)
-      if (!response.ok) {
-        return
+      const [boardRes, tasksRes] = await Promise.all([
+        apiClient.get(`/api/boards/${boardId}`),
+        apiClient.get(`/api/boards/${boardId}/tasks`)
+      ])
+      if (boardRes.ok) {
+        const boardData = await boardRes.json()
+        setBoard({ title: boardData.title })
       }
-      const data = await response.json()
-      setProject(data)
-      setTasks(data.tasks || [])
+      if (tasksRes.ok) {
+        const tasksData = await tasksRes.json()
+        setTasks(Array.isArray(tasksData) ? tasksData : [])
+      } else {
+        setTasks([])
+      }
     } catch (err) {
-      console.error("Failed to fetch project:", err)
+      console.error("Failed to fetch board/tasks:", err)
+      setTasks([])
     } finally {
       setLoading(false)
     }
@@ -104,7 +115,7 @@ export default function BoardTasksPage() {
     }
   }
 
-  if (loading && tasks.length === 0) {
+  if (loading && !board && tasks.length === 0) {
     return (
       <div className="flex min-h-[600px] flex-col items-center justify-center space-y-4 bg-slate-50/50 dark:bg-slate-950/50">
         <div className="flex h-12 w-12 animate-pulse items-center justify-center rounded-2xl bg-blue-600/10">
@@ -154,14 +165,12 @@ export default function BoardTasksPage() {
             Project Tasks
           </h1>
           <p className="max-w-2xl leading-relaxed font-medium text-slate-500 italic">
-            Overview of all tasks assigned to{" "}
-            <span className="text-blue-600 underline decoration-blue-500/30 underline-offset-4">
-              "{project?.title || "Workspace"}"
-            </span>
+            Tasks in this workspace are private to you and board members. Not visible to org admins
+            or analytics.
           </p>
         </div>
         <div className="shrink-0 origin-bottom-right scale-110">
-          <CreateTaskDialog projectId={boardId} onTaskCreated={fetchProject} />
+          <CreateTaskDialog boardId={boardId} onTaskCreated={fetchBoardAndTasks} />
         </div>
       </div>
 
@@ -361,9 +370,13 @@ export default function BoardTasksPage() {
               filteredTasks.map((task) => (
                 <TableRow
                   key={task._id}
-                  className="group h-24 border-b border-slate-50 transition-colors hover:bg-slate-50/50 dark:border-slate-800/50 dark:hover:bg-slate-800/30"
+                  className="group h-24 cursor-pointer border-b border-slate-50 transition-colors hover:bg-slate-50/50 dark:border-slate-800/50 dark:hover:bg-slate-800/30"
+                  onClick={() => {
+                    setSelectedTask(task)
+                    setDetailOpen(true)
+                  }}
                 >
-                  <TableCell className="pl-8">
+                  <TableCell className="pl-8" onClick={(e) =>{  e.stopPropagation(); }}>
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-100 bg-white shadow-sm transition-transform group-hover:scale-110 dark:border-slate-700 dark:bg-slate-800">
                       {getStatusIcon(task.status)}
                     </div>
@@ -373,6 +386,12 @@ export default function BoardTasksPage() {
                       <span className="text-base font-black text-slate-900 transition-colors group-hover:text-blue-600 dark:text-white">
                         {task.title}
                       </span>
+                      {(task.attachments?.length ?? 0) > 0 && (
+                        <span className="mt-0.5 text-[10px] text-slate-400">
+                          {task.attachments.length} attachment
+                          {task.attachments.length !== 1 ? "s" : ""}
+                        </span>
+                      )}
                       <div className="mt-0.5 flex items-center gap-2">
                         <span className="text-[10px] font-black tracking-tighter text-slate-400 uppercase">
                           Task
@@ -449,7 +468,7 @@ export default function BoardTasksPage() {
                       </span>
                     )}
                   </TableCell>
-                  <TableCell className="pr-8">
+                  <TableCell className="pr-8" onClick={(e) =>{  e.stopPropagation(); }}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -464,16 +483,39 @@ export default function BoardTasksPage() {
                         align="end"
                         className="w-56 rounded-2xl border-slate-100 p-2 shadow-2xl"
                       >
-                        <DropdownMenuItem className="group gap-3 rounded-xl py-3 font-bold">
+                        <DropdownMenuItem
+                          className="group gap-3 rounded-xl py-3 font-bold"
+                          onClick={() => {
+                            setSelectedTask(task)
+                            setDetailOpen(true)
+                          }}
+                        >
                           <Zap className="h-4 w-4 text-blue-500 group-hover:scale-110" />
-                          Update Task
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="group gap-3 rounded-xl py-3 font-bold">
-                          <Target className="h-4 w-4 text-purple-500 group-hover:scale-110" />
-                          Change Assignee
+                          View / Edit Task
                         </DropdownMenuItem>
                         <DropdownMenuSeparator className="my-2" />
-                        <DropdownMenuItem className="gap-3 rounded-xl bg-rose-50/50 py-3 font-bold text-rose-600 hover:bg-rose-50">
+                        <DropdownMenuItem
+                          className="gap-3 rounded-xl bg-rose-50/50 py-3 font-bold text-rose-600 hover:bg-rose-50"
+                          onClick={async () => {
+                            if (!confirm("Delete this task?")) {
+                              return
+                            }
+                            const res = await apiClient.delete(
+                              `/api/boards/${boardId}/tasks/${task._id}`
+                            )
+                            if (res.ok) {
+                              setTasks((prev) =>
+                                prev.filter(
+                                  (t) =>
+                                    (t._id ?? t.id)?.toString() !==
+                                    (task._id ?? task.id)?.toString()
+                                )
+                              )
+                              setDetailOpen(false)
+                              setSelectedTask(null)
+                            }
+                          }}
+                        >
                           <MoreHorizontal className="h-4 w-4" />
                           Delete Task
                         </DropdownMenuItem>
@@ -486,6 +528,22 @@ export default function BoardTasksPage() {
           </TableBody>
         </Table>
       </Card>
+
+      {selectedTask && (
+        <BoardTaskDetailModal
+          task={selectedTask}
+          boardId={boardId}
+          open={detailOpen}
+          onOpenChange={setDetailOpen}
+          onTaskUpdated={(updated) => {
+            const id = (updated._id ?? updated.id)?.toString?.() ?? updated._id
+            setTasks((prev) =>
+              prev.map((t) => (((t._id ?? t.id)?.toString?.() ?? t._id) === id ? updated : t))
+            )
+            setSelectedTask(updated)
+          }}
+        />
+      )}
 
       {/* 6. System Footer Hint */}
       <div className="flex items-center justify-between rounded-[2rem] border border-white/20 bg-white/40 px-10 py-6 backdrop-blur-sm dark:bg-slate-900/40">

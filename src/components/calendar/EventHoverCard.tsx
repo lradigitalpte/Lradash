@@ -11,9 +11,10 @@ interface EventHoverCardProps {
   children: React.ReactNode
   event: any
   onDelete?: (id: string) => void
+  onEdit?: (event: any) => void
 }
 
-export function EventHoverCard({ children, event, onDelete }: EventHoverCardProps) {
+export function EventHoverCard({ children, event, onDelete, onEdit }: EventHoverCardProps) {
   const isTask = !!event.isTask
 
   return (
@@ -85,6 +86,7 @@ export function EventHoverCard({ children, event, onDelete }: EventHoverCardProp
                 variant="outline"
                 size="sm"
                 className="h-8 rounded-lg border-slate-200 px-3 text-[9px] font-black tracking-widest uppercase dark:border-slate-800"
+                onClick={() => onEdit?.(event)}
               >
                 <Edit3 className="mr-2 h-3 w-3" />
                 Edit Schedule

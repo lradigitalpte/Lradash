@@ -1,3 +1,4 @@
+import mongoose from "mongoose"
 import { NextRequest, NextResponse } from "next/server"
 
 import { verifyAccessToken } from "@/lib/auth/tokens"
@@ -44,11 +45,18 @@ export async function GET(
     const { projectId } = await params
     await connectToDatabase()
 
+    const userId = decoded.userId
+    const userIdObj =
+      typeof userId === "string" && mongoose.Types.ObjectId.isValid(userId)
+        ? new mongoose.Types.ObjectId(userId)
+        : userId
+
     const project = await ProjectModel.findOne({
       _id: projectId,
       organizationId: organizationId,
-      deletedAt: null
-    })
+      deletedAt: null,
+      $or: [{ owner: userIdObj }, { members: userIdObj }]
+    } as any)
       .populate("owner", "name email avatar createdAt")
       .populate("members", "name email avatar createdAt")
       .lean()

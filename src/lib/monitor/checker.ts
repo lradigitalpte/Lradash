@@ -46,29 +46,80 @@ export async function checkPort(
   })
 }
 
+/** Strip protocol, path, and normalize for TLS (hostname only, lowercase). */
+function normalizeSSLTarget(target: string): string {
+  if (!target || typeof target !== "string") {
+    return ""
+  }
+  let s = target.trim()
+  try {
+    if (!s.includes("://")) {
+      s = "https://" + s
+    }
+    const u = new URL(s)
+    const host = (u.hostname || u.host || s).replace(/^\[|\]$/g, "")
+    return host ? host.toLowerCase() : ""
+  } catch {
+    return (
+      s
+        .replace(/^https?:\/\//i, "")
+        .split("/")[0]
+        .split(":")[0]
+        .toLowerCase() || ""
+    )
+  }
+}
+
 export async function getSSLExpiry(host: string): Promise<{ expiryDate?: Date; error?: string }> {
+  const hostname = normalizeSSLTarget(host)
+  if (!hostname) {
+    return Promise.resolve({ error: "Invalid or missing hostname" })
+  }
   return new Promise((resolve) => {
+    let resolved = false
+    const once = (result: { expiryDate?: Date; error?: string }) => {
+      if (resolved) {
+        return
+      }
+      resolved = true
+      resolve(result)
+    }
     try {
-      const socket = tls.connect(443, host, { servername: host }, () => {
-        const cert = socket.getPeerCertificate()
-        if (cert && cert.valid_to) {
-          resolve({ expiryDate: new Date(cert.valid_to) })
-        } else {
-          resolve({ error: "Certificate not found" })
+      const socket = tls.connect(
+        443,
+        hostname,
+        {
+          servername: hostname,
+          rejectUnauthorized: false // allow reading cert expiry even if chain is incomplete
+        },
+        () => {
+          const cert = socket.getPeerCertificate(true)
+          if (cert && (cert.valid_to || (cert as any).validTo)) {
+            const raw = cert.valid_to || (cert as any).validTo
+            const expiryDate = typeof raw === "string" ? new Date(raw) : new Date(raw)
+            if (!isNaN(expiryDate.getTime())) {
+              once({ expiryDate })
+            } else {
+              once({ error: "Invalid certificate expiry" })
+            }
+          } else {
+            once({ error: "Certificate not found or no expiry" })
+          }
+          socket.destroy()
         }
-        socket.end()
-      })
+      )
 
       socket.on("error", (err) => {
-        resolve({ error: err.message })
+        once({ error: err.message || "TLS error" })
+        socket.destroy()
       })
 
-      socket.setTimeout(5000, () => {
+      socket.setTimeout(10000, () => {
+        once({ error: "Timeout connecting to host (10s)" })
         socket.destroy()
-        resolve({ error: "Timeout connecting to host" })
       })
     } catch (error: any) {
-      resolve({ error: error.message })
+      once({ error: error?.message || "Connection failed" })
     }
   })
 }

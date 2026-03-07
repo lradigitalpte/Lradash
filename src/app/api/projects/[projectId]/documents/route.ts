@@ -73,7 +73,7 @@ export async function POST(
 
     const { projectId } = await params
     const body = await request.json()
-    const { name, type, size, folder, url } = body
+    const { name, type, size, folder, url, taskId, taskTitle } = body
 
     if (!name || !type || !size) {
       return NextResponse.json({ error: "Name, type, and size are required" }, { status: 400 })
@@ -99,7 +99,9 @@ export async function POST(
       url: url || "",
       project: projectId,
       uploader: decoded.userId,
-      organizationId
+      organizationId,
+      ...(taskId && { taskId }),
+      ...(taskTitle && { taskTitle })
     })
 
     const populatedDocument = await DocumentModel.findById(newDocument._id)

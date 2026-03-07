@@ -1,7 +1,7 @@
 "use client"
 
 import { Calendar as CalendarIcon, Clock, AlignLeft, Users, Zap, X } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -22,9 +22,16 @@ interface CreateEventModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess: () => void
+  event?: any | null
 }
 
-export function CreateEventModal({ open, onOpenChange, onSuccess }: CreateEventModalProps) {
+export function CreateEventModal({
+  open,
+  onOpenChange,
+  onSuccess,
+  event: editingEvent
+}: CreateEventModalProps) {
+  const isEdit = !!editingEvent
   const [loading, setLoading] = useState(false)
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
@@ -33,6 +40,28 @@ export function CreateEventModal({ open, onOpenChange, onSuccess }: CreateEventM
   const [endTime, setEndTime] = useState("10:00")
   const [type, setType] = useState<EventType>(EventType.SYNC)
 
+  // Prefill when editing
+  useEffect(() => {
+    if (open && editingEvent) {
+      setTitle(editingEvent.title ?? "")
+      setDescription(editingEvent.description ?? "")
+      const start = editingEvent.startTime ? new Date(editingEvent.startTime) : new Date()
+      const end = editingEvent.endTime ? new Date(editingEvent.endTime) : new Date()
+      setDate(start.toISOString().split("T")[0])
+      setStartTime(start.toTimeString().slice(0, 5))
+      setEndTime(end.toTimeString().slice(0, 5))
+      setType((editingEvent.type as EventType) ?? EventType.SYNC)
+    } else if (open && !editingEvent) {
+      const today = new Date().toISOString().split("T")[0]
+      setDate(today)
+      setTitle("")
+      setDescription("")
+      setStartTime("09:00")
+      setEndTime("10:00")
+      setType(EventType.SYNC)
+    }
+  }, [open, editingEvent])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
@@ -40,27 +69,44 @@ export function CreateEventModal({ open, onOpenChange, onSuccess }: CreateEventM
       const start = new Date(`${date}T${startTime}`)
       const end = new Date(`${date}T${endTime}`)
 
-      const response = await apiClient.post("/api/events", {
-        title,
-        description,
-        startTime: start,
-        endTime: end,
-        type,
-        isAllDay: false
-      })
-
-      if (response.ok) {
-        toast.success("Agenda Item established")
-        onSuccess()
-        onOpenChange(false)
-        // Reset form
-        setTitle("")
-        setDescription("")
+      if (isEdit && editingEvent?._id) {
+        const response = await apiClient.patch(`/api/events/${editingEvent._id}`, {
+          title,
+          description,
+          startTime: start.toISOString(),
+          endTime: end.toISOString(),
+          type,
+          isAllDay: false
+        })
+        if (response.ok) {
+          toast.success("Event updated")
+          onSuccess()
+          onOpenChange(false)
+        } else {
+          toast.error("Failed to update event")
+        }
       } else {
-        toast.error("Failed to register agenda item")
+        const response = await apiClient.post("/api/events", {
+          title,
+          description,
+          startTime: start.toISOString(),
+          endTime: end.toISOString(),
+          type,
+          isAllDay: false
+        })
+
+        if (response.ok) {
+          toast.success("Agenda Item established")
+          onSuccess()
+          onOpenChange(false)
+          setTitle("")
+          setDescription("")
+        } else {
+          toast.error("Failed to register agenda item")
+        }
       }
     } catch (error) {
-      toast.error("Cloud synchronization failure")
+      toast.error(isEdit ? "Failed to update event" : "Cloud synchronization failure")
     } finally {
       setLoading(false)
     }
@@ -79,7 +125,7 @@ export function CreateEventModal({ open, onOpenChange, onSuccess }: CreateEventM
               </div>
               <div>
                 <h2 className="text-2xl font-black tracking-tight uppercase">
-                  Create Calendar Event
+                  {isEdit ? "Edit Calendar Event" : "Create Calendar Event"}
                 </h2>
                 <p className="text-[10px] font-black tracking-[0.2em] uppercase opacity-70">
                   Schedule Management
@@ -90,7 +136,9 @@ export function CreateEventModal({ open, onOpenChange, onSuccess }: CreateEventM
               type="button"
               variant="ghost"
               size="icon"
-              onClick={() =>{  onOpenChange(false); }}
+              onClick={() => {
+                onOpenChange(false)
+              }}
               className="absolute top-6 right-6 rounded-xl text-white/50 hover:bg-white/10 hover:text-white"
             >
               <X className="h-5 w-5" />
@@ -138,14 +186,18 @@ export function CreateEventModal({ open, onOpenChange, onSuccess }: CreateEventM
               <Input
                 placeholder="Event Title..."
                 value={title}
-                onChange={(e) =>{  setTitle(e.target.value); }}
+                onChange={(e) => {
+                  setTitle(e.target.value)
+                }}
                 required
                 className="h-14 rounded-2xl border-slate-100 bg-slate-50 px-6 text-lg font-bold focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-950"
               />
               <Textarea
                 placeholder="Describe the event details..."
                 value={description}
-                onChange={(e) =>{  setDescription(e.target.value); }}
+                onChange={(e) => {
+                  setDescription(e.target.value)
+                }}
                 className="min-h-[120px] rounded-2xl border-slate-100 bg-slate-50 p-6 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-950"
               />
             </div>
@@ -161,7 +213,9 @@ export function CreateEventModal({ open, onOpenChange, onSuccess }: CreateEventM
                 <Input
                   type="date"
                   value={date}
-                  onChange={(e) =>{  setDate(e.target.value); }}
+                  onChange={(e) => {
+                    setDate(e.target.value)
+                  }}
                   className="h-12 rounded-xl border-slate-100 bg-slate-50 px-4 font-bold dark:border-slate-800 dark:bg-slate-950"
                 />
               </div>
@@ -172,7 +226,12 @@ export function CreateEventModal({ open, onOpenChange, onSuccess }: CreateEventM
                     Event Category
                   </span>
                 </div>
-                <Select value={type} onValueChange={(v) =>{  setType(v as EventType); }}>
+                <Select
+                  value={type}
+                  onValueChange={(v) => {
+                    setType(v as EventType)
+                  }}
+                >
                   <SelectTrigger className="h-12 rounded-xl border-slate-100 bg-slate-50 px-4 font-bold dark:border-slate-800 dark:bg-slate-950">
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
@@ -199,7 +258,9 @@ export function CreateEventModal({ open, onOpenChange, onSuccess }: CreateEventM
                 <Input
                   type="time"
                   value={startTime}
-                  onChange={(e) =>{  setStartTime(e.target.value); }}
+                  onChange={(e) => {
+                    setStartTime(e.target.value)
+                  }}
                   className="h-12 rounded-xl border-slate-100 bg-slate-50 px-4 font-bold dark:border-slate-800 dark:bg-slate-950"
                 />
               </div>
@@ -210,7 +271,9 @@ export function CreateEventModal({ open, onOpenChange, onSuccess }: CreateEventM
                 <Input
                   type="time"
                   value={endTime}
-                  onChange={(e) =>{  setEndTime(e.target.value); }}
+                  onChange={(e) => {
+                    setEndTime(e.target.value)
+                  }}
                   className="h-12 rounded-xl border-slate-100 bg-slate-50 px-4 font-bold dark:border-slate-800 dark:bg-slate-950"
                 />
               </div>
@@ -220,7 +283,9 @@ export function CreateEventModal({ open, onOpenChange, onSuccess }: CreateEventM
               <Button
                 type="button"
                 variant="ghost"
-                onClick={() =>{  onOpenChange(false); }}
+                onClick={() => {
+                  onOpenChange(false)
+                }}
                 className="h-14 flex-1 rounded-2xl text-[11px] font-black tracking-widest uppercase hover:bg-slate-100 dark:hover:bg-slate-800"
               >
                 Cancel
@@ -231,7 +296,7 @@ export function CreateEventModal({ open, onOpenChange, onSuccess }: CreateEventM
                 className="h-14 flex-[2] gap-3 rounded-2xl bg-slate-900 text-sm font-black tracking-widest text-white uppercase shadow-2xl transition-all hover:scale-[1.02] dark:bg-white dark:text-slate-900"
               >
                 {loading && <Clock className="h-4 w-4 animate-spin" />}
-                Add to Schedule
+                {isEdit ? "Update Event" : "Add to Schedule"}
               </Button>
             </div>
           </div>

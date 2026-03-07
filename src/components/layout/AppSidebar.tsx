@@ -60,7 +60,6 @@ export default function AppSidebar() {
     { title: "Projects", href: "/projects", icon: FolderKanban, accentColor: "purple" },
     { title: "Tasks", href: "/tasks", icon: CheckSquare, accentColor: "emerald" },
     { title: "Calendar", href: "/calendar", icon: CalendarDays, accentColor: "orange" },
-    { title: "Team", href: "/team", icon: Users, accentColor: "rose" },
     { title: "Reports", href: "/reports", icon: FileText, accentColor: "amber" },
     { title: "Monitor", href: "/monitor", icon: Activity, accentColor: "red" }
   ]
@@ -69,6 +68,7 @@ export default function AppSidebar() {
     ...baseNavItems,
     ...(isAdmin
       ? ([
+          { title: "Team", href: "/team", icon: Users, accentColor: "rose" },
           { title: "Analytics", href: "/analytics", icon: BarChart3, accentColor: "indigo" },
           { title: "Admin", href: "/admin", icon: Shield, accentColor: "violet" }
         ] as NavItem[])

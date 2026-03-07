@@ -32,23 +32,19 @@ export async function GET(
 
     await connectToDatabase()
 
-    // Check if board exists and user has access
-    const board = await BoardModel.findOne({
-      _id: boardId,
-      organizationId: decoded.organizationId,
-      deletedAt: null
-    })
-
+    const board = await BoardModel.findOne({ _id: boardId, deletedAt: null }).lean()
     if (!board) {
-      return NextResponse.json(
-        { error: "Board not found" },
-        { status: 404, headers: { "Content-Type": "application/json" } }
-      )
+      return NextResponse.json({ error: "Board not found" }, { status: 404 })
+    }
+    const userId = decoded.userId?.toString()
+    const ownerId = (board as any).owner?.toString()
+    const memberIds = ((board as any).members || []).map((m: any) => m?.toString?.() ?? m)
+    if (userId && ownerId !== userId && !memberIds.includes(userId)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
     const lists = await ListModel.find({
       boardId: boardId,
-      organizationId: decoded.organizationId,
       deletedAt: null
     })
       .sort({ position: 1 })

@@ -1,9 +1,11 @@
+import mongoose from "mongoose"
 import { NextRequest, NextResponse } from "next/server"
 
 import { verifyAccessToken } from "@/lib/auth/tokens"
 import { connectToDatabase } from "@/lib/db/connect"
 import { BoardModel } from "@/models/board.model"
 import { ListModel } from "@/models/list.model"
+import { ProjectModel } from "@/models/project.model"
 import { TaskModel } from "@/models/task.model"
 import { UserModel } from "@/models/user.model"
 
@@ -23,7 +25,7 @@ export async function GET(
     const token = authHeader.substring(7)
     const decoded = verifyAccessToken(token)
 
-    if (!decoded || !decoded.organizationId) {
+    if (!decoded?.userId) {
       return NextResponse.json(
         { error: "Invalid token" },
         { status: 401, headers: { "Content-Type": "application/json" } }
@@ -34,10 +36,8 @@ export async function GET(
 
     await connectToDatabase()
 
-    // Fetch board and ensure it exists and belongs to the organization
     const board = await BoardModel.findOne({
       _id: boardId,
-      organizationId: decoded.organizationId,
       deletedAt: null
     }).lean()
 
@@ -45,6 +45,16 @@ export async function GET(
       return NextResponse.json(
         { error: "Board not found" },
         { status: 404, headers: { "Content-Type": "application/json" } }
+      )
+    }
+
+    const userId = decoded.userId?.toString()
+    const ownerId = (board as any).owner?.toString()
+    const memberIds = ((board as any).members || []).map((m: any) => m?.toString?.() ?? m)
+    if (userId && ownerId !== userId && !memberIds.includes(userId)) {
+      return NextResponse.json(
+        { error: "Forbidden" },
+        { status: 403, headers: { "Content-Type": "application/json" } }
       )
     }
 
@@ -106,5 +116,94 @@ export async function GET(
       { error: "Failed to fetch board" },
       { status: 500, headers: { "Content-Type": "application/json" } }
     )
+  }
+}
+
+/** PATCH: update board (e.g. projectId to link board to a project) */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ boardId: string }> }
+) {
+  try {
+    const authHeader = request.headers.get("authorization")
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const token = authHeader.substring(7)
+    const decoded = verifyAccessToken(token)
+    if (!decoded?.userId) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+    }
+
+    const { boardId } = await params
+    const body = await request.json()
+    const { projectId: newProjectId } = body
+
+    await connectToDatabase()
+
+    const board = await BoardModel.findOne({
+      _id: boardId,
+      deletedAt: null
+    }).lean()
+
+    if (!board) {
+      return NextResponse.json({ error: "Board not found" }, { status: 404 })
+    }
+
+    let orgId = decoded.organizationId?.toString()
+    if (!orgId) {
+      const user = await UserModel.findById(decoded.userId).select("defaultOrganizationId").lean()
+      orgId = (user as any)?.defaultOrganizationId?.toString()
+    }
+    const boardOrgId = (board as any).organizationId?.toString()
+    if (!boardOrgId || !orgId || boardOrgId !== orgId) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    const updates: Record<string, unknown> = {}
+
+    if (body.hasOwnProperty("projectId")) {
+      if (newProjectId === null || newProjectId === "") {
+        updates.projectId = null
+      } else {
+        const project = await ProjectModel.findOne({
+          _id: newProjectId,
+          organizationId: orgId,
+          deletedAt: null,
+          $or: [{ owner: decoded.userId }, { members: decoded.userId }]
+        } as any).lean()
+        if (!project) {
+          return NextResponse.json(
+            { error: "Project not found or you do not have access" },
+            { status: 404 }
+          )
+        }
+        updates.projectId = new mongoose.Types.ObjectId(newProjectId)
+      }
+    }
+
+    if (body.hasOwnProperty("title")) {updates.title = body.title}
+    if (body.hasOwnProperty("description")) {updates.description = body.description}
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: "No valid fields to update" }, { status: 400 })
+    }
+
+    const updated = await BoardModel.findByIdAndUpdate(
+      boardId,
+      { $set: updates },
+      { new: true }
+    ).lean()
+
+    return NextResponse.json({
+      _id: updated?._id?.toString(),
+      title: updated?.title,
+      description: updated?.description,
+      projectId: (updated as any)?.projectId?.toString() ?? null
+    })
+  } catch (error) {
+    console.error("Patch board error:", error)
+    return NextResponse.json({ error: "Failed to update board" }, { status: 500 })
   }
 }

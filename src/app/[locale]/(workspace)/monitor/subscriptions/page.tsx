@@ -343,6 +343,9 @@ export default function SubscriptionsPage() {
                   Service
                 </th>
                 <th className="px-8 py-6 text-[10px] font-black tracking-[0.2em] whitespace-nowrap text-slate-400 uppercase">
+                  Project
+                </th>
+                <th className="px-8 py-6 text-[10px] font-black tracking-[0.2em] whitespace-nowrap text-slate-400 uppercase">
                   Plan
                 </th>
                 <th className="px-8 py-6 text-[10px] font-black tracking-[0.2em] whitespace-nowrap text-slate-400 uppercase">
@@ -365,7 +368,7 @@ export default function SubscriptionsPage() {
             <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="py-20 text-center">
+                  <td colSpan={8} className="py-20 text-center">
                     <div className="flex flex-col items-center gap-2">
                       <Loader2 className="h-6 w-6 animate-spin text-slate-300" />
                       <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
@@ -376,7 +379,7 @@ export default function SubscriptionsPage() {
                 </tr>
               ) : monitors.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-20 text-center">
+                  <td colSpan={8} className="py-20 text-center">
                     <p className="text-sm font-bold text-slate-400">
                       No subscriptions tracked yet.
                     </p>
@@ -412,7 +415,7 @@ function SubscriptionRow({
   onDelete,
   onView
 }: {
-  subscription: IMonitor
+  subscription: IMonitor & { project?: { _id: string; title: string } }
   onEdit: () => void
   onDelete: () => void
   onView: () => void
@@ -420,6 +423,7 @@ function SubscriptionRow({
   const { name, price, currency, expiryDate } = subscription
   const plan = subscription.metadata?.plan || "---"
   const billingCycle = subscription.metadata?.billingCycle || "MONTHLY"
+  const projectTitle = subscription.project?.title ?? "—"
 
   // Calculate days until renewal
   const getDaysUntilRenewal = () => {
@@ -471,6 +475,9 @@ function SubscriptionRow({
             )}
           </div>
         </div>
+      </td>
+      <td className="px-8 py-4 text-sm font-medium text-slate-600 dark:text-slate-400">
+        {projectTitle}
       </td>
       <td className="px-8 py-4 text-sm font-medium text-slate-600 dark:text-slate-400">{plan}</td>
       <td className="px-8 py-4 font-black text-slate-900 dark:text-white">

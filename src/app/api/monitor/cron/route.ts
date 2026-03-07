@@ -4,6 +4,7 @@ import { verifyAccessToken, extractTokenFromHeader } from "@/lib/auth/tokens"
 import { connectToDatabase } from "@/lib/db/connect"
 import { checkWebsite, checkPort, getSSLExpiry } from "@/lib/monitor/checker"
 import { checkSMTP } from "@/lib/monitor/smtp-checker"
+import MonitorCheckResultModel from "@/models/monitor-check-result.model"
 import MonitorModel from "@/models/monitor.model"
 import { MonitorType, MonitorStatus } from "@/types/monitor"
 
@@ -82,7 +83,7 @@ export async function GET(request: NextRequest) {
             }
           }
         } else if (monitor.type === MonitorType.SSL) {
-          const check = await getSSLExpiry(monitor.target)
+          const check = await getSSLExpiry(monitor.target || "")
           if (check.expiryDate) {
             expiryDate = check.expiryDate
             const now = new Date()
@@ -126,10 +127,29 @@ export async function GET(request: NextRequest) {
         }
 
         await MonitorModel.findByIdAndUpdate(monitor._id, updateData)
+
+        // Store check result for real uptime history (last 24h on Websites page)
+        const statusForHistory =
+          status === MonitorStatus.EXPIRED
+            ? "DOWN"
+            : (status as "UP" | "DOWN" | "WARNING" | "PENDING")
+        await MonitorCheckResultModel.create({
+          monitorId: monitor._id,
+          timestamp: new Date(),
+          status: statusForHistory,
+          responseTime: responseTime || undefined
+        }).catch((e) =>{  console.error("Failed to store check result:", e); })
+
         results.push({ name: monitor.name, status })
       } catch (err) {
         console.error(`Failed to check monitor ${monitor.name}:`, err)
         results.push({ name: monitor.name, status: "ERROR", error: (err as Error).message })
+        // Record failed check as DOWN so real uptime history shows the outage
+        await MonitorCheckResultModel.create({
+          monitorId: monitor._id,
+          timestamp: new Date(),
+          status: "DOWN"
+        }).catch((e) =>{  console.error("Failed to store check result (failure):", e); })
       }
     }
 

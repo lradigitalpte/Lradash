@@ -202,6 +202,55 @@ export default function WebsitesMonitorPage() {
   )
 }
 
+const BUCKET_COUNT = 48
+const BUCKET_MINUTES = 30
+
+interface CheckResult {
+  timestamp: string
+  status: string
+  responseTime?: number
+}
+
+function buildBarsFromHistory(
+  history: CheckResult[],
+  createdAt: Date | undefined,
+  count: number
+): ("UP" | "DOWN" | "WARNING" | "NONE")[] {
+  const now = Date.now()
+  const windowStart = now - count * BUCKET_MINUTES * 60 * 1000
+  const bucketMs = BUCKET_MINUTES * 60 * 1000
+
+  const buckets: ("UP" | "DOWN" | "WARNING" | "NONE")[] = Array(count).fill("NONE")
+
+  for (let i = 0; i < count; i++) {
+    const bucketStart = windowStart + i * bucketMs
+    const bucketEnd = bucketStart + bucketMs
+    if (createdAt && bucketEnd <= new Date(createdAt).getTime()) {
+      continue
+    }
+
+    const inBucket = history.filter((c) => {
+      const t = new Date(c.timestamp).getTime()
+      return t >= bucketStart && t < bucketEnd
+    })
+    if (inBucket.length === 0) {
+      continue
+    }
+
+    const latest = inBucket[inBucket.length - 1]
+    const s = latest.status.toUpperCase()
+    if (s === "UP") {
+      buckets[i] = "UP"
+    } else if (s === "WARNING") {
+      buckets[i] = "WARNING"
+    } else {
+      buckets[i] = "DOWN"
+    }
+  }
+
+  return buckets
+}
+
 function WebsiteItem({
   monitor,
   onDelete,
@@ -213,7 +262,39 @@ function WebsiteItem({
 }) {
   const { name, target: url, status, responseTime, createdAt } = monitor
   const latency = `${responseTime || 0}ms`
-  const uptime = "100%"
+
+  const [history, setHistory] = useState<CheckResult[]>([])
+  const [historyLoading, setHistoryLoading] = useState(true)
+
+  useEffect(() => {
+    if (!monitor._id) {
+      setHistoryLoading(false)
+      return
+    }
+    let cancelled = false
+    setHistoryLoading(true)
+    apiClient
+      .get(`/api/monitor/${monitor._id}/history`)
+      .then( async (r) => (r.ok ? r.json() : []))
+      .then((data: CheckResult[]) => {
+        if (!cancelled) {
+          setHistory(data)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setHistory([])
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setHistoryLoading(false)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [monitor._id])
 
   const getOperationalDuration = () => {
     if (!createdAt) {
@@ -237,38 +318,20 @@ function WebsiteItem({
     return `${minutes} Minutes operational`
   }
 
-  const count = 48
-  // Generate realistic uptime history data based on monitor status
-  const barsData = Array.from({ length: count }, (_, i) => {
-    const barTime = new Date(Date.now() - (count - i) * 30 * 60000).getTime()
+  const count = BUCKET_COUNT
+  const barsData =
+    history.length > 0
+      ? buildBarsFromHistory(history, createdAt ? new Date(createdAt) : undefined, count)
+      : Array(count).fill("NONE" as const)
 
-    // Show NONE if before monitor was created
-    if (createdAt && barTime < new Date(createdAt).getTime()) {
-      return "NONE"
-    }
-
-    // Generate realistic pattern: mostly UP with occasional issues
-    // Use index as seed for consistency
-    const seed = (i * 7) % 100
-
-    if (status === "DOWN") {
-      // If currently down, show more recent DOWN, older mixed
-      if (i > 40) {
-        return "DOWN"
-      } // Last few are down
-      if (seed < 80) {
-        return "UP"
-      }
-      if (seed < 95) {
-        return "WARNING"
-      }
-      return "DOWN"
-    }
-    // If currently UP, show mostly UP with rare issues
-    if (seed < 85) return "UP"
-    if (seed < 98) return "WARNING"
-    return "DOWN"
-  })
+  const barsForUptime = barsData.filter((b) => b !== "NONE")
+  const upCount = barsForUptime.filter((b) => b === "UP").length
+  const uptime =
+    barsForUptime.length > 0
+      ? `${Math.round((upCount / barsForUptime.length) * 100)}%`
+      : historyLoading
+        ? "…"
+        : "No data"
 
   return (
     <div className="group flex flex-col gap-6 rounded-[2rem] border border-slate-100 bg-white p-8 shadow-xl transition-all hover:border-red-200 hover:shadow-2xl dark:border-slate-800 dark:bg-slate-900">
@@ -343,18 +406,31 @@ function WebsiteItem({
         </DropdownMenu>
       </div>
 
-      {/* Uptime History Bar */}
+      {/* Uptime History Bar — real data from monitor checks */}
       <div className="flex flex-col gap-3 border-t border-slate-50 pt-6 dark:border-slate-800">
         <div className="flex items-center justify-between text-[10px] font-black tracking-widest text-slate-400 uppercase">
           <span>Uptime History (Last 24 Hours)</span>
           <span className="text-emerald-500">{getOperationalDuration()}</span>
         </div>
-        <UptimeStatusBars data={barsData as any} count={count} className="w-full justify-between" />
+        {historyLoading ? (
+          <div className="flex h-8 items-center gap-1">
+            <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+            <span className="text-xs text-slate-500">Loading history…</span>
+          </div>
+        ) : (
+          <UptimeStatusBars data={barsData} count={count} className="w-full justify-between" />
+        )}
         <div className="flex justify-between text-[9px] font-medium text-slate-400 italic">
           <span>24 Hours ago</span>
           <span>Checked every 5m</span>
           <span>Just now</span>
         </div>
+        {!historyLoading && history.length === 0 && (
+          <p className="text-[10px] text-slate-400">
+            History will appear after the next few checks run. Each bar is the status for that
+            30‑min window.
+          </p>
+        )}
       </div>
     </div>
   )

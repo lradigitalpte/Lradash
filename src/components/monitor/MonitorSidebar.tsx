@@ -8,9 +8,10 @@ import {
   CreditCard,
   ChevronLeft,
   LayoutDashboard,
-  Plus
+  Plus,
+  DollarSign
 } from "lucide-react"
-import { useParams, usePathname } from "next/navigation"
+import { usePathname } from "next/navigation"
 
 import {
   Sidebar,
@@ -22,19 +23,23 @@ import {
   SidebarGroup,
   SidebarGroupLabel
 } from "@/components/ui/sidebar"
+import { useAdminAccess } from "@/hooks/useAdmin"
 import { Link } from "@/i18n/navigation"
 import { cn } from "@/lib/utils"
 
+const ALL_NAV_ITEMS = [
+  { title: "Overview", href: "/monitor", icon: LayoutDashboard, adminOnly: false },
+  { title: "Costs & Spend", href: "/monitor/costs", icon: DollarSign, adminOnly: true },
+  { title: "Websites", href: "/monitor/websites", icon: Globe, adminOnly: false },
+  { title: "Infrastructure", href: "/monitor/infrastructure", icon: Mail, adminOnly: false },
+  { title: "SSL & Domains", href: "/monitor/ssl", icon: ShieldCheck, adminOnly: false },
+  { title: "Subscriptions", href: "/monitor/subscriptions", icon: CreditCard, adminOnly: true }
+]
+
 export default function MonitorSidebar() {
   const pathname = usePathname()
-
-  const navItems = [
-    { title: "Overview", href: "/monitor", icon: LayoutDashboard },
-    { title: "Websites", href: "/monitor/websites", icon: Globe },
-    { title: "Infrastructure", href: "/monitor/infrastructure", icon: Mail },
-    { title: "SSL & Domains", href: "/monitor/ssl", icon: ShieldCheck },
-    { title: "Subscriptions", href: "/monitor/subscriptions", icon: CreditCard }
-  ]
+  const isAdmin = useAdminAccess()
+  const navItems = ALL_NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin === true)
 
   const isActive = (href: string) => {
     if (href === "/monitor") {

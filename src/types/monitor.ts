@@ -34,6 +34,7 @@ export interface IMonitor {
   frequency: number // in minutes
   port?: number // For SMTP, PORT monitors (default 25 for SMTP, 80 for PORT)
   metadata?: Record<string, any>
+  projectId?: string
   createdAt?: Date
   updatedAt?: Date
 }

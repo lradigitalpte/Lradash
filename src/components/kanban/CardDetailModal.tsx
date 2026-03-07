@@ -1,11 +1,8 @@
 "use client"
 
-import { X } from "lucide-react"
-import { Clock } from "lucide-react"
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
 
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import {
@@ -15,7 +12,6 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select"
-import { formatDate } from "@/lib/utils"
 
 import { CardActivity } from "./card-detail/CardActivity"
 import { CardAttachments } from "./card-detail/CardAttachments"
@@ -64,7 +60,7 @@ export function CardDetailModal({
   const [labels, setLabels] = useState(card.labels || [])
   const [checklist, setChecklist] = useState(card.checklist || [])
   const [coverColor, setCoverColor] = useState(card.coverColor)
-  const [members, setMembers] = useState(card.members || [])
+  const [dueDate, setDueDate] = useState<string | null>(card.dueDate ?? null)
   const [status, setStatus] = useState(card.status || "TODO")
   const [saving, setSaving] = useState(false)
 
@@ -76,7 +72,7 @@ export function CardDetailModal({
       setLabels(card.labels || [])
       setChecklist(card.checklist || [])
       setCoverColor(card.coverColor)
-      setMembers(card.members || [])
+      setDueDate(card.dueDate ?? null)
       setStatus(card.status || "TODO")
     }
   }, [card])
@@ -152,16 +148,9 @@ export function CardDetailModal({
     updateTask({ coverColor: color })
   }
 
-  const handleAssignMember = (user: any) => {
-    const newMembers = [...members, user]
-    setMembers(newMembers)
-    updateTask({ assignee: user._id })
-  }
-
-  const handleUnassignMember = (userId: string) => {
-    const newMembers = members.filter((m) => m._id !== userId)
-    setMembers(newMembers)
-    updateTask({ assignee: null })
+  const handleDueDateChange = (date: string | null) => {
+    setDueDate(date)
+    updateTask({ dueDate: date ?? undefined })
   }
 
   const handleSelectWorkPackage = (wpId: string | null) => {
@@ -198,42 +187,14 @@ export function CardDetailModal({
             <div className="grid grid-cols-1 gap-12 lg:grid-cols-[1fr_280px]">
               {/* Left Column - Main Content */}
               <div className="space-y-10">
-                {/* Labels & Members */}
-                <div className="flex flex-wrap gap-10">
-                  {labels.length > 0 && (
-                    <CardLabels
-                      labels={labels}
-                      onAddLabel={handleAddLabel}
-                      onRemoveLabel={handleRemoveLabel}
-                    />
-                  )}
-
-                  {members.length > 0 && (
-                    <div className="space-y-4">
-                      <h3 className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
-                        Members
-                      </h3>
-                      <div className="flex flex-wrap gap-3">
-                        {members.map((member) => (
-                          <div
-                            key={member._id}
-                            className="group flex items-center gap-3 rounded-[1.25rem] border border-slate-100 bg-slate-50 px-3 py-1.5 transition-all hover:-translate-y-0.5 hover:bg-white hover:shadow-lg hover:shadow-slate-200/50 dark:border-slate-800/50 dark:bg-slate-800/50 dark:hover:bg-slate-800 dark:hover:shadow-none"
-                          >
-                            <Avatar className="h-6 w-6 border-2 border-white dark:border-slate-900">
-                              <AvatarImage src={member.avatar} />
-                              <AvatarFallback className="bg-blue-50 text-[10px] font-black text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
-                                {member.name.slice(0, 2).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="text-sm font-bold text-slate-700 transition-colors group-hover:text-blue-600 dark:text-slate-300">
-                              {member.name}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                {/* Labels */}
+                {labels.length > 0 && (
+                  <CardLabels
+                    labels={labels}
+                    onAddLabel={handleAddLabel}
+                    onRemoveLabel={handleRemoveLabel}
+                  />
+                )}
 
                 {/* Description */}
                 <div className="rounded-[2rem] border border-slate-100/50 bg-slate-50/50 p-8 dark:border-slate-800/30 dark:bg-slate-800/20">
@@ -285,44 +246,15 @@ export function CardDetailModal({
                   card={card}
                   boardId={boardId}
                   projectId={projectId}
+                  labels={labels}
                   onAddLabel={handleAddLabel}
+                  onRemoveLabel={handleRemoveLabel}
                   onAddChecklistItem={handleAddChecklistItem}
                   onChangeCover={handleChangeCover}
-                  onAssignMember={handleAssignMember}
-                  onUnassignMember={handleUnassignMember}
+                  dueDate={dueDate}
+                  onDueDateChange={handleDueDateChange}
                   onSelectWorkPackage={handleSelectWorkPackage}
                 />
-
-                {/* System Context Block */}
-                <div className="group relative overflow-hidden rounded-[2rem] bg-slate-900 p-8 text-white shadow-2xl dark:bg-white dark:text-slate-900">
-                  <div className="absolute top-0 right-0 -mt-16 -mr-16 h-32 w-32 rounded-full bg-white/10 blur-3xl dark:bg-slate-900/5" />
-                  <div className="relative space-y-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 dark:bg-slate-100">
-                        <Clock className="h-6 w-6" />
-                      </div>
-                      <div className="text-right text-[10px] font-black tracking-widest uppercase opacity-60">
-                        System Context
-                      </div>
-                    </div>
-                    <div>
-                      <h4 className="text-lg leading-tight font-black tracking-tight uppercase">
-                        Task Integrity
-                      </h4>
-                      <p className="mt-2 text-[11px] font-medium italic opacity-70">
-                        Created {card.createdAt ? formatDate(card.createdAt) : "Recently"} by{" "}
-                        {card.creator?.name || "System"}
-                      </p>
-                    </div>
-                    <Button
-                      variant="secondary"
-                      className="h-12 w-full rounded-xl bg-white text-[10px] font-black tracking-widest text-slate-900 uppercase shadow-xl transition-all hover:scale-105 dark:bg-slate-900 dark:text-white"
-                      onClick={() => toast.info("Task synchronized with cloud storage")}
-                    >
-                      Sync Task
-                    </Button>
-                  </div>
-                </div>
               </div>
             </div>
           </div>

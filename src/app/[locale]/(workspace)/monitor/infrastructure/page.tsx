@@ -215,8 +215,67 @@ export default function InfrastructurePage() {
   )
 }
 
+const BUCKET_COUNT = 48
+const BUCKET_MINUTES = 30
+
+interface CheckResult { timestamp: string; status: string; responseTime?: number }
+
+function buildBarsFromHistory(
+  history: CheckResult[],
+  createdAt: Date | undefined,
+  count: number
+): ("UP" | "DOWN" | "WARNING" | "NONE")[] {
+  const now = Date.now()
+  const windowStart = now - count * BUCKET_MINUTES * 60 * 1000
+  const bucketMs = BUCKET_MINUTES * 60 * 1000
+  const buckets: ("UP" | "DOWN" | "WARNING" | "NONE")[] = Array(count).fill("NONE")
+  for (let i = 0; i < count; i++) {
+    const bucketStart = windowStart + i * bucketMs
+    const bucketEnd = bucketStart + bucketMs
+    if (createdAt && bucketEnd <= new Date(createdAt).getTime()) {continue}
+    const inBucket = history.filter((c) => {
+      const t = new Date(c.timestamp).getTime()
+      return t >= bucketStart && t < bucketEnd
+    })
+    if (inBucket.length === 0) {continue}
+    const latest = inBucket[inBucket.length - 1]
+    const s = latest.status.toUpperCase()
+    if (s === "UP") {buckets[i] = "UP"}
+    else if (s === "WARNING") {buckets[i] = "WARNING"}
+    else {buckets[i] = "DOWN"}
+  }
+  return buckets
+}
+
 function InfraItem({ monitor, color, onDelete, onEdit }: any) {
   const { name, target: host, port, status, type, createdAt, responseTime, metadata } = monitor
+
+  const [history, setHistory] = useState<CheckResult[]>([])
+  const [historyLoading, setHistoryLoading] = useState(true)
+
+  useEffect(() => {
+    if (!monitor._id) {
+      setHistoryLoading(false)
+      return
+    }
+    let cancelled = false
+    setHistoryLoading(true)
+    apiClient
+      .get(`/api/monitor/${monitor._id}/history`)
+      .then( async (r) => (r.ok ? r.json() : []))
+      .then((data: CheckResult[]) => {
+        if (!cancelled) {setHistory(data)}
+      })
+      .catch(() => {
+        if (!cancelled) {setHistory([])}
+      })
+      .finally(() => {
+        if (!cancelled) {setHistoryLoading(false)}
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [monitor._id])
 
   const colors: any = {
     red: "text-red-500 bg-red-50 dark:bg-red-950/30",
@@ -227,13 +286,20 @@ function InfraItem({ monitor, color, onDelete, onEdit }: any) {
     rose: "text-rose-500 bg-rose-50 dark:bg-rose-950/30"
   }
 
-  const barsData = Array.from({ length: 24 }, (_, i) => {
-    const barTime = new Date(Date.now() - (24 - i) * 60 * 60000).getTime()
-    if (createdAt && barTime < new Date(createdAt).getTime()) {
-      return "NONE"
-    }
-    return status === "UP" ? "UP" : "DOWN"
-  })
+  const count = BUCKET_COUNT
+  const barsData =
+    history.length > 0
+      ? buildBarsFromHistory(history, createdAt ? new Date(createdAt) : undefined, count)
+      : Array(count).fill("NONE" as const)
+
+  const barsForStability = barsData.filter((b) => b !== "NONE")
+  const upCount = barsForStability.filter((b) => b === "UP").length
+  const stability =
+    barsForStability.length > 0
+      ? `${Math.round((upCount / barsForStability.length) * 100)}%`
+      : historyLoading
+        ? "…"
+        : "No data"
 
   // SMTP metadata display
   const isSMTP = type === "SMTP"
@@ -277,7 +343,9 @@ function InfraItem({ monitor, color, onDelete, onEdit }: any) {
                   "h-2 w-2 rounded-full",
                   status === "UP"
                     ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]"
-                    : "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]"
+                    : status === "WARNING" || status === "PENDING"
+                      ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]"
+                      : "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]"
                 )}
               />
               <span className="text-[10px] font-black tracking-widest uppercase">{status}</span>
@@ -341,14 +409,26 @@ function InfraItem({ monitor, color, onDelete, onEdit }: any) {
       <div className="mt-6 flex flex-col gap-2 opacity-60 transition-opacity group-hover:opacity-100">
         <div className="flex justify-between text-[8px] font-black tracking-widest text-slate-400 uppercase">
           <span>Stability</span>
-          <span>100%</span>
+          <span>{stability}</span>
         </div>
-        <UptimeStatusBars
-          data={barsData as any}
-          count={24}
-          gap={1}
-          className="w-full justify-between"
-        />
+        {historyLoading ? (
+          <div className="flex h-6 items-center gap-1">
+            <Loader2 className="h-3 w-3 animate-spin text-slate-400" />
+            <span className="text-[9px] text-slate-500">Loading history…</span>
+          </div>
+        ) : (
+          <UptimeStatusBars
+            data={barsData}
+            count={count}
+            gap={1}
+            className="w-full justify-between"
+          />
+        )}
+        {!historyLoading && history.length === 0 && (
+          <p className="text-[9px] text-slate-400">
+            History after next checks. Each bar = 30 min window.
+          </p>
+        )}
       </div>
     </div>
   )

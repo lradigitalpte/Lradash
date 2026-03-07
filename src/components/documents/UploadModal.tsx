@@ -24,8 +24,9 @@ import { apiClient } from "@/lib/api/client"
 import { cn } from "@/lib/utils"
 
 interface UploadModalProps {
-  projectId: string
-  folders: { _id: string; name: string }[]
+  projectId?: string
+  boardId?: string
+  folders?: { _id: string; name: string }[]
   open: boolean
   onOpenChange: (open: boolean) => void
   onUploadSuccess?: (doc: any) => void
@@ -48,11 +49,13 @@ const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100 MB
 
 export function UploadModal({
   projectId,
-  folders,
+  boardId,
+  folders = [],
   open,
   onOpenChange,
   onUploadSuccess
 }: UploadModalProps) {
+  const isBoard = Boolean(boardId)
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -185,7 +188,7 @@ export function UploadModal({
       const presignedRes = await apiClient.post("/api/upload/presigned", {
         fileName: file.name,
         fileType: file.type || "application/octet-stream",
-        projectId
+        ...(isBoard && boardId ? { boardId, subFolder: "documents" } : { projectId })
       })
       if (!presignedRes.ok) {
         throw new Error("Could not get upload URL")
@@ -218,13 +221,21 @@ export function UploadModal({
 
       const sizeLabel = formatFileSize(file.size)
 
-      const dbRes = await apiClient.post(`/api/projects/${projectId}/documents`, {
-        name: file.name,
-        type,
-        size: sizeLabel,
-        folder: selectedFolder,
-        url: publicUrl
-      })
+      const dbRes =
+        isBoard && boardId
+          ? await apiClient.post(`/api/boards/${boardId}/documents`, {
+              name: file.name,
+              type,
+              size: sizeLabel,
+              url: publicUrl
+            })
+          : await apiClient.post(`/api/projects/${projectId}/documents`, {
+              name: file.name,
+              type,
+              size: sizeLabel,
+              folder: selectedFolder,
+              url: publicUrl
+            })
       if (!dbRes.ok) {
         throw new Error("Failed to save document")
       }
@@ -261,28 +272,30 @@ export function UploadModal({
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* ── Folder picker – always visible ── */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold tracking-wide text-slate-500 uppercase">
-              Save to folder
-            </label>
-            <Select value={selectedFolder} onValueChange={setSelectedFolder} disabled={uploading}>
-              <SelectTrigger className="rounded-xl">
-                <div className="flex items-center gap-2">
-                  <Folder className="h-4 w-4 text-amber-500" />
-                  <SelectValue />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="General">General</SelectItem>
-                {folders.map((f) => (
-                  <SelectItem key={f._id} value={f.name}>
-                    {f.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {/* ── Folder picker – project only ── */}
+          {!isBoard && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold tracking-wide text-slate-500 uppercase">
+                Save to folder
+              </label>
+              <Select value={selectedFolder} onValueChange={setSelectedFolder} disabled={uploading}>
+                <SelectTrigger className="rounded-xl">
+                  <div className="flex items-center gap-2">
+                    <Folder className="h-4 w-4 text-amber-500" />
+                    <SelectValue />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="General">General</SelectItem>
+                  {folders.map((f) => (
+                    <SelectItem key={f._id} value={f.name}>
+                      {f.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* ── File area ── */}
           {!file ? (

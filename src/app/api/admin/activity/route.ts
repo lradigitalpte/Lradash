@@ -18,10 +18,11 @@ export async function GET(request: NextRequest) {
 
   await connectToDatabase()
 
-  // Fetch tasks that have recent activities
+  // Only project tasks (exclude board-only / user-level tasks)
   const tasks = await TaskModel.find({
     organizationId: orgId,
     deletedAt: null,
+    project: { $exists: true, $ne: null },
     "activities.0": { $exists: true }
   })
     .select("_id title project board activities")

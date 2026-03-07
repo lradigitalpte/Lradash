@@ -1,6 +1,6 @@
 "use client"
 
-import { FileText, LayoutGrid, Home, ListTodo, Settings, CheckSquare } from "lucide-react"
+import { FileText, Home, ListTodo, Settings, CheckSquare } from "lucide-react"
 import Link from "next/link"
 import { useParams, usePathname } from "next/navigation"
 import { useState, useEffect } from "react"
@@ -55,7 +55,6 @@ export default function BoardLayout({ children }: { children: React.ReactNode })
       href: `/${locale}/boards/${boardId}/work-packages`,
       icon: ListTodo
     },
-    { label: "Board", href: `/${locale}/boards/${boardId}/board`, icon: LayoutGrid },
     { label: "Documents", href: `/${locale}/boards/${boardId}/documents`, icon: FileText },
     { label: "Settings", href: `/${locale}/boards/${boardId}/settings`, icon: Settings }
   ]

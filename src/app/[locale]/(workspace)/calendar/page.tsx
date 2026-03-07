@@ -5,17 +5,14 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
-  Filter,
+  Edit3,
   Plus,
-  AlertCircle,
-  CheckCircle,
   Calendar as CalendarIcon,
   Zap,
   Globe,
   Users,
   ShieldAlert,
   Activity,
-  ArrowRight,
   Coffee,
   Trash2
 } from "lucide-react"
@@ -60,6 +57,23 @@ export default function CalendarPage() {
   const [events, setEvents] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingEvent, setEditingEvent] = useState<any | null>(null)
+
+  const openEditModal = (eventOrItem: any) => {
+    const id = eventOrItem._id || eventOrItem.id
+    const fullEvent = id
+      ? events.find((e: any) => (e._id || e.id) === id) || eventOrItem
+      : eventOrItem
+    setEditingEvent(fullEvent)
+    setIsModalOpen(true)
+  }
+
+  const handleCloseModal = (open: boolean) => {
+    if (!open) {
+      setEditingEvent(null)
+    }
+    setIsModalOpen(open)
+  }
 
   const fetchEvents = async () => {
     try {
@@ -180,12 +194,12 @@ export default function CalendarPage() {
   const meetingLoad = todayEvents.filter((e) => e.type === "sync" || e.type === "meeting").length
 
   return (
-    <div className="relative min-h-screen w-full overflow-x-hidden pb-16 sm:pb-24 md:pb-32">
+    <div className="relative min-h-screen w-full overflow-x-hidden overflow-y-auto pb-8">
       {/* Dynamic Background Glows */}
       <div className="pointer-events-none absolute top-20 right-[15%] -z-10 h-150 w-150 rounded-full bg-blue-500/5 blur-[140px]" />
       <div className="pointer-events-none absolute bottom-40 left-[20%] -z-10 h-125 w-125 rounded-full bg-indigo-500/5 blur-[120px]" />
 
-      <div className="mx-auto w-full max-w-full space-y-3 overflow-x-hidden px-3 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8 2xl:max-w-7xl">
+      <div className="mx-auto w-full max-w-full space-y-3 overflow-x-hidden px-3 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8 2xl:max-w-[1600px]">
         {/* WOW Header Section */}
         <div className="flex flex-col justify-between gap-4 pt-4 md:flex-row md:items-end md:gap-8">
           <div className="flex items-center gap-3 sm:gap-6">
@@ -275,9 +289,9 @@ export default function CalendarPage() {
           />
         </div>
 
-        {/* Primary Schedule Interface */}
-        <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-[1fr_320px] lg:gap-8">
-          <div className="space-y-4 overflow-x-auto sm:space-y-6">
+        {/* Primary Schedule Interface - full width calendar, no sidebar */}
+        <div className="w-full max-w-[1600px] overflow-hidden">
+          <div className="space-y-4 sm:space-y-6">
             <div className="flex flex-col justify-between gap-3 rounded-3xl border border-white/20 bg-white/40 p-4 shadow-xl shadow-slate-200/40 backdrop-blur-xl md:flex-row md:items-center md:gap-6 md:p-6 dark:border-slate-800/50 dark:bg-slate-900/40 dark:shadow-none">
               <div className="flex items-center gap-2">
                 <Button
@@ -358,6 +372,7 @@ export default function CalendarPage() {
                   currentDate={currentDate}
                   events={events}
                   onDeleteEvent={handleDeleteEvent}
+                  onEditEvent={openEditModal}
                 />
               )}
               {viewType === "month" && (
@@ -367,116 +382,35 @@ export default function CalendarPage() {
                   monthDays={monthDays}
                   emptyDays={emptyDays}
                   onDeleteEvent={handleDeleteEvent}
+                  onEditEvent={openEditModal}
                 />
               )}
               {viewType === "week" && <WeekView events={events} />}
               {viewType === "agenda" && (
-                <AgendaView events={events} onDeleteEvent={handleDeleteEvent} />
+                <AgendaView
+                  events={events}
+                  onDeleteEvent={handleDeleteEvent}
+                  onEditEvent={openEditModal}
+                />
               )}
             </div>
           </div>
-
-          {/* Right Sidebar: Today's Overview & Team Presence */}
-          <div className="space-y-4 sm:space-y-6 lg:sticky lg:top-4 lg:space-y-8 lg:self-start">
-            <Card className="w-full rounded-2xl border-none bg-white/60 p-3 shadow-lg shadow-slate-200/50 backdrop-blur-xl sm:rounded-3xl sm:p-6 dark:bg-slate-900/60">
-              <CardHeader className="mb-4 p-0 sm:mb-8">
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-500/20 sm:h-10 sm:w-10">
-                    <Zap className="h-4 w-4 sm:h-5 sm:w-5" />
-                  </div>
-                  <div className="space-y-0.5">
-                    <CardTitle className="text-lg font-black tracking-tight text-slate-900 uppercase sm:text-xl dark:text-white">
-                      Daily Agenda
-                    </CardTitle>
-                    <CardDescription className="text-[8px] font-black tracking-[0.2em] text-slate-400 uppercase sm:text-[10px]">
-                      Daily Schedule
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <div className="space-y-4">
-                {todayEvents.length > 0 ? (
-                  todayEvents.slice(0, 3).map((event) => (
-                    <EventHoverCard
-                      key={event._id || event.id}
-                      event={{
-                        ...event,
-                        startTime: format(new Date(event.startTime), "HH:mm"),
-                        endTime: format(new Date(event.endTime), "HH:mm")
-                      }}
-                      onDelete={handleDeleteEvent}
-                    >
-                      <div
-                        className={cn(
-                          "group relative cursor-help rounded-2xl border-l-4 p-4 transition-colors",
-                          event.type === "sync"
-                            ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-900/10"
-                            : "border-blue-500 bg-blue-50 dark:bg-blue-900/10"
-                        )}
-                      >
-                        <div className="mb-1 flex items-start justify-between">
-                          <span className="text-[9px] font-black tracking-widest text-slate-500 uppercase">
-                            {format(new Date(event.startTime), "HH:mm")} -{" "}
-                            {format(new Date(event.endTime), "HH:mm")}
-                          </span>
-                          <span
-                            className={`h-1.5 w-1.5 rounded-full ${event.type === "sync" ? "bg-emerald-500" : "bg-blue-500"}`}
-                          />
-                        </div>
-                        <h4 className="line-clamp-1 text-sm font-black tracking-tight text-slate-900 uppercase dark:text-white">
-                          {event.title}
-                        </h4>
-                      </div>
-                    </EventHoverCard>
-                  ))
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 py-8 text-center dark:border-slate-800 dark:bg-slate-800/30">
-                    <p className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
-                      No events scheduled for today
-                    </p>
-                  </div>
-                )}
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setViewType("agenda")
-                  }}
-                  className="h-12 w-full gap-2 rounded-2xl text-[10px] font-black tracking-widest text-slate-400 uppercase hover:text-blue-600"
-                >
-                  View Full Agenda
-                  <ArrowRight className="h-3 w-3" />
-                </Button>
-              </div>
-            </Card>
-
-            <Card className="group relative overflow-hidden rounded-2xl border-none bg-slate-900 p-4 text-white shadow-lg shadow-slate-200/50 sm:rounded-3xl sm:p-6 dark:bg-white dark:text-slate-900">
-              <div className="absolute top-0 right-0 -mt-16 -mr-16 h-32 w-32 rounded-full bg-white/10 blur-3xl" />
-              <div className="relative space-y-6 text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 dark:bg-slate-900/10">
-                  <Globe className="h-8 w-8 text-white dark:text-slate-900" />
-                </div>
-                <div>
-                  <h4 className="text-xl font-black tracking-tight uppercase">
-                    Organization Status
-                  </h4>
-                  <p className="mt-2 text-[11px] font-medium italic opacity-70">
-                    Update your status for the team
-                  </p>
-                </div>
-                <Button className="h-14 w-full rounded-2xl bg-white text-[11px] font-black tracking-widest text-slate-900 uppercase shadow-xl transition-transform group-hover:scale-105 dark:bg-slate-900 dark:text-white">
-                  Set Availability
-                </Button>
-              </div>
-            </Card>
-          </div>
         </div>
       </div>
-      <CreateEventModal open={isModalOpen} onOpenChange={setIsModalOpen} onSuccess={fetchEvents} />
+      <CreateEventModal
+        open={isModalOpen}
+        onOpenChange={handleCloseModal}
+        onSuccess={() => {
+          fetchEvents()
+          setEditingEvent(null)
+        }}
+        event={editingEvent}
+      />
     </div>
   )
 }
 
-function DayView({ currentDate, events = [], onDeleteEvent }: any) {
+function DayView({ currentDate, events = [], onDeleteEvent, onEditEvent }: any) {
   const hours = Array.from({ length: 24 }, (_, i) => i)
 
   const getEventsForHour = (hour: number) => {
@@ -493,7 +427,7 @@ function DayView({ currentDate, events = [], onDeleteEvent }: any) {
   }
 
   return (
-    <Card className="w-full overflow-x-auto rounded-2xl border-none bg-white/60 p-3 shadow-lg shadow-slate-200/50 backdrop-blur-xl sm:rounded-3xl sm:p-4 lg:p-8 dark:bg-slate-900/60">
+    <Card className="w-full overflow-hidden rounded-2xl border-none bg-white/60 p-3 shadow-lg shadow-slate-200/50 backdrop-blur-xl sm:rounded-3xl sm:p-4 lg:p-8 dark:bg-slate-900/60">
       <div className="space-y-2 sm:space-y-4">
         <div className="flex items-center gap-2 sm:gap-3">
           <Clock className="h-4 w-4 text-blue-600 sm:h-5 sm:w-5" />
@@ -524,6 +458,7 @@ function DayView({ currentDate, events = [], onDeleteEvent }: any) {
                         key={event._id || event.id}
                         event={event}
                         onDelete={onDeleteEvent}
+                        onEdit={onEditEvent}
                       >
                         <div
                           className={cn(
@@ -575,15 +510,22 @@ function DayView({ currentDate, events = [], onDeleteEvent }: any) {
   )
 }
 
-function MonthView({ currentDate, getDayEvents, monthDays, emptyDays, onDeleteEvent }: any) {
+function MonthView({
+  currentDate,
+  getDayEvents,
+  monthDays,
+  emptyDays,
+  onDeleteEvent,
+  onEditEvent
+}: any) {
   const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
   const today = new Date()
   const isCurrentMonth =
     today.getMonth() === currentDate.getMonth() && today.getFullYear() === currentDate.getFullYear()
 
   return (
-    <Card className="w-full overflow-x-auto rounded-2xl border-none bg-white/60 p-3 shadow-lg shadow-slate-200/50 backdrop-blur-xl sm:rounded-3xl sm:p-4 lg:p-8 dark:bg-slate-900/60">
-      <div className="min-w-full">
+    <Card className="w-full overflow-hidden rounded-2xl border-none bg-white/60 p-3 shadow-lg shadow-slate-200/50 backdrop-blur-xl sm:rounded-3xl sm:p-4 lg:p-8 dark:bg-slate-900/60">
+      <div className="min-w-0">
         <div className="grid grid-cols-7 gap-1 sm:gap-2">
           {dayLabels.map((label) => (
             <div
@@ -597,7 +539,7 @@ function MonthView({ currentDate, getDayEvents, monthDays, emptyDays, onDeleteEv
           {emptyDays.map((_: unknown, i: number) => (
             <div
               key={`empty-${i}`}
-              className="min-h-20 rounded-2xl bg-slate-100/50 opacity-20 sm:min-h-25 lg:min-h-35"
+              className="max-h-[100px] min-h-[72px] rounded-2xl bg-slate-100/50 opacity-20 sm:max-h-[110px] sm:min-h-20 lg:max-h-[120px] lg:min-h-24"
             />
           ))}
 
@@ -609,7 +551,7 @@ function MonthView({ currentDate, getDayEvents, monthDays, emptyDays, onDeleteEv
               <div
                 key={day}
                 className={cn(
-                  "group/day relative min-h-20 rounded-2xl p-1.5 transition-all duration-300 sm:min-h-25 sm:p-2 lg:min-h-35 lg:p-4",
+                  "group/day relative max-h-[100px] min-h-[72px] rounded-2xl p-1.5 transition-all duration-300 sm:max-h-[110px] sm:min-h-20 sm:p-2 lg:max-h-[120px] lg:min-h-24 lg:p-4",
                   isToday
                     ? "z-10 scale-[1.02] bg-white shadow-lg ring-2 ring-blue-500/20 dark:bg-slate-800"
                     : "bg-slate-50/50 hover:bg-white hover:shadow-md dark:bg-slate-900/30 dark:hover:bg-slate-800"
@@ -627,7 +569,12 @@ function MonthView({ currentDate, getDayEvents, monthDays, emptyDays, onDeleteEv
                 </span>
                 <div className="mt-1 space-y-0.5 sm:space-y-1">
                   {items.slice(0, 2).map((item, idx: number) => (
-                    <EventHoverCard key={idx} event={item} onDelete={onDeleteEvent}>
+                    <EventHoverCard
+                      key={idx}
+                      event={item}
+                      onDelete={onDeleteEvent}
+                      onEdit={item.isEvent ? () => onEditEvent?.(item) : undefined}
+                    >
                       <div
                         className={cn(
                           "h-0.5 w-full cursor-help rounded-full transition-all group-hover/day:flex group-hover/day:h-1.5 group-hover/day:items-center group-hover/day:px-1 sm:group-hover/day:h-2 sm:group-hover/day:px-1.5 lg:group-hover/day:h-3 lg:group-hover/day:px-2",
@@ -775,7 +722,7 @@ function WeekView({ events = [] }: any) {
   )
 }
 
-function AgendaView({ events = [], onDeleteEvent }: any) {
+function AgendaView({ events = [], onDeleteEvent, onEditEvent }: any) {
   return (
     <Card className="w-full rounded-2xl border-none bg-white/60 p-3 shadow-lg shadow-slate-200/50 backdrop-blur-xl sm:rounded-3xl sm:p-4 lg:p-8 dark:bg-slate-900/60">
       <div className="space-y-3 sm:space-y-4 lg:space-y-8">
@@ -816,14 +763,25 @@ function AgendaView({ events = [], onDeleteEvent }: any) {
                     {event.title}
                   </h4>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => onDeleteEvent(event._id || event.id)}
-                  className="self-end text-slate-300 opacity-0 transition-all group-hover:opacity-100 hover:text-rose-600 sm:self-auto"
-                >
-                  <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
-                </Button>
+                <div className="flex items-center gap-1 self-end sm:self-auto">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => onEditEvent?.(event)}
+                    className="text-slate-300 opacity-0 transition-all group-hover:opacity-100 hover:text-blue-600 sm:opacity-70"
+                    title="Edit"
+                  >
+                    <Edit3 className="h-4 w-4 sm:h-5 sm:w-5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => onDeleteEvent(event._id || event.id)}
+                    className="text-slate-300 opacity-0 transition-all group-hover:opacity-100 hover:text-rose-600 sm:self-auto"
+                  >
+                    <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
+                  </Button>
+                </div>
               </div>
             ))
           ) : (

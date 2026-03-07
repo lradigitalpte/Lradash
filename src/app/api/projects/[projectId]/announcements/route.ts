@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { verifyAccessToken } from "@/lib/auth/tokens"
 import { connectToDatabase } from "@/lib/db/connect"
+import { createNotification } from "@/lib/db/notification"
 import { AnnouncementModel } from "@/models/announcement.model"
 import { ProjectModel } from "@/models/project.model"
 import { UserModel } from "@/models/user.model"
@@ -102,6 +103,38 @@ export async function POST(
       organizationId,
       views: []
     })
+
+    // Notify all project team (owner + members) except the author
+    try {
+      const projectWithMembers = await ProjectModel.findById(projectId)
+        .select("owner members")
+        .lean()
+      const authorUser = await UserModel.findById(decoded.userId).select("name avatar").lean()
+      const authorIdStr = decoded.userId.toString()
+      const recipientIds = new Set<string>()
+      if (projectWithMembers?.owner) {
+        recipientIds.add((projectWithMembers.owner as any).toString())
+      }
+      ;(projectWithMembers?.members || []).forEach((m: any) => recipientIds.add(m.toString()))
+      recipientIds.delete(authorIdStr)
+
+      const authorName = (authorUser as any)?.name || "Someone"
+      const authorAvatar = (authorUser as any)?.avatar
+
+      for (const userId of recipientIds) {
+        await createNotification({
+          userId,
+          type: "announcement_created",
+          title: "New announcement",
+          body: `${authorName}: ${title}`,
+          projectId,
+          triggeredBy: { userId: authorIdStr, name: authorName, avatar: authorAvatar }
+        })
+      }
+    } catch (notifyErr) {
+      console.error("Failed to send announcement notifications:", notifyErr)
+      // Do not fail the request
+    }
 
     const populatedAnnouncement = await AnnouncementModel.findById(newAnnouncement._id)
       .populate("author", "name email avatar")

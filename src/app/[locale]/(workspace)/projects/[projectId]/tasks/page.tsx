@@ -69,11 +69,15 @@ export default function TasksPage() {
   const [workPackages, setWorkPackages] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [filterStatus, setFilterStatus] = useState<string>("ALL")
+  const [filterPriority, setFilterPriority] = useState<string>("ALL")
+  const [filterDueDate, setFilterDueDate] = useState<string>("ALL")
+  const [showCompleted, setShowCompleted] = useState(true)
+  const [sortBy, setSortBy] = useState<string>("DUE_DATE_ASC")
+  const [pageSize, setPageSize] = useState(10)
   const [myTasksOnly, setMyTasksOnly] = useState(false)
   const [currentUser, setCurrentUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
-  const PAGE_SIZE = 10
 
   // Modal states
   const [viewTaskModalOpen, setViewTaskModalOpen] = useState(false)
@@ -137,12 +141,12 @@ export default function TasksPage() {
   }
 
   const handleTaskUpdated = (updatedTask: any) => {
-    // Update the task in the local state
     setTasks((prevTasks) =>
       prevTasks.map((task) => (task._id === updatedTask._id ? updatedTask : task))
     )
-
-    // Close any open modals
+    if (selectedTask && selectedTask._id === updatedTask._id) {
+      setSelectedTask(updatedTask)
+    }
     setEditTaskModalOpen(false)
     setChangeOwnerModalOpen(false)
   }
@@ -188,32 +192,126 @@ export default function TasksPage() {
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
-      // Filter out deleted tasks
       if (task.deletedAt) {
         return false
       }
-
       const matchesSearch =
         task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         task.description?.toLowerCase().includes(searchQuery.toLowerCase())
-      const matchesFilter = filterStatus === "ALL" || task.status === filterStatus
+      const matchesStatus = filterStatus === "ALL" || task.status === filterStatus
+      const matchesPriority =
+        filterPriority === "ALL" || (task.priority || "MEDIUM") === filterPriority
+      const matchesDue =
+        filterDueDate === "ALL" ||
+        (filterDueDate === "OVERDUE" &&
+          task.dueDate &&
+          new Date(task.dueDate) < new Date() &&
+          task.status !== "DONE") ||
+        (filterDueDate === "THIS_WEEK" &&
+          task.dueDate &&
+          (() => {
+            const d = new Date(task.dueDate)
+            const now = new Date()
+            const start = new Date(now)
+            start.setDate(now.getDate() - now.getDay())
+            start.setHours(0, 0, 0, 0)
+            const end = new Date(start)
+            end.setDate(start.getDate() + 7)
+            return d >= start && d < end
+          })()) ||
+        (filterDueDate === "THIS_MONTH" &&
+          task.dueDate &&
+          (() => {
+            const d = new Date(task.dueDate)
+            const now = new Date()
+            return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+          })()) ||
+        (filterDueDate === "NO_DATE" && !task.dueDate)
+      const matchesCompleted = showCompleted || task.status !== "DONE"
       const matchesMine =
         !myTasksOnly ||
         (currentUser &&
           (task.assignee?._id === currentUser.id ||
             task.assignee?.id === currentUser.id ||
             task.assignee === currentUser.id))
-      return matchesSearch && matchesFilter && matchesMine
+      return (
+        matchesSearch &&
+        matchesStatus &&
+        matchesPriority &&
+        matchesDue &&
+        matchesCompleted &&
+        matchesMine
+      )
     })
-  }, [tasks, searchQuery, filterStatus, myTasksOnly, currentUser])
+  }, [
+    tasks,
+    searchQuery,
+    filterStatus,
+    filterPriority,
+    filterDueDate,
+    showCompleted,
+    myTasksOnly,
+    currentUser
+  ])
 
-  // Reset to page 1 whenever filters change
+  const sortedTasks = useMemo(() => {
+    const list = [...filteredTasks]
+    const priorityOrder: Record<string, number> = {
+      URGENT: 0,
+      HIGH: 1,
+      MEDIUM: 2,
+      LOW: 3
+    }
+    list.sort((a, b) => {
+      if (sortBy === "DUE_DATE_ASC") {
+        const aD = a.dueDate ? new Date(a.dueDate).getTime() : Infinity
+        const bD = b.dueDate ? new Date(b.dueDate).getTime() : Infinity
+        return aD - bD
+      }
+      if (sortBy === "DUE_DATE_DESC") {
+        const aD = a.dueDate ? new Date(a.dueDate).getTime() : 0
+        const bD = b.dueDate ? new Date(b.dueDate).getTime() : 0
+        return bD - aD
+      }
+      if (sortBy === "PRIORITY") {
+        const aP = priorityOrder[a.priority || "MEDIUM"] ?? 2
+        const bP = priorityOrder[b.priority || "MEDIUM"] ?? 2
+        return aP - bP
+      }
+      if (sortBy === "TITLE") {
+        return (a.title || "").localeCompare(b.title || "")
+      }
+      if (sortBy === "STATUS") {
+        const order: Record<string, number> = { TODO: 0, IN_PROGRESS: 1, DONE: 2 }
+        return (order[a.status] ?? 0) - (order[b.status] ?? 0)
+      }
+      return 0
+    })
+    return list
+  }, [filteredTasks, sortBy])
+
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, filterStatus, myTasksOnly])
+  }, [
+    searchQuery,
+    filterStatus,
+    filterPriority,
+    filterDueDate,
+    showCompleted,
+    myTasksOnly,
+    sortBy,
+    pageSize
+  ])
 
-  const totalPages = Math.max(1, Math.ceil(filteredTasks.length / PAGE_SIZE))
-  const pagedTasks = filteredTasks.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+  const totalPages = Math.max(1, Math.ceil(sortedTasks.length / pageSize))
+  const pagedTasks = sortedTasks.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  const activeFilterCount = [
+    filterStatus !== "ALL",
+    filterPriority !== "ALL",
+    filterDueDate !== "ALL",
+    !showCompleted,
+    myTasksOnly
+  ].filter(Boolean).length
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -358,92 +456,207 @@ export default function TasksPage() {
 
       {/* 4. Filter & Search Bar */}
       <div className="sticky top-4 z-20 space-y-4 rounded-3xl border border-white/20 bg-white/70 p-4 shadow-2xl shadow-slate-200/40 backdrop-blur-xl dark:border-slate-800/50 dark:bg-slate-900/70 dark:shadow-none">
-        <div className="flex flex-col gap-4 md:flex-row">
-          <div className="group relative flex-1">
-            <Search className="absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-blue-500" />
-            <Input
-              placeholder="Find a task by title or description..."
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value)
-              }}
-              className="h-12 rounded-2xl border-none bg-slate-50 pl-12 text-sm font-medium transition-all placeholder:font-medium placeholder:italic focus:ring-4 focus:ring-blue-500/10 dark:bg-slate-950"
-            />
-          </div>
-          <div className="flex shrink-0 gap-2">
-            <Button
-              variant={myTasksOnly ? "default" : "outline"}
-              onClick={() => {
-                setMyTasksOnly(!myTasksOnly)
-              }}
-              className={cn(
-                "h-12 gap-2 rounded-2xl px-5 font-bold transition-all",
-                myTasksOnly
-                  ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20"
-                  : "border-slate-100 bg-white hover:bg-slate-50 dark:bg-slate-900"
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center">
+            <div className="group relative flex-1">
+              <Search className="absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-blue-500" />
+              <Input
+                placeholder="Find a task by title or description..."
+                value={searchQuery}
+                onChange={(e) =>{  setSearchQuery(e.target.value); }}
+                className="h-12 rounded-2xl border-none bg-slate-50 pl-12 text-sm font-medium transition-all placeholder:font-medium placeholder:italic focus:ring-4 focus:ring-blue-500/10 dark:bg-slate-950"
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant={myTasksOnly ? "default" : "outline"}
+                onClick={() =>{  setMyTasksOnly(!myTasksOnly); }}
+                className={cn(
+                  "h-12 gap-2 rounded-2xl px-5 font-bold transition-all",
+                  myTasksOnly
+                    ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20"
+                    : "border-slate-100 bg-white hover:bg-slate-50 dark:bg-slate-900"
+                )}
+              >
+                <User className="h-4 w-4" />
+                {myTasksOnly ? "My Tasks" : "All Tasks"}
+              </Button>
+              <Button
+                variant={showCompleted ? "outline" : "secondary"}
+                onClick={() =>{  setShowCompleted(!showCompleted); }}
+                className={cn(
+                  "h-12 gap-2 rounded-2xl px-5 font-bold",
+                  !showCompleted && "bg-slate-100 dark:bg-slate-800"
+                )}
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                {showCompleted ? "With completed" : "Hide completed"}
+              </Button>
+              {activeFilterCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setFilterStatus("ALL")
+                    setFilterPriority("ALL")
+                    setFilterDueDate("ALL")
+                  }}
+                  className="h-12 rounded-2xl text-xs font-bold text-slate-500"
+                >
+                  Clear filters ({activeFilterCount})
+                </Button>
               )}
-            >
-              <User className="h-4 w-4" />
-              {myTasksOnly ? "My Tasks" : "All Tasks"}
-            </Button>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="outline"
-                  className="h-12 gap-2 rounded-2xl border-slate-100 bg-white px-6 font-bold transition-all hover:bg-slate-50 dark:bg-slate-900"
+                  className="h-10 gap-2 rounded-xl border-slate-100 bg-white px-4 text-xs font-bold dark:bg-slate-900"
                 >
-                  <FilterIcon className="h-4 w-4 text-blue-600" />
-                  Filter:{" "}
-                  <span className="text-blue-600">
-                    {filterStatus === "ALL" ? "All" : filterStatus.replace("_", " ")}
-                  </span>
+                  <FilterIcon className="h-3.5 w-3.5 text-blue-600" />
+                  Status:{" "}
+                  {filterStatus === "ALL"
+                    ? "All"
+                    : filterStatus === "TODO"
+                      ? "To Do"
+                      : filterStatus.replace("_", " ")}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56 rounded-2xl border-slate-100 p-2 shadow-2xl">
-                <DropdownMenuItem
-                  onClick={() => {
-                    setFilterStatus("ALL")
-                  }}
-                  className="group rounded-xl py-3 font-bold"
-                >
-                  <Layers className="mr-2 h-4 w-4 text-slate-400 group-hover:text-blue-500" />
-                  All Tasks
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    setFilterStatus("TODO")
-                  }}
-                  className="group rounded-xl py-3 font-bold"
-                >
-                  <Circle className="mr-2 h-4 w-4 text-slate-300 group-hover:text-slate-500" />
-                  Backlog
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    setFilterStatus("IN_PROGRESS")
-                  }}
-                  className="group rounded-xl py-3 font-bold"
-                >
-                  <Zap className="mr-2 h-4 w-4 text-orange-500 group-hover:scale-110" />
-                  In Progress
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    setFilterStatus("DONE")
-                  }}
-                  className="group rounded-xl py-3 font-bold"
-                >
-                  <CheckCircle2 className="mr-2 h-4 w-4 text-emerald-500 group-hover:scale-110" />
-                  Completed
-                </DropdownMenuItem>
+              <DropdownMenuContent className="w-52 rounded-2xl p-2">
+                {[
+                  { value: "ALL", label: "All" },
+                  { value: "TODO", label: "To Do" },
+                  { value: "IN_PROGRESS", label: "In Progress" },
+                  { value: "DONE", label: "Completed" }
+                ].map((opt) => (
+                  <DropdownMenuItem
+                    key={opt.value}
+                    onClick={() =>{  setFilterStatus(opt.value); }}
+                    className="rounded-xl py-2.5 font-bold"
+                  >
+                    {opt.label}
+                  </DropdownMenuItem>
+                ))}
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button
-              variant="outline"
-              className="h-12 w-12 animate-in rounded-2xl border-slate-100 bg-white p-0 font-bold transition-all fade-in hover:bg-slate-50 dark:bg-slate-900"
-            >
-              <MoreHorizontal className="h-5 w-5 text-slate-400" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="h-10 gap-2 rounded-xl border-slate-100 bg-white px-4 text-xs font-bold dark:bg-slate-900"
+                >
+                  <Target className="h-3.5 w-3.5 text-amber-600" />
+                  Priority: {filterPriority === "ALL" ? "All" : filterPriority}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-52 rounded-2xl p-2">
+                {["ALL", "URGENT", "HIGH", "MEDIUM", "LOW"].map((p) => (
+                  <DropdownMenuItem
+                    key={p}
+                    onClick={() =>{  setFilterPriority(p); }}
+                    className="rounded-xl py-2.5 font-bold"
+                  >
+                    {p === "ALL" ? "All" : p}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="h-10 gap-2 rounded-xl border-slate-100 bg-white px-4 text-xs font-bold dark:bg-slate-900"
+                >
+                  <Calendar className="h-3.5 w-3.5 text-slate-500" />
+                  Due:{" "}
+                  {filterDueDate === "ALL"
+                    ? "Any"
+                    : filterDueDate === "OVERDUE"
+                      ? "Overdue"
+                      : filterDueDate === "THIS_WEEK"
+                        ? "This week"
+                        : filterDueDate === "THIS_MONTH"
+                          ? "This month"
+                          : "No date"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-52 rounded-2xl p-2">
+                {[
+                  { value: "ALL", label: "Any" },
+                  { value: "OVERDUE", label: "Overdue" },
+                  { value: "THIS_WEEK", label: "This week" },
+                  { value: "THIS_MONTH", label: "This month" },
+                  { value: "NO_DATE", label: "No date set" }
+                ].map((opt) => (
+                  <DropdownMenuItem
+                    key={opt.value}
+                    onClick={() =>{  setFilterDueDate(opt.value); }}
+                    className="rounded-xl py-2.5 font-bold"
+                  >
+                    {opt.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="h-10 gap-2 rounded-xl border-slate-100 bg-white px-4 text-xs font-bold dark:bg-slate-900"
+                >
+                  Sort:{" "}
+                  {sortBy === "DUE_DATE_ASC"
+                    ? "Due (soonest)"
+                    : sortBy === "DUE_DATE_DESC"
+                      ? "Due (latest)"
+                      : sortBy === "PRIORITY"
+                        ? "Priority"
+                        : sortBy === "TITLE"
+                          ? "Title"
+                          : "Status"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-52 rounded-2xl p-2">
+                {[
+                  { value: "DUE_DATE_ASC", label: "Due date (soonest first)" },
+                  { value: "DUE_DATE_DESC", label: "Due date (latest first)" },
+                  { value: "PRIORITY", label: "Priority" },
+                  { value: "TITLE", label: "Title A–Z" },
+                  { value: "STATUS", label: "Status" }
+                ].map((opt) => (
+                  <DropdownMenuItem
+                    key={opt.value}
+                    onClick={() =>{  setSortBy(opt.value); }}
+                    className="rounded-xl py-2.5 font-bold"
+                  >
+                    {opt.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="h-10 gap-2 rounded-xl border-slate-100 bg-white px-4 text-xs font-bold dark:bg-slate-900"
+                >
+                  {pageSize} per page
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-40 rounded-2xl p-2">
+                {[10, 25, 50].map((n) => (
+                  <DropdownMenuItem
+                    key={n}
+                    onClick={() =>{  setPageSize(n); }}
+                    className="rounded-xl py-2.5 font-bold"
+                  >
+                    {n} per page
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </div>
@@ -456,6 +669,9 @@ export default function TasksPage() {
               <TableHead className="w-14 pl-6" />
               <TableHead className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
                 Task Name
+              </TableHead>
+              <TableHead className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                Labels
               </TableHead>
               <TableHead className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
                 Status
@@ -475,7 +691,7 @@ export default function TasksPage() {
           <TableBody>
             {filteredTasks.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-32 text-center">
+                <TableCell colSpan={8} className="py-32 text-center">
                   <div className="flex flex-col items-center gap-6">
                     <div className="relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-4xl bg-slate-50 shadow-inner dark:bg-slate-950">
                       <Sparkles className="h-10 w-10 text-slate-200" />
@@ -535,6 +751,30 @@ export default function TasksPage() {
                           </Badge>
                         )}
                       </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(task.labels || []).length > 0 ? (
+                        (task.labels || []).map(
+                          (label: { name: string; color: string }, idx: number) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold tracking-tight"
+                              style={{
+                                backgroundColor: `${label.color}20`,
+                                color: label.color,
+                                borderLeft: `3px solid ${label.color}`
+                              }}
+                              title={label.name}
+                            >
+                              {label.name}
+                            </span>
+                          )
+                        )
+                      ) : (
+                        <span className="text-[10px] font-medium text-slate-300 italic">—</span>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -735,8 +975,8 @@ export default function TasksPage() {
         {totalPages > 1 && (
           <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white px-5 py-3 dark:border-slate-800 dark:bg-slate-900">
             <span className="text-[11px] font-bold text-slate-400">
-              Showing {(currentPage - 1) * PAGE_SIZE + 1} to{" "}
-              {Math.min(currentPage * PAGE_SIZE, filteredTasks.length)} of {filteredTasks.length}
+              Showing {(currentPage - 1) * pageSize + 1} to{" "}
+              {Math.min(currentPage * pageSize, sortedTasks.length)} of {sortedTasks.length}
             </span>
             <div className="flex items-center gap-2">
               <Button
@@ -799,13 +1039,15 @@ export default function TasksPage() {
               own.
             </p>
           </div>
-          <Button
-            variant="link"
-            className="group gap-1.5 p-0 text-[10px] font-black tracking-widest text-blue-600 uppercase"
-          >
-            View Activity Logs
-            <ChevronRight className="h-3 w-3 transition-transform group-hover:translate-x-1" />
-          </Button>
+          <Link href={`/${locale}/projects/${projectId}/tasks/activity`}>
+            <Button
+              variant="link"
+              className="group gap-1.5 p-0 text-[10px] font-black tracking-widest text-blue-600 uppercase"
+            >
+              View Activity Logs
+              <ChevronRight className="h-3 w-3 transition-transform group-hover:translate-x-1" />
+            </Button>
+          </Link>
         </div>
       </div>
 

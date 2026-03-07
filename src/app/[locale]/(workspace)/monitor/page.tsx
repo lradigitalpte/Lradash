@@ -19,15 +19,23 @@ import { IMonitor, MonitorStatus } from "@/types/monitor"
 
 export default function MonitorPage() {
   const [monitors, setMonitors] = useState<IMonitor[]>([])
+  const [monthlySpend, setMonthlySpend] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const fetchMonitors = async () => {
+    const fetchData = async () => {
       try {
-        const response = await apiClient.get("/api/monitor")
-        if (response.ok) {
-          const data = await response.json()
+        const [monitorsRes, spendRes] = await Promise.all([
+          apiClient.get("/api/monitor"),
+          apiClient.get("/api/monitor/spend")
+        ])
+        if (monitorsRes.ok) {
+          const data = await monitorsRes.json()
           setMonitors(data)
+        }
+        if (spendRes.ok) {
+          const spendData = await spendRes.json()
+          setMonthlySpend(spendData.totalMonthly ?? null)
         }
       } catch (error) {
         console.error("Dashboard fetch failed:", error)
@@ -35,7 +43,7 @@ export default function MonitorPage() {
         setLoading(false)
       }
     }
-    fetchMonitors()
+    fetchData()
   }, [])
 
   if (loading) {
@@ -47,14 +55,16 @@ export default function MonitorPage() {
   }
 
   const activeCount = monitors.length
+  const upCount = monitors.filter((m) => m.status === MonitorStatus.UP).length
   const downCount = monitors.filter((m) => m.status === MonitorStatus.DOWN).length
-  const avgUptime = activeCount > 0 ? "99.9%" : "---"
+  const avgUptime = activeCount > 0 ? `${Math.round((upCount / activeCount) * 1000) / 10}%` : "---"
 
-  // Calculate monthly cost from subscriptions
-  const subscriptions = monitors.filter((m) => m.type === "SUBSCRIPTION")
-  const monthlyCost = subscriptions
-    .filter((m) => m.metadata?.billingCycle === "MONTHLY" || !m.metadata?.billingCycle)
-    .reduce((acc, m) => acc + (m.price || 0), 0)
+  const monthlyCost =
+    monthlySpend !== null
+      ? monthlySpend
+      : monitors
+          .filter((m) => m.type === "SUBSCRIPTION")
+          .reduce((acc, m) => acc + (m.price || 0), 0)
 
   // Get upcoming renewals (SSL, DOMAIN, SUBSCRIPTION) sorted by expiry date
   const getUpcomingRenewals = () => {
@@ -108,7 +118,7 @@ export default function MonitorPage() {
         <StatCard
           title="Avg Uptime"
           value={avgUptime}
-          change="+0.02%"
+          change={activeCount > 0 ? `${upCount}/${activeCount} up` : undefined}
           icon={TrendingUp}
           color="emerald"
         />
@@ -128,7 +138,7 @@ export default function MonitorPage() {
         />
         <StatCard
           title="Monthly Cost"
-          value={`$${monthlyCost.toLocaleString()}`}
+          value={`$${Number(monthlyCost).toLocaleString()}`}
           change={nextRenewalDays > 0 ? `Due in ${nextRenewalDays} days` : "No renewals pending"}
           icon={CreditCard}
           color="amber"
@@ -144,19 +154,26 @@ export default function MonitorPage() {
             <Activity className="h-6 w-6 text-red-500" />
           </div>
           <div className="space-y-6">
-            {monitors.slice(0, 5).map((monitor) => (
-              <ActivityItem
-                key={monitor._id}
-                status={monitor.status}
-                name={monitor.name}
-                time={
-                  monitor.lastChecked
-                    ? new Date(monitor.lastChecked).toLocaleTimeString()
-                    : "Pending"
-                }
-                details={monitor.type === "WEBSITE" ? monitor.target : `${monitor.type} Check`}
-              />
-            ))}
+            {[...monitors]
+              .sort((a, b) => {
+                const aT = a.lastChecked ? new Date(a.lastChecked).getTime() : 0
+                const bT = b.lastChecked ? new Date(b.lastChecked).getTime() : 0
+                return bT - aT
+              })
+              .slice(0, 5)
+              .map((monitor) => (
+                <ActivityItem
+                  key={monitor._id}
+                  status={monitor.status}
+                  name={monitor.name}
+                  time={
+                    monitor.lastChecked
+                      ? new Date(monitor.lastChecked).toLocaleTimeString()
+                      : "Pending"
+                  }
+                  details={monitor.type === "WEBSITE" ? monitor.target : `${monitor.type} Check`}
+                />
+              ))}
             {monitors.length === 0 && (
               <p className="py-10 text-center font-medium text-slate-400 italic">
                 No activity recorded yet...

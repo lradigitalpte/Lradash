@@ -70,6 +70,12 @@ export default function SSLMonitorPage() {
     fetchMonitors()
   }, [fetchMonitors])
 
+  useEffect(() => {
+    const onRefresh =  async () => fetchMonitors()
+    window.addEventListener("monitor-refresh", onRefresh)
+    return () =>{  window.removeEventListener("monitor-refresh", onRefresh); }
+  }, [fetchMonitors])
+
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this monitor?")) {
       return
@@ -553,9 +559,9 @@ export default function SSLMonitorPage() {
         </DialogContent>
       </Dialog>
 
-      <div className="grid gap-12 lg:grid-cols-2">
+      <div className="grid gap-12 lg:grid-cols-2 lg:items-start">
         {/* SSL Certificates Section */}
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <div className="flex items-center justify-between px-4">
             <h2 className="flex items-center gap-2 text-xl font-black tracking-tight">
               <ShieldCheck className="h-5 w-5 text-red-500" />
@@ -598,7 +604,7 @@ export default function SSLMonitorPage() {
         </div>
 
         {/* Domains Section */}
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <div className="flex items-center justify-between px-4">
             <h2 className="flex items-center gap-2 text-xl font-black tracking-tight">
               <Globe className="h-5 w-5 text-blue-500" />
@@ -680,12 +686,41 @@ function SSLItem({
       })
     : "---"
 
+  const [checking, setChecking] = useState(false)
+  const onCheckNow = async () => {
+    if (!monitor._id || checking) {
+      return
+    }
+    setChecking(true)
+    try {
+      const res = await apiClient.post(`/api/monitor/${monitor._id}/check`, {})
+      if (res.ok) {
+        toast.success("Certificate checked. Expiry updated.")
+        window.dispatchEvent(new CustomEvent("monitor-refresh"))
+      } else {
+        const data = await res.json().catch(() => ({}))
+        toast.error(data?.error || "Check failed")
+      }
+    } catch {
+      toast.error("Check failed")
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  const statusLabel = isExpired
+    ? "Certificate Expired"
+    : isExpiringSoon
+      ? "Certificate Expiring Soon"
+      : "Certificate Status: Healthy"
+
   return (
-    <div className="group flex flex-col gap-6 rounded-[2rem] border border-slate-100 bg-white p-8 shadow-xl transition-all hover:border-red-200 hover:shadow-2xl dark:border-slate-800 dark:bg-slate-900">
-      <div className="flex items-center gap-6">
+    <div className="group flex flex-col gap-5 overflow-hidden rounded-[2rem] border border-slate-100 bg-white p-8 shadow-xl transition-all hover:border-red-200 hover:shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+      {/* Row 1: icon, name, domain, actions — no overlap with expiry */}
+      <div className="flex flex-wrap items-center gap-4 sm:gap-6">
         <div
           className={cn(
-            "flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.5rem] shadow-inner",
+            "flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.5rem] shadow-inner sm:h-16 sm:w-16",
             isExpired
               ? "bg-red-50 text-red-500"
               : isExpiringSoon
@@ -693,64 +728,39 @@ function SSLItem({
                 : "bg-emerald-50 text-emerald-500"
           )}
         >
-          <ShieldCheck className="h-8 w-8" />
+          <ShieldCheck className="h-7 w-7 sm:h-8 sm:w-8" />
         </div>
 
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h3 className="text-xl font-black tracking-tight">{name}</h3>
-            <span className="text-[10px] font-black text-slate-400 uppercase">{domain}</span>
-          </div>
-          <p className="text-xs font-medium text-slate-500 italic">
-            {isExpired
-              ? "Certificate Expired"
-              : isExpiringSoon
-                ? "Certificate Expiring Soon"
-                : "Certificate Status: Healthy"}
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-lg font-black tracking-tight sm:text-xl">{name}</h3>
+          <p className="truncate text-[10px] font-black tracking-wider text-slate-400 uppercase">
+            {domain}
           </p>
         </div>
 
-        {/* Expiry Date Info */}
-        <div className="flex flex-col items-end gap-1">
-          <span className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
-            Expires
-          </span>
-          <span
-            className={cn(
-              "text-lg font-black tracking-tighter",
-              isExpired
-                ? "text-red-600 dark:text-red-400"
-                : isExpiringSoon
-                  ? "text-amber-600 dark:text-amber-400"
-                  : "text-slate-900 dark:text-white"
-            )}
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <button
+            onClick={onCheckNow}
+            disabled={checking}
+            className="flex items-center gap-1.5 rounded-xl bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50 sm:gap-2 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
           >
-            {expiry}
-          </span>
-          {daysLeft !== null && (
-            <span
-              className={cn(
-                "mt-1 text-[10px] font-bold",
-                isExpired ? "text-red-500" : isExpiringSoon ? "text-amber-500" : "text-slate-400"
-              )}
-            >
-              {isExpired ? `${Math.abs(daysLeft)} days ago` : `${daysLeft} days left`}
-            </span>
-          )}
-        </div>
-
-        <div className="ml-4 flex items-center gap-3">
+            {checking ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Activity className="h-3 w-3" />
+            )}
+            {checking ? "Checking…" : "Check now"}
+          </button>
           <button
             onClick={onView}
-            className="flex items-center gap-2 rounded-xl bg-slate-50 px-4 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
+            className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 sm:px-4 sm:text-sm dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
           >
             <Eye className="h-4 w-4" />
             View
           </button>
-
           <div
             className={cn(
-              "rounded-full px-4 py-1.5 text-[10px] font-black tracking-widest uppercase",
+              "rounded-full px-3 py-1.5 text-[10px] font-black tracking-widest uppercase sm:px-4",
               isExpired
                 ? "bg-red-500 text-white"
                 : isExpiringSoon
@@ -760,10 +770,9 @@ function SSLItem({
           >
             {isExpired ? "EXPIRED" : isExpiringSoon ? "WARNING" : "SECURE"}
           </div>
-
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-900">
+              <button className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-900 dark:hover:bg-slate-800">
                 <MoreVertical className="h-5 w-5" />
               </button>
             </DropdownMenuTrigger>
@@ -787,6 +796,38 @@ function SSLItem({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+        </div>
+      </div>
+
+      {/* Row 2: status + expiry on separate row so they never overlap */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-4 dark:border-slate-800">
+        <p className="text-xs font-medium text-slate-500 italic">{statusLabel}</p>
+        <div className="flex flex-col items-end gap-0.5">
+          <span className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
+            Expires
+          </span>
+          <span
+            className={cn(
+              "text-base font-black tracking-tighter sm:text-lg",
+              isExpired
+                ? "text-red-600 dark:text-red-400"
+                : isExpiringSoon
+                  ? "text-amber-600 dark:text-amber-400"
+                  : "text-slate-900 dark:text-white"
+            )}
+          >
+            {expiry}
+          </span>
+          {daysLeft !== null && (
+            <span
+              className={cn(
+                "text-[10px] font-bold",
+                isExpired ? "text-red-500" : isExpiringSoon ? "text-amber-500" : "text-slate-400"
+              )}
+            >
+              {isExpired ? `${Math.abs(daysLeft)} days ago` : `${daysLeft} days left`}
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -831,11 +872,11 @@ function DomainItem({
     : "---"
 
   return (
-    <div className="group flex flex-col gap-6 rounded-[2rem] border border-slate-100 bg-white p-8 shadow-xl transition-all hover:border-blue-200 hover:shadow-2xl dark:border-slate-800 dark:bg-slate-900">
-      <div className="flex items-center gap-6">
+    <div className="group flex flex-col gap-5 overflow-hidden rounded-[2rem] border border-slate-100 bg-white p-8 shadow-xl transition-all hover:border-blue-200 hover:shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex flex-wrap items-center gap-4 sm:gap-6">
         <div
           className={cn(
-            "flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.5rem] shadow-inner",
+            "flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.5rem] shadow-inner sm:h-16 sm:w-16",
             isExpired
               ? "bg-red-50 text-red-500"
               : isExpiringSoon
@@ -843,60 +884,32 @@ function DomainItem({
                 : "bg-blue-50 text-blue-500"
           )}
         >
-          <Globe className="h-8 w-8" />
+          <Globe className="h-7 w-7 sm:h-8 sm:w-8" />
         </div>
 
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h3 className="text-xl font-black tracking-tight">{name}</h3>
-            <span className="text-[10px] font-black text-slate-400 uppercase">{domain}</span>
-          </div>
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-lg font-black tracking-tight sm:text-xl">{name}</h3>
+          <p className="truncate text-[10px] font-black tracking-wider text-slate-400 uppercase">
+            {domain}
+          </p>
           {registrar && (
-            <p className="text-xs font-medium text-slate-500 italic">Registrar: {registrar}</p>
+            <p className="mt-0.5 truncate text-xs font-medium text-slate-500 italic">
+              Registrar: {registrar}
+            </p>
           )}
         </div>
 
-        {/* Expiry Date Info */}
-        <div className="flex flex-col items-end gap-1">
-          <span className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
-            Expires
-          </span>
-          <span
-            className={cn(
-              "text-lg font-black tracking-tighter",
-              isExpired
-                ? "text-red-600 dark:text-red-400"
-                : isExpiringSoon
-                  ? "text-amber-600 dark:text-amber-400"
-                  : "text-slate-900 dark:text-white"
-            )}
-          >
-            {expiry}
-          </span>
-          {daysLeft !== null && (
-            <span
-              className={cn(
-                "mt-1 text-[10px] font-bold",
-                isExpired ? "text-red-500" : isExpiringSoon ? "text-amber-500" : "text-slate-400"
-              )}
-            >
-              {isExpired ? `${Math.abs(daysLeft)} days ago` : `${daysLeft} days left`}
-            </span>
-          )}
-        </div>
-
-        <div className="ml-4 flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           <button
             onClick={onView}
-            className="flex items-center gap-2 rounded-xl bg-slate-50 px-4 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
+            className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 sm:px-4 sm:text-sm dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
           >
             <Eye className="h-4 w-4" />
             View
           </button>
-
           <div
             className={cn(
-              "rounded-full px-4 py-1.5 text-[10px] font-black tracking-widest uppercase",
+              "rounded-full px-3 py-1.5 text-[10px] font-black tracking-widest uppercase sm:px-4",
               isExpired
                 ? "bg-red-500 text-white"
                 : isExpiringSoon
@@ -906,10 +919,9 @@ function DomainItem({
           >
             {isExpired ? "EXPIRED" : isExpiringSoon ? "WARNING" : "ACTIVE"}
           </div>
-
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-900">
+              <button className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-900 dark:hover:bg-slate-800">
                 <MoreVertical className="h-5 w-5" />
               </button>
             </DropdownMenuTrigger>
@@ -936,13 +948,46 @@ function DomainItem({
         </div>
       </div>
 
-      {/* Domain Details */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-4 dark:border-slate-800">
+        <span className="text-[10px] font-black tracking-wider text-slate-400 uppercase">
+          Domain expiry
+        </span>
+        <div className="flex flex-col items-end gap-0.5">
+          <span className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
+            Expires
+          </span>
+          <span
+            className={cn(
+              "text-base font-black tracking-tighter sm:text-lg",
+              isExpired
+                ? "text-red-600 dark:text-red-400"
+                : isExpiringSoon
+                  ? "text-amber-600 dark:text-amber-400"
+                  : "text-slate-900 dark:text-white"
+            )}
+          >
+            {expiry}
+          </span>
+          {daysLeft !== null && (
+            <span
+              className={cn(
+                "text-[10px] font-bold",
+                isExpired ? "text-red-500" : isExpiringSoon ? "text-amber-500" : "text-slate-400"
+              )}
+            >
+              {isExpired ? `${Math.abs(daysLeft)} days ago` : `${daysLeft} days left`}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Domain Details — contained so it doesn’t overlap other cards */}
       <div className="space-y-3 border-t border-slate-100 pt-4 text-[10px] dark:border-slate-800">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="flex flex-wrap gap-x-6 gap-y-3">
           {price && (
             <div className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-slate-400" />
-              <div>
+              <DollarSign className="h-4 w-4 shrink-0 text-slate-400" />
+              <div className="min-w-0">
                 <span className="font-black tracking-tighter text-slate-400 uppercase">Price</span>
                 <p className="font-bold text-slate-600 dark:text-slate-400">${price}</p>
               </div>
@@ -950,8 +995,8 @@ function DomainItem({
           )}
           {purchaseDate && (
             <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-slate-400" />
-              <div>
+              <Calendar className="h-4 w-4 shrink-0 text-slate-400" />
+              <div className="min-w-0">
                 <span className="font-black tracking-tighter text-slate-400 uppercase">
                   Purchased
                 </span>
