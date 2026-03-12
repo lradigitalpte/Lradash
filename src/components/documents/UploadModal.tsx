@@ -36,12 +36,19 @@ const ALLOWED_TYPES = {
   image: ["image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml"],
   video: ["video/mp4", "video/quicktime", "video/x-msvideo", "video/x-matroska"],
   audio: ["audio/mpeg", "audio/wav", "audio/ogg", "audio/webm", "audio/flac"],
-  document: ["application/pdf", "text/plain", "text/markdown"],
+  document: [
+    "application/pdf",
+    "text/plain",
+    "text/markdown",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  ],
   spreadsheet: [
     "application/vnd.ms-excel",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "text/csv"
   ],
+  archive: ["application/zip", "application/x-zip-compressed"],
   code: ["application/json", "text/html", "text/css", "text/javascript", "application/typescript"]
 }
 
@@ -92,7 +99,7 @@ export function UploadModal({
 
   const validateFile = (f: File): string | null => {
     if (!isFileTypeAllowed(f.type, f.name)) {
-      return `File type not supported. Allowed: images, videos, audio, documents, spreadsheets, code files`
+      return `File type not supported. Allowed: images, videos, audio, documents, spreadsheets, archives, code files`
     }
     if (f.size > MAX_FILE_SIZE) {
       return `File exceeds 100 MB limit (${formatFileSize(f.size)})`
@@ -118,6 +125,9 @@ export function UploadModal({
       "csv",
       "xls",
       "xlsx",
+      "doc",
+      "docx",
+      "zip",
       "mov",
       "mp4",
       "avi",
