@@ -46,7 +46,6 @@ const googleConnectionSchema = new mongoose.Schema(
 )
 
 // Indexes for performance
-googleConnectionSchema.index({ projectId: 1 })
 googleConnectionSchema.index({ isActive: 1 })
 
 let GoogleConnectionModel: Model<GoogleConnection>

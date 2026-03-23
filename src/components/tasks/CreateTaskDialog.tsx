@@ -99,7 +99,9 @@ export function CreateTaskDialog({
   }
 
   const fetchBoardWorkPackages = async () => {
-    if (!boardId) return
+    if (!boardId) {
+      return
+    }
     try {
       const response = await apiClient.get(
         `/api/workpackages?boardId=${encodeURIComponent(boardId)}`
@@ -128,7 +130,9 @@ export function CreateTaskDialog({
         const response = await apiClient.get(
           `/api/projects/${selectedProjectIdForWP}/work-packages`
         )
-        if (cancelled) return
+        if (cancelled) {
+          return
+        }
         if (response.ok) {
           const data = await response.json()
           const list = Array.isArray(data) ? data : (data?.workPackages ?? data ?? [])
@@ -137,7 +141,9 @@ export function CreateTaskDialog({
           setProjectWorkPackages([])
         }
       } catch {
-        if (!cancelled) setProjectWorkPackages([])
+        if (!cancelled) {
+          setProjectWorkPackages([])
+        }
       }
     }
     run()
@@ -147,7 +153,9 @@ export function CreateTaskDialog({
   }, [selectedProjectIdForWP])
 
   const fetchWorkPackages = async (projectIdToUse: string) => {
-    if (!projectIdToUse) return
+    if (!projectIdToUse) {
+      return
+    }
     try {
       const response = await apiClient.get(`/api/projects/${projectIdToUse}/work-packages`)
       if (response.ok) {
@@ -160,7 +168,9 @@ export function CreateTaskDialog({
   }
 
   const fetchMembers = async () => {
-    if (!projectId) return
+    if (!projectId) {
+      return
+    }
     try {
       const response = await apiClient.get(`/api/projects/${projectId}/members`)
       if (response.ok) {
@@ -197,7 +207,9 @@ export function CreateTaskDialog({
           dueDate: formData.dueDate?.toISOString(),
           workPackageId: wpId
         })
-        if (!response.ok) throw new Error("Failed to create task")
+        if (!response.ok) {
+          throw new Error("Failed to create task")
+        }
         toast.success("Task created!")
         setOpen(false)
         setFormData({ ...formData, title: "", description: "" })
@@ -209,7 +221,9 @@ export function CreateTaskDialog({
           workPackageId: formData.workPackageId === "none" ? undefined : formData.workPackageId,
           assigneeId: formData.assigneeId === "none" ? undefined : formData.assigneeId
         })
-        if (!response.ok) throw new Error("Failed to create task")
+        if (!response.ok) {
+          throw new Error("Failed to create task")
+        }
         toast.success("Task created successfully!")
         setOpen(false)
         setFormData({
@@ -263,7 +277,9 @@ export function CreateTaskDialog({
                 id="title"
                 placeholder="Enter task title"
                 value={formData.title}
-                onChange={(e) =>{  setFormData({ ...formData, title: e.target.value }); }}
+                onChange={(e) => {
+                  setFormData({ ...formData, title: e.target.value })
+                }}
                 required
                 className="h-11 rounded-xl border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900"
               />
@@ -280,7 +296,9 @@ export function CreateTaskDialog({
                 id="description"
                 placeholder="Optional description"
                 value={formData.description}
-                onChange={(e) =>{  setFormData({ ...formData, description: e.target.value }); }}
+                onChange={(e) => {
+                  setFormData({ ...formData, description: e.target.value })
+                }}
                 rows={3}
                 className="rounded-xl border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900"
               />
@@ -298,7 +316,9 @@ export function CreateTaskDialog({
                 </Label>
                 <Select
                   value={formData.workPackageId}
-                  onValueChange={(value) =>{  setFormData({ ...formData, workPackageId: value }); }}
+                  onValueChange={(value) => {
+                    setFormData({ ...formData, workPackageId: value })
+                  }}
                 >
                   <SelectTrigger
                     id="workPackage"
@@ -366,9 +386,9 @@ export function CreateTaskDialog({
                     (workPackageLinkSource === "project" && selectedProjectIdForWP)) && (
                     <Select
                       value={formData.workPackageId}
-                      onValueChange={(value) =>{ 
-                        setFormData((prev) => ({ ...prev, workPackageId: value })); }
-                      }
+                      onValueChange={(value) => {
+                        setFormData((prev) => ({ ...prev, workPackageId: value }))
+                      }}
                     >
                       <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
                         <SelectValue placeholder="Select work package" />
@@ -406,7 +426,9 @@ export function CreateTaskDialog({
                   </Label>
                   <Select
                     value={formData.assigneeId}
-                    onValueChange={(value) =>{  setFormData({ ...formData, assigneeId: value }); }}
+                    onValueChange={(value) => {
+                      setFormData({ ...formData, assigneeId: value })
+                    }}
                   >
                     <SelectTrigger
                       id="assignee"
@@ -437,7 +459,9 @@ export function CreateTaskDialog({
                 </Label>
                 <Select
                   value={formData.priority}
-                  onValueChange={(value) =>{  setFormData({ ...formData, priority: value }); }}
+                  onValueChange={(value) => {
+                    setFormData({ ...formData, priority: value })
+                  }}
                 >
                   <SelectTrigger
                     id="priority"
@@ -461,7 +485,9 @@ export function CreateTaskDialog({
                 </Label>
                 <Select
                   value={formData.status}
-                  onValueChange={(value) =>{  setFormData({ ...formData, status: value }); }}
+                  onValueChange={(value) => {
+                    setFormData({ ...formData, status: value })
+                  }}
                 >
                   <SelectTrigger
                     id="status"
@@ -500,7 +526,9 @@ export function CreateTaskDialog({
                   <Calendar
                     mode="single"
                     selected={formData.dueDate}
-                    onSelect={(date) =>{  setFormData({ ...formData, dueDate: date }); }}
+                    onSelect={(date) => {
+                      setFormData({ ...formData, dueDate: date })
+                    }}
                     initialFocus
                   />
                 </PopoverContent>
@@ -512,7 +540,9 @@ export function CreateTaskDialog({
             <Button
               type="button"
               variant="ghost"
-              onClick={() =>{  setOpen(false); }}
+              onClick={() => {
+                setOpen(false)
+              }}
               disabled={loading}
               className="rounded-xl font-bold"
             >

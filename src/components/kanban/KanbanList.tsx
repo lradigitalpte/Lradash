@@ -158,7 +158,13 @@ export function KanbanList({ list, onCardClick, onRefresh }: KanbanListProps) {
             strategy={verticalListSortingStrategy}
           >
             {list.cards.map((card) => (
-              <KanbanCard key={card._id} card={card} onClick={() =>{  onCardClick(card); }} />
+              <KanbanCard
+                key={card._id}
+                card={card}
+                onClick={() => {
+                  onCardClick(card)
+                }}
+              />
             ))}
           </SortableContext>
         </div>
@@ -168,10 +174,11 @@ export function KanbanList({ list, onCardClick, onRefresh }: KanbanListProps) {
           {isAddingCard ? (
             <div className="space-y-3 rounded-2xl border border-slate-200/50 bg-white/50 p-3 dark:border-slate-700/50 dark:bg-slate-800/50">
               <Input
-                autoFocus
                 placeholder="Task title..."
                 value={newCardTitle}
-                onChange={(e) =>{  setNewCardTitle(e.target.value); }}
+                onChange={(e) => {
+                  setNewCardTitle(e.target.value)
+                }}
                 className="h-auto border-none bg-transparent p-0 text-sm font-medium placeholder:text-slate-400 focus-visible:ring-0"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
@@ -212,7 +219,9 @@ export function KanbanList({ list, onCardClick, onRefresh }: KanbanListProps) {
               variant="ghost"
               size="sm"
               className="group/btn h-11 w-full justify-start rounded-2xl text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20"
-              onClick={() =>{  setIsAddingCard(true); }}
+              onClick={() => {
+                setIsAddingCard(true)
+              }}
             >
               <div className="mr-3 flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 transition-all group-hover/btn:bg-blue-600 group-hover/btn:text-white dark:bg-blue-900/40">
                 <Plus className="h-4 w-4" />

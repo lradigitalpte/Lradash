@@ -147,7 +147,9 @@ export function BoardTaskDetailModal({
             </Label>
             <Input
               value={title}
-              onChange={(e) =>{  setTitle(e.target.value); }}
+              onChange={(e) => {
+                setTitle(e.target.value)
+              }}
               onBlur={handleBlurTitle}
               placeholder="Task title"
               className="h-11 rounded-xl border-slate-200 bg-slate-50 text-base font-semibold dark:border-slate-800 dark:bg-slate-900"
@@ -157,7 +159,9 @@ export function BoardTaskDetailModal({
             </Label>
             <Textarea
               value={description}
-              onChange={(e) =>{  setDescription(e.target.value); }}
+              onChange={(e) => {
+                setDescription(e.target.value)
+              }}
               onBlur={handleBlurDescription}
               placeholder="Optional description"
               className="min-h-[80px] resize-none rounded-xl border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900"
@@ -228,7 +232,7 @@ export function BoardTaskDetailModal({
                 ref={fileInputRef}
                 className="hidden"
                 onChange={handleAttachFile}
-                accept="image/*,.pdf,.doc,.docx,.txt,.md,.csv,.xls,.xlsx"
+                accept="image/*,.pdf,.doc,.docx,.txt,.md,.csv,.xls,.xlsx,.zip,application/zip,application/x-zip-compressed"
               />
               <Button
                 type="button"
@@ -268,7 +272,7 @@ export function BoardTaskDetailModal({
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 shrink-0 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"
-                      onClick={ async () => handleRemoveAttachment(idx)}
+                      onClick={async () => handleRemoveAttachment(idx)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

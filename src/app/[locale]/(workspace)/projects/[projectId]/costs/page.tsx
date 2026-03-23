@@ -60,8 +60,12 @@ function monthlyEquivalent(amount: number, frequency: string): number {
 function monitorMonthlyPrice(monitor: MonitorWithProject): number {
   const price = monitor.price ?? 0
   const cycle = (monitor.metadata?.billingCycle as string) || "MONTHLY"
-  if (cycle === "ANNUAL") return price / 12
-  if (cycle === "QUARTERLY") return price / 3
+  if (cycle === "ANNUAL") {
+    return price / 12
+  }
+  if (cycle === "QUARTERLY") {
+    return price / 3
+  }
   return price
 }
 
@@ -93,7 +97,9 @@ export default function ProjectCostsPage() {
   })
 
   const fetchCosts = useCallback(async () => {
-    if (!projectId) return
+    if (!projectId) {
+      return
+    }
     try {
       setLoading(true)
       const response = await apiClient.get(`/api/projects/${projectId}/costs`)
@@ -222,7 +228,9 @@ export default function ProjectCostsPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this cost line item?")) return
+    if (!confirm("Delete this cost line item?")) {
+      return
+    }
     try {
       const res = await apiClient.delete(`/api/projects/${projectId}/costs/${id}`)
       if (res.ok) {
@@ -503,14 +511,16 @@ export default function ProjectCostsPage() {
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() =>{  openEdit(item); }}
+                          onClick={() => {
+                            openEdit(item)
+                          }}
                           className="rounded-lg bg-slate-100 px-3 py-1.5 text-[10px] font-bold text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
                         >
                           Edit
                         </button>
                         <button
                           type="button"
-                          onClick={ async () => item._id && handleDelete(item._id)}
+                          onClick={async () => item._id && handleDelete(item._id)}
                           className="rounded-lg bg-red-50 px-3 py-1.5 text-[10px] font-bold text-red-600 transition-colors hover:bg-red-100 dark:bg-red-950/30"
                         >
                           Delete
@@ -712,7 +722,9 @@ export default function ProjectCostsPage() {
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() =>{  setModalOpen(false); }}
+                  onClick={() => {
+                    setModalOpen(false)
+                  }}
                   className="flex-1 rounded-xl border border-slate-200 bg-white py-3 text-sm font-black text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                 >
                   Cancel
@@ -759,7 +771,9 @@ export default function ProjectCostsPage() {
             <div className="flex gap-3">
               <button
                 type="button"
-                onClick={() =>{  setLinkModalOpen(false); }}
+                onClick={() => {
+                  setLinkModalOpen(false)
+                }}
                 className="flex-1 rounded-xl border border-slate-200 bg-white py-3 text-sm font-black text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
               >
                 Cancel
@@ -768,7 +782,9 @@ export default function ProjectCostsPage() {
                 type="button"
                 disabled={!linkMonitorId || linking}
                 onClick={async () => {
-                  if (!linkMonitorId) return
+                  if (!linkMonitorId) {
+                    return
+                  }
                   setLinking(true)
                   try {
                     const res = await apiClient.put(`/api/monitor/${linkMonitorId}`, {

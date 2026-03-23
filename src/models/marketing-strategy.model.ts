@@ -50,7 +50,7 @@ const TargetsSchema = new Schema({
 
 const MarketingStrategySchema = new Schema<MarketingStrategy>(
   {
-    projectId: { type: Schema.Types.ObjectId, ref: "Project", required: true, index: true },
+    projectId: { type: Schema.Types.ObjectId, ref: "Project", required: true },
     organizationId: {
       type: Schema.Types.ObjectId,
       ref: "Organization",

@@ -17,7 +17,7 @@ import { Link } from "@/i18n/navigation"
 import { apiClient } from "@/lib/api/client"
 import { cn } from "@/lib/utils"
 
-type ProjectSummary = {
+interface ProjectSummary {
   projectId: string
   title: string
   totalMonthly: number
@@ -41,7 +41,7 @@ type ProjectSummary = {
   }[]
 }
 
-type SpendResponse = {
+interface SpendResponse {
   grandTotalMonthly: number
   projects: ProjectSummary[]
   subscriptionCount: number
@@ -73,8 +73,11 @@ export default function MonitorCostsPage() {
   const toggleProject = (projectId: string) => {
     setOpenProjects((prev) => {
       const next = new Set(prev)
-      if (next.has(projectId)) next.delete(projectId)
-      else next.add(projectId)
+      if (next.has(projectId)) {
+        next.delete(projectId)
+      } else {
+        next.add(projectId)
+      }
       return next
     })
   }
@@ -192,7 +195,9 @@ export default function MonitorCostsPage() {
                 <Collapsible
                   key={proj.projectId}
                   open={isOpen}
-                  onOpenChange={() =>{  toggleProject(proj.projectId); }}
+                  onOpenChange={() => {
+                    toggleProject(proj.projectId)
+                  }}
                 >
                   <CollapsibleTrigger asChild>
                     <button

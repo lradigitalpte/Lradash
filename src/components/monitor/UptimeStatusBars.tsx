@@ -10,9 +10,21 @@ interface UptimeStatusBarsProps {
   gap?: number
   className?: string
   data?: ("UP" | "DOWN" | "WARNING" | "NONE")[]
+  barHeightClassName?: string
+  barWidthClassName?: string
+  /** Optional labels shown in tooltip instead of auto-generated times (e.g. ISO dates) */
+  labels?: string[]
 }
 
-export function UptimeStatusBars({ count = 40, gap = 2, className, data }: UptimeStatusBarsProps) {
+export function UptimeStatusBars({
+  count = 40,
+  gap = 2,
+  className,
+  data,
+  barHeightClassName = "h-8",
+  barWidthClassName = "w-1.5",
+  labels
+}: UptimeStatusBarsProps) {
   // Generate mock data if none provided
   const statusData =
     data ||
@@ -35,7 +47,9 @@ export function UptimeStatusBars({ count = 40, gap = 2, className, data }: Uptim
             <TooltipTrigger asChild>
               <div
                 className={cn(
-                  "h-8 w-1.5 rounded-full transition-all duration-300 hover:scale-y-125",
+                  barHeightClassName,
+                  barWidthClassName,
+                  "rounded-full transition-all duration-300 hover:scale-y-125",
                   status === "UP" &&
                     "bg-emerald-500/80 shadow-[0_0_8px_rgba(16,185,129,0.2)] hover:bg-emerald-400",
                   status === "DOWN" &&
@@ -72,10 +86,12 @@ export function UptimeStatusBars({ count = 40, gap = 2, className, data }: Uptim
                         : "NO DATA"}
                 </span>
                 <span className="text-slate-400 opacity-50">
-                  {new Date(Date.now() - (count - 1 - i) * 30 * 60000).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit"
-                  })}
+                  {labels?.[i]
+                    ? labels[i]
+                    : new Date(Date.now() - (count - 1 - i) * 30 * 60000).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit"
+                      })}
                 </span>
               </div>
             </TooltipContent>

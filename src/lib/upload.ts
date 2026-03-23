@@ -15,15 +15,32 @@ export async function uploadFileToS3(
   options: { projectId?: string; boardId?: string; taskId?: string }
 ): Promise<UploadResult> {
   const { projectId, boardId, taskId } = options
-  const res = await apiClient.post("/api/upload/presigned", {
+  const safeTaskId = taskId?.toString?.() ?? taskId
+
+  // When uploading "personal" task attachments (no projectId/boardId), we still
+  // want a deterministic folder to keep objects organized.
+  const presignPayload: Record<string, unknown> = {
     fileName: file.name,
-    fileType: file.type || "application/octet-stream",
-    ...(projectId && { projectId, subFolder: taskId ? `tasks/${taskId}` : undefined }),
-    ...(boardId && taskId && { boardId, subFolder: `tasks/${taskId}` })
-  })
+    fileType: file.type || "application/octet-stream"
+  }
+
+  if (projectId) {
+    presignPayload.projectId = projectId
+    if (safeTaskId) {
+      presignPayload.subFolder = `tasks/${safeTaskId}`
+    }
+  } else if (boardId && safeTaskId) {
+    presignPayload.boardId = boardId
+    presignPayload.subFolder = `tasks/${safeTaskId}`
+  } else if (safeTaskId) {
+    presignPayload.folder = "uploads"
+    presignPayload.subFolder = `tasks/${safeTaskId}`
+  }
+
+  const res = await apiClient.post("/api/upload/presigned", presignPayload)
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error((err).error || "Could not get upload URL")
+    throw new Error(err.error || "Could not get upload URL")
   }
   const { uploadUrl, publicUrl, key } = await res.json()
   const putRes = await fetch(uploadUrl, {

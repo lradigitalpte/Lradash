@@ -89,7 +89,6 @@ export function WorkPackagePicker({
               setSearch(e.target.value)
             }}
             className="h-8 border-none bg-transparent p-0 text-xs shadow-none focus-visible:ring-0"
-            autoFocus
           />
         </div>
         <div className="max-h-64 overflow-y-auto p-2">

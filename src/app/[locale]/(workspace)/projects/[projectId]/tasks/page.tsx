@@ -24,7 +24,8 @@ import {
   Trash2,
   Edit,
   RefreshCw,
-  Eye
+  Eye,
+  ClipboardCheck
 } from "lucide-react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
@@ -463,14 +464,18 @@ export default function TasksPage() {
               <Input
                 placeholder="Find a task by title or description..."
                 value={searchQuery}
-                onChange={(e) =>{  setSearchQuery(e.target.value); }}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value)
+                }}
                 className="h-12 rounded-2xl border-none bg-slate-50 pl-12 text-sm font-medium transition-all placeholder:font-medium placeholder:italic focus:ring-4 focus:ring-blue-500/10 dark:bg-slate-950"
               />
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant={myTasksOnly ? "default" : "outline"}
-                onClick={() =>{  setMyTasksOnly(!myTasksOnly); }}
+                onClick={() => {
+                  setMyTasksOnly(!myTasksOnly)
+                }}
                 className={cn(
                   "h-12 gap-2 rounded-2xl px-5 font-bold transition-all",
                   myTasksOnly
@@ -483,7 +488,9 @@ export default function TasksPage() {
               </Button>
               <Button
                 variant={showCompleted ? "outline" : "secondary"}
-                onClick={() =>{  setShowCompleted(!showCompleted); }}
+                onClick={() => {
+                  setShowCompleted(!showCompleted)
+                }}
                 className={cn(
                   "h-12 gap-2 rounded-2xl px-5 font-bold",
                   !showCompleted && "bg-slate-100 dark:bg-slate-800"
@@ -533,7 +540,9 @@ export default function TasksPage() {
                 ].map((opt) => (
                   <DropdownMenuItem
                     key={opt.value}
-                    onClick={() =>{  setFilterStatus(opt.value); }}
+                    onClick={() => {
+                      setFilterStatus(opt.value)
+                    }}
                     className="rounded-xl py-2.5 font-bold"
                   >
                     {opt.label}
@@ -555,7 +564,9 @@ export default function TasksPage() {
                 {["ALL", "URGENT", "HIGH", "MEDIUM", "LOW"].map((p) => (
                   <DropdownMenuItem
                     key={p}
-                    onClick={() =>{  setFilterPriority(p); }}
+                    onClick={() => {
+                      setFilterPriority(p)
+                    }}
                     className="rounded-xl py-2.5 font-bold"
                   >
                     {p === "ALL" ? "All" : p}
@@ -592,7 +603,9 @@ export default function TasksPage() {
                 ].map((opt) => (
                   <DropdownMenuItem
                     key={opt.value}
-                    onClick={() =>{  setFilterDueDate(opt.value); }}
+                    onClick={() => {
+                      setFilterDueDate(opt.value)
+                    }}
                     className="rounded-xl py-2.5 font-bold"
                   >
                     {opt.label}
@@ -628,7 +641,9 @@ export default function TasksPage() {
                 ].map((opt) => (
                   <DropdownMenuItem
                     key={opt.value}
-                    onClick={() =>{  setSortBy(opt.value); }}
+                    onClick={() => {
+                      setSortBy(opt.value)
+                    }}
                     className="rounded-xl py-2.5 font-bold"
                   >
                     {opt.label}
@@ -649,7 +664,9 @@ export default function TasksPage() {
                 {[10, 25, 50].map((n) => (
                   <DropdownMenuItem
                     key={n}
-                    onClick={() =>{  setPageSize(n); }}
+                    onClick={() => {
+                      setPageSize(n)
+                    }}
                     className="rounded-xl py-2.5 font-bold"
                   >
                     {n} per page
@@ -915,6 +932,15 @@ export default function TasksPage() {
                         >
                           <Eye className="h-4 w-4 text-blue-500 group-hover:scale-110" />
                           View Details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link
+                            href={`/${locale}/projects/${projectId}/tasks/${task._id}/completion`}
+                            className="group flex cursor-pointer items-center gap-3 rounded-xl px-2 py-3 font-bold hover:bg-emerald-50"
+                          >
+                            <ClipboardCheck className="h-4 w-4 text-emerald-500 group-hover:scale-110" />
+                            Completion Timeline
+                          </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={(e) => {

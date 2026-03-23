@@ -448,6 +448,7 @@ export default function TasksPage() {
         task={selectedTask || undefined}
         open={modalOpen}
         onOpenChange={setModalOpen}
+        projectId={selectedTask?.projectId}
         onSave={(task) => {
           handleTaskUpdate(task)
           // Keep modal open - only close via explicit close button or delete/archive

@@ -78,6 +78,9 @@ export default function AdminReportsPage() {
   const [accessDenied, setAccessDenied] = useState(false)
   const [selectedReport, setSelectedReport] = useState<Report | null>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const [activeMemberId, setActiveMemberId] = useState<string | null>(null)
+  const DIRECTORY_PAGE_SIZE = 10
+  const [directoryPage, setDirectoryPage] = useState(1)
 
   // --- Filters ---
   const [searchTerm, setSearchTerm] = useState("")
@@ -91,6 +94,18 @@ export default function AdminReportsPage() {
     fetchAll()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    // Directory view is only meaningful for member grouping.
+    if (groupBy !== "member") {
+      setActiveMemberId(null)
+    }
+  }, [groupBy])
+
+  useEffect(() => {
+    // Reset pagination when switching members or when the underlying list changes (filters/search).
+    setDirectoryPage(1)
+  }, [activeMemberId, searchTerm, filterStatus, filterType, filterWeek, filterMonth, groupBy])
 
   const fetchAll = async () => {
     try {
@@ -213,6 +228,49 @@ export default function AdminReportsPage() {
 
     return []
   }, [filteredReports, groupBy])
+
+  const memberDirectory = useMemo(() => {
+    // For the directory view: list unique members and their reports (honoring filters).
+    const map = new Map<
+      string,
+      { memberInfo: NonNullable<Report["submittedBy"]>; reports: Report[] }
+    >()
+
+    for (const r of filteredReports) {
+      const k = r.submittedBy.id
+      if (!map.has(k)) {
+        map.set(k, { memberInfo: r.submittedBy, reports: [] })
+      }
+      map.get(k)!.reports.push(r)
+    }
+
+    const members = Array.from(map.values())
+    for (const m of members) {
+      // Always show newest first for “by date”.
+      m.reports.sort(
+        (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+      )
+    }
+
+    return members.sort((a, b) => a.memberInfo.name.localeCompare(b.memberInfo.name))
+  }, [filteredReports])
+
+  useEffect(() => {
+    if (!activeMemberId) {
+      return
+    }
+    const stillExists = memberDirectory.some((m) => m.memberInfo.id === activeMemberId)
+    if (!stillExists) {
+      setActiveMemberId(null)
+    }
+  }, [memberDirectory, activeMemberId])
+
+  const activeMember = useMemo(() => {
+    if (!activeMemberId) {
+      return null
+    }
+    return memberDirectory.find((m) => m.memberInfo.id === activeMemberId) ?? null
+  }, [memberDirectory, activeMemberId])
 
   // ---- Helpers ----
   const stats = {
@@ -610,6 +668,168 @@ export default function AdminReportsPage() {
                 </Button>
               )}
             </Card>
+          ) : groupBy === "member" ? (
+            <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
+              {/* Directory: pick a member */}
+              <div className="space-y-4 rounded-4xl border border-slate-100 bg-white/60 p-5 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/40">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-[11px] font-black tracking-[0.2em] text-slate-400 uppercase">
+                      Members
+                    </h3>
+                    <p className="mt-1 text-xs font-bold text-slate-500">
+                      Click a user to view reports
+                    </p>
+                  </div>
+                  {activeMemberId && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-9 rounded-xl px-3 text-[10px] font-black tracking-widest uppercase hover:bg-slate-100 dark:hover:bg-slate-800"
+                      onClick={() => {
+                        setActiveMemberId(null)
+                      }}
+                    >
+                      All
+                    </Button>
+                  )}
+                </div>
+
+                <div className="max-h-[62vh] space-y-2 overflow-y-auto pr-2">
+                  {memberDirectory.map((m) => {
+                    const isActive = m.memberInfo.id === activeMemberId
+                    return (
+                      <button
+                        key={m.memberInfo.id}
+                        onClick={() => {
+                          setActiveMemberId(m.memberInfo.id)
+                        }}
+                        className={cn(
+                          "flex w-full items-center gap-3 rounded-3xl border px-4 py-3 text-left transition-all",
+                          isActive
+                            ? "border-indigo-200 bg-indigo-50"
+                            : "border-slate-100 bg-white/40 hover:border-indigo-200 hover:bg-indigo-50/40 dark:border-slate-800 dark:bg-slate-900/30 dark:hover:bg-indigo-900/20"
+                        )}
+                      >
+                        <UserAvatar
+                          name={m.memberInfo.name}
+                          image={m.memberInfo.avatar}
+                          size="sm"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-black text-slate-900 dark:text-white">
+                            {m.memberInfo.name}
+                          </p>
+                          <p className="truncate text-xs font-medium text-slate-400">
+                            {m.memberInfo.email}
+                          </p>
+                        </div>
+                        <span className="shrink-0 rounded-xl bg-slate-100 px-3 py-1 text-[10px] font-black text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                          {m.reports.length}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Directory detail */}
+              <div className="space-y-4">
+                <div className="rounded-4xl border border-slate-100 bg-white/60 p-6 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/40">
+                  {!activeMember ? (
+                    <div className="flex flex-col items-start gap-2">
+                      <h3 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
+                        Select a member
+                      </h3>
+                      <p className="text-sm font-medium text-slate-500">
+                        Choose a user from the directory to see reports ordered by submitted date.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div className="min-w-0">
+                        <h3 className="truncate text-xl font-black tracking-tight text-slate-900 dark:text-white">
+                          {activeMember.memberInfo.name}
+                        </h3>
+                        <p className="mt-1 truncate text-sm font-medium text-slate-500">
+                          {activeMember.memberInfo.email}
+                        </p>
+                      </div>
+                      <span className="rounded-2xl bg-slate-100 px-4 py-2 text-[10px] font-black tracking-widest text-slate-600 uppercase dark:bg-slate-800 dark:text-slate-300">
+                        {activeMember.reports.length} report
+                        {activeMember.reports.length !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {activeMember ? (
+                  <div className="grid gap-3">
+                    {activeMember.reports
+                      .slice(
+                        (directoryPage - 1) * DIRECTORY_PAGE_SIZE,
+                        directoryPage * DIRECTORY_PAGE_SIZE
+                      )
+                      .map((report) => (
+                        <ReportRow
+                          key={report._id}
+                          report={report}
+                          getFileIcon={getFileIcon}
+                          statusColor={statusColor}
+                          onView={() => {
+                            setSelectedReport(report)
+                          }}
+                        />
+                      ))}
+                  </div>
+                ) : (
+                  <Card className="rounded-4xl border-none bg-white/40 p-24 text-center backdrop-blur-xl dark:bg-slate-900/40">
+                    <Users className="mx-auto mb-6 h-16 w-16 text-slate-200" />
+                    <h3 className="text-2xl font-black tracking-tight text-slate-400 uppercase">
+                      No member selected
+                    </h3>
+                    <p className="mt-2 text-sm text-slate-400">Pick a user on the left.</p>
+                  </Card>
+                )}
+
+                {activeMember &&
+                  (() => {
+                    const totalPages = Math.max(
+                      1,
+                      Math.ceil(activeMember.reports.length / DIRECTORY_PAGE_SIZE)
+                    )
+                    return (
+                      <div className="flex items-center justify-between gap-3 pt-2">
+                        <Button
+                          variant="outline"
+                          className="h-11 flex-1 rounded-2xl border-slate-200 bg-white/50 text-[10px] font-black tracking-widest uppercase hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900/20"
+                          disabled={directoryPage <= 1}
+                          onClick={() => {
+                            setDirectoryPage((p) => Math.max(1, p - 1))
+                          }}
+                        >
+                          Prev
+                        </Button>
+
+                        <span className="shrink-0 text-xs font-bold text-slate-500">
+                          Page {directoryPage} of {totalPages}
+                        </span>
+
+                        <Button
+                          variant="outline"
+                          className="h-11 flex-1 rounded-2xl border-slate-200 bg-white/50 text-[10px] font-black tracking-widest uppercase hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900/20"
+                          disabled={directoryPage >= totalPages}
+                          onClick={() => {
+                            setDirectoryPage((p) => Math.min(totalPages, p + 1))
+                          }}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    )
+                  })()}
+              </div>
+            </div>
           ) : (
             groupedReports.map((group) => (
               <div key={group.key} className="space-y-3">
@@ -622,7 +842,7 @@ export default function AdminReportsPage() {
                     className="flex w-full items-center gap-4 text-left"
                   >
                     {/* Avatar / icon */}
-                    {groupBy === "member" && group.memberInfo ? (
+                    {group.memberInfo ? (
                       <UserAvatar
                         name={group.memberInfo.name}
                         image={group.memberInfo.avatar}
@@ -657,7 +877,7 @@ export default function AdminReportsPage() {
                           {group.reports.length} report{group.reports.length !== 1 ? "s" : ""}
                         </span>
                       </div>
-                      {groupBy === "member" && group.memberInfo && (
+                      {group.memberInfo && (
                         <p className="text-xs font-medium text-slate-400">
                           {group.memberInfo.email}
                         </p>

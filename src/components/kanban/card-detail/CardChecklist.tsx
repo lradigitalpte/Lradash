@@ -60,7 +60,9 @@ export function CardChecklist({
             variant="ghost"
             size="sm"
             className="h-8 w-8 rounded-lg p-0 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
-            onClick={() =>{  setIsAdding(true); }}
+            onClick={() => {
+              setIsAdding(true)
+            }}
           >
             <Plus className="h-4 w-4 stroke-[2.5]" />
           </Button>
@@ -84,7 +86,9 @@ export function CardChecklist({
           >
             <Checkbox
               checked={item.completed}
-              onCheckedChange={() =>{  onToggleItem(index); }}
+              onCheckedChange={() => {
+                onToggleItem(index)
+              }}
               className="h-5 w-5 rounded-lg border-2 border-slate-300 transition-all duration-300 data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600 dark:border-slate-700"
             />
             <span
@@ -101,7 +105,9 @@ export function CardChecklist({
               variant="ghost"
               size="sm"
               className="h-8 w-8 rounded-lg p-0 opacity-0 transition-all group-hover:opacity-100 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-900/20 dark:hover:text-rose-400"
-              onClick={() =>{  onDeleteItem(index); }}
+              onClick={() => {
+                onDeleteItem(index)
+              }}
             >
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -115,7 +121,9 @@ export function CardChecklist({
           <Input
             placeholder="Add a new task..."
             value={newItemText}
-            onChange={(e) =>{  setNewItemText(e.target.value); }}
+            onChange={(e) => {
+              setNewItemText(e.target.value)
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 handleAddItem()
@@ -125,7 +133,6 @@ export function CardChecklist({
                 setIsAdding(false)
               }
             }}
-            autoFocus
             className="h-10 rounded-xl border-slate-200 bg-white text-sm font-medium transition-all focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800"
           />
           <div className="flex gap-2">
@@ -153,7 +160,9 @@ export function CardChecklist({
         <Button
           variant="ghost"
           className="group h-10 w-full justify-start rounded-xl text-[11px] font-black tracking-widest text-slate-400 uppercase hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
-          onClick={() =>{  setIsAdding(true); }}
+          onClick={() => {
+            setIsAdding(true)
+          }}
         >
           <Plus className="mr-3 h-4 w-4 stroke-[2.5] transition-transform group-hover:scale-110" />
           Add an item

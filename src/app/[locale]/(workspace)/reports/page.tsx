@@ -74,6 +74,8 @@ interface TaskItem {
 interface GeneratedReport {
   weekNumber: number
   year: number
+  rangeLabel?: string
+  range?: { startDate: string; endDate: string }
   stats: { total: number; done: number; inProgress: number; todo: number }
   tasks: {
     done: TaskItem[]
@@ -117,6 +119,154 @@ function getNextMonday(): Date {
   return next
 }
 
+function renderTaskReportDescription(description: string) {
+  const lines = description.split("\n").map((l) => l.trim())
+
+  const hasSections = lines.some((l) => l.startsWith("===") && l.endsWith("==="))
+  if (!hasSections) {
+    return (
+      <pre className="max-h-64 overflow-y-auto text-sm leading-relaxed whitespace-pre-wrap text-slate-600 dark:text-slate-400">
+        {description}
+      </pre>
+    )
+  }
+
+  const metaTitle = lines.find((l) => l.startsWith("Task Report —"))
+  const generatedFor = lines.find((l) => l.startsWith("Generated for:"))
+  const generatedAt = lines.find((l) => l.startsWith("Generated at:"))
+
+  const sectionHeaderRegex = /^===\s*([A-Z_ ]+)\s*\((\d+)\)\s*===$/
+  const sections: Array<{
+    key: string
+    title: string
+    count: number
+    items: string[]
+    tone: "done" | "progress" | "todo"
+  }> = []
+
+  let current: {
+    key: string
+    title: string
+    count: number
+    items: string[]
+    tone: "done" | "progress" | "todo"
+  } | null = null
+
+  const toneFromLine = (line: string) => {
+    if (line.startsWith("✓")) {
+      return "done"
+    }
+    if (line.startsWith("→")) {
+      return "progress"
+    }
+    if (line.startsWith("○")) {
+      return "todo"
+    }
+    return null
+  }
+
+  const titleFromSectionKey = (k: string) => {
+    const normalized = k.replaceAll("_", " ").trim()
+    if (normalized === "COMPLETED") {
+      return "Completed"
+    }
+    if (normalized === "IN PROGRESS") {
+      return "In Progress"
+    }
+    if (normalized === "TODO") {
+      return "To Do"
+    }
+    return normalized[0]
+      ? normalized[0].toUpperCase() + normalized.slice(1).toLowerCase()
+      : normalized
+  }
+
+  for (const line of lines) {
+    const headerMatch = line.match(sectionHeaderRegex)
+    if (headerMatch) {
+      const rawKey = (headerMatch[1] ?? "").trim()
+      const count = Number(headerMatch[2] ?? "0")
+      current = {
+        key: rawKey,
+        title: titleFromSectionKey(rawKey),
+        count: Number.isNaN(count) ? 0 : count,
+        items: [],
+        tone: rawKey === "COMPLETED" ? "done" : rawKey.includes("IN") ? "progress" : "todo"
+      }
+      sections.push(current)
+      continue
+    }
+
+    if (!current) {
+      continue
+    }
+    const tone = toneFromLine(line)
+    if (!tone) {
+      continue
+    }
+
+    const itemText = line.replace(/^[✓→○]\s*/, "")
+    current.items.push(itemText)
+  }
+
+  const toneCls = (tone: "done" | "progress" | "todo") =>
+    tone === "done"
+      ? "text-green-700 dark:text-green-300"
+      : tone === "progress"
+        ? "text-blue-700 dark:text-blue-300"
+        : "text-slate-700 dark:text-slate-300"
+
+  return (
+    <div className="max-h-64 space-y-4 overflow-y-auto">
+      {(metaTitle || generatedFor || generatedAt) && (
+        <div className="space-y-1">
+          {metaTitle && (
+            <p className="text-sm font-black text-slate-900 dark:text-white">{metaTitle}</p>
+          )}
+          {generatedFor && (
+            <p className="text-xs font-bold text-slate-500">
+              {generatedFor.replace("Generated for:", "").trim()}
+            </p>
+          )}
+          {generatedAt && (
+            <p className="text-[10px] font-bold text-slate-400">
+              {generatedAt.replace("Generated at:", "").trim()}
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="space-y-4">
+        {sections.map((s) => (
+          <div
+            key={s.key}
+            className="space-y-2 rounded-2xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/40"
+          >
+            <div className={cn("flex items-center gap-2", toneCls(s.tone))}>
+              <span className="text-xs font-black tracking-widest uppercase">{s.title}</span>
+              <span className="text-[10px] font-black text-slate-400">({s.count})</span>
+            </div>
+            {s.items.length > 0 ? (
+              <ul
+                className={cn("space-y-1 pl-5 text-sm", toneCls(s.tone))}
+                style={{ listStyleType: "disc" }}
+              >
+                {s.items.slice(0, 30).map((item, idx) => (
+                  <li key={idx} className="break-words">
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-slate-400 dark:text-slate-500">No tasks in this section</p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function ReportsPage() {
   const params = useParams()
   const locale = (params?.locale as string) ?? "en"
@@ -151,6 +301,9 @@ export default function ReportsPage() {
   // Task generation
   const [generating, setGenerating] = useState(false)
   const [generatedData, setGeneratedData] = useState<GeneratedReport | null>(null)
+  const [generateMode, setGenerateMode] = useState<"thisWeek" | "last7Days" | "custom">("thisWeek")
+  const [generateCustomStart, setGenerateCustomStart] = useState<string>("")
+  const [generateCustomEnd, setGenerateCustomEnd] = useState<string>("")
 
   useEffect(() => {
     fetchReports()
@@ -257,7 +410,7 @@ export default function ReportsPage() {
         payload = {
           ...payload,
           fileType: "doc",
-          fileName: `Task Report - Week ${generatedData.weekNumber}`,
+          fileName: `Task Report - ${generatedData.rangeLabel ?? `Week ${generatedData.weekNumber}`}`,
           description: generatedData.summary,
           weekNumber: generatedData.weekNumber,
           year: generatedData.year
@@ -296,14 +449,30 @@ export default function ReportsPage() {
     setGenerating(true)
     setGeneratedData(null)
     try {
-      const res = await apiClient.post("/api/reports/generate", {})
+      if (generateMode === "custom") {
+        if (!generateCustomStart || !generateCustomEnd) {
+          toast.error("Please select both start date and end date")
+          return
+        }
+      }
+
+      const timeFrame =
+        generateMode === "custom"
+          ? { mode: "custom", startDate: generateCustomStart, endDate: generateCustomEnd }
+          : generateMode === "last7Days"
+            ? { mode: "last7Days" }
+            : { mode: "thisWeek" }
+
+      const res = await apiClient.post("/api/reports/generate", { timeFrame })
       if (!res.ok) {
         throw new Error("Failed to generate")
       }
       const data = await res.json()
       setGeneratedData(data)
       if (!reportTitle) {
-        setReportTitle(`Task Report - Week ${data.weekNumber}, ${data.year}`)
+        setReportTitle(
+          `Task Report - ${data.rangeLabel ?? `Week ${data.weekNumber}`}, ${data.year}`
+        )
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to fetch tasks"
@@ -322,6 +491,9 @@ export default function ReportsPage() {
     setReportDescription("")
     setReportUrl("")
     setGeneratedData(null)
+    setGenerateMode("thisWeek")
+    setGenerateCustomStart("")
+    setGenerateCustomEnd("")
     setModalTab("upload")
     setReplaceReport(null)
   }
@@ -990,23 +1162,73 @@ export default function ReportsPage() {
               {modalTab === "generate" && (
                 <div className="space-y-3">
                   {!generatedData ? (
-                    <button
-                      onClick={handleGenerateTasks}
-                      disabled={generating}
-                      className="flex w-full items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-purple-200 bg-purple-50/50 p-6 font-bold text-purple-600 transition-all hover:bg-purple-100 disabled:opacity-60 dark:border-purple-800 dark:bg-purple-900/10"
-                    >
-                      {generating ? (
-                        <>
-                          <div className="h-5 w-5 animate-spin rounded-full border-2 border-purple-300 border-t-purple-600" />
-                          Fetching your tasks...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="h-5 w-5" />
-                          Generate Report from My Tasks
-                        </>
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                          Time frame
+                        </label>
+                        <select
+                          value={generateMode}
+                          onChange={(e) => {
+                            setGenerateMode(e.target.value as any)
+                          }}
+                          className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 font-bold text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:outline-none dark:border-slate-700 dark:bg-slate-800/50 dark:text-white"
+                        >
+                          <option value="thisWeek">This week</option>
+                          <option value="last7Days">Last 7 days</option>
+                          <option value="custom">Custom range</option>
+                        </select>
+                      </div>
+
+                      {generateMode === "custom" && (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                              Start date
+                            </label>
+                            <input
+                              type="date"
+                              value={generateCustomStart}
+                              onChange={(e) => {
+                                setGenerateCustomStart(e.target.value)
+                              }}
+                              className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 font-bold text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:outline-none dark:border-slate-700 dark:bg-slate-800/50 dark:text-white"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                              End date
+                            </label>
+                            <input
+                              type="date"
+                              value={generateCustomEnd}
+                              onChange={(e) => {
+                                setGenerateCustomEnd(e.target.value)
+                              }}
+                              className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 font-bold text-slate-800 focus:ring-2 focus:ring-blue-500/20 focus:outline-none dark:border-slate-700 dark:bg-slate-800/50 dark:text-white"
+                            />
+                          </div>
+                        </div>
                       )}
-                    </button>
+
+                      <button
+                        onClick={handleGenerateTasks}
+                        disabled={generating}
+                        className="flex w-full items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-purple-200 bg-purple-50/50 p-6 font-bold text-purple-600 transition-all hover:bg-purple-100 disabled:opacity-60 dark:border-purple-800 dark:bg-purple-900/10"
+                      >
+                        {generating ? (
+                          <>
+                            <div className="h-5 w-5 animate-spin rounded-full border-2 border-purple-300 border-t-purple-600" />
+                            Fetching your tasks...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-5 w-5" />
+                            Generate Report from My Tasks
+                          </>
+                        )}
+                      </button>
+                    </div>
                   ) : (
                     <div className="space-y-3 rounded-2xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/40">
                       {/* Stats row */}
@@ -1247,9 +1469,7 @@ export default function ReportsPage() {
                   <p className="mb-3 text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
                     Notes / Summary
                   </p>
-                  <pre className="max-h-64 overflow-y-auto text-sm leading-relaxed whitespace-pre-wrap text-slate-600 dark:text-slate-400">
-                    {selectedReport.description}
-                  </pre>
+                  {renderTaskReportDescription(selectedReport.description)}
                 </div>
               )}
 

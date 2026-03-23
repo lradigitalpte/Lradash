@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json().catch(() => ({}))
-    const { projectId } = body
+    const { projectId, timeFrame } = body
 
     // Build query — can be scoped to a project or org-wide for this user
     const query: Record<string, unknown> = {
@@ -43,6 +43,91 @@ export async function POST(request: NextRequest) {
       query.project = projectId
     }
 
+    const getWeekNumber = (d: Date): number => {
+      const first = new Date(d.getFullYear(), 0, 1)
+      return Math.ceil(((d.getTime() - first.getTime()) / 86400000 + first.getDay() + 1) / 7)
+    }
+
+    const parseDateInput = (value?: string): Date | null => {
+      if (!value) {
+        return null
+      }
+      // value expected as YYYY-MM-DD from <input type="date">
+      const parts = value.split("-").map((p) => Number(p))
+      if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) {
+        return null
+      }
+      const [y, m, d] = parts
+      return new Date(y, m - 1, d, 0, 0, 0, 0)
+    }
+
+    const startOfWeekMonday = (d: Date): Date => {
+      const day = (d.getDay() + 6) % 7 // Monday=0..Sunday=6
+      const out = new Date(d)
+      out.setDate(d.getDate() - day)
+      out.setHours(0, 0, 0, 0)
+      return out
+    }
+
+    const endOfWeekSunday = (d: Date): Date => {
+      const start = startOfWeekMonday(d)
+      const out = new Date(start)
+      out.setDate(start.getDate() + 6)
+      out.setHours(23, 59, 59, 999)
+      return out
+    }
+
+    const now = new Date()
+    const mode = timeFrame?.mode ?? "thisWeek"
+
+    let startDate: Date
+    let endDate: Date
+    let rangeLabel: string
+
+    if (mode === "last7Days") {
+      startDate = new Date(now.getTime() - 6 * 86400000)
+      startDate.setHours(0, 0, 0, 0)
+      endDate = new Date(now)
+      endDate.setHours(23, 59, 59, 999)
+      rangeLabel = "Last 7 days"
+    } else if (mode === "custom") {
+      const s = parseDateInput(timeFrame?.startDate)
+      const e = parseDateInput(timeFrame?.endDate) ?? s
+      if (!s || !e) {
+        return NextResponse.json(
+          { error: "Custom range requires startDate and endDate" },
+          { status: 400 }
+        )
+      }
+      startDate = s
+      endDate = e
+      if (endDate.getTime() < startDate.getTime()) {
+        return NextResponse.json({ error: "endDate must be after startDate" }, { status: 400 })
+      }
+      rangeLabel = `${startDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${endDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+    } else {
+      // thisWeek default
+      startDate = startOfWeekMonday(now)
+      endDate = endOfWeekSunday(now)
+      const wn = getWeekNumber(startDate)
+      rangeLabel = `Week ${wn}`
+    }
+
+    const weekNumber = getWeekNumber(startDate)
+    const year = startDate.getFullYear()
+
+    // Filter tasks into the selected time frame.
+    // - If a task has dueDate, include it when dueDate falls in range
+    // - Always include tasks when createdAt falls in range (so tasks without dueDate still work)
+    ;(query as any).$and = [
+      {
+        $or: [
+          { dueDate: { $gte: startDate, $lte: endDate } },
+          { createdAt: { $gte: startDate, $lte: endDate } }
+        ]
+      }
+    ]
+
     const tasks = await TaskModel.find(query)
       .sort({ status: 1, priority: -1, createdAt: -1 })
       .limit(100)
@@ -53,13 +138,8 @@ export async function POST(request: NextRequest) {
     const inProgress = tasks.filter((t) => t.status === "IN_PROGRESS")
     const todo = tasks.filter((t) => t.status === "TODO")
 
-    const now = new Date()
-    const firstDayOfYear = new Date(now.getFullYear(), 0, 1)
-    const pastDays = (now.getTime() - firstDayOfYear.getTime()) / 86400000
-    const weekNumber = Math.ceil((pastDays + firstDayOfYear.getDay() + 1) / 7)
-
     const summary = [
-      `Task Report — Week ${weekNumber}, ${now.getFullYear()}`,
+      `Task Report — ${rangeLabel}, ${year}`,
       `Generated for: ${user.name}`,
       `Generated at: ${now.toISOString()}`,
       ``,
@@ -81,7 +161,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       weekNumber,
-      year: now.getFullYear(),
+      year,
+      rangeLabel,
+      range: { startDate, endDate },
       user: { name: user.name, email: user.email },
       stats: {
         total: tasks.length,

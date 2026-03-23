@@ -17,8 +17,12 @@ import {
   Plus,
   Check,
   Activity,
-  UserPlus
+  UserPlus,
+  ClipboardCheck,
+  ExternalLink
 } from "lucide-react"
+import Link from "next/link"
+import { useParams } from "next/navigation"
 import { useRef, useState, useEffect } from "react"
 import { toast } from "sonner"
 
@@ -65,6 +69,8 @@ export function TaskDetailModal({
   onSave,
   onTaskUpdated
 }: TaskDetailModalProps) {
+  const params = useParams()
+  const locale = (params?.locale as string) || "en"
   const [editedTitle, setEditedTitle] = useState(task?.title || "")
   const [editedDescription, setEditedDescription] = useState(task?.description || "")
   const [checklist, setChecklist] = useState<any[]>(task?.checklist || [])
@@ -212,11 +218,17 @@ export function TaskDetailModal({
   const handleAttachFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ""
-    if (!file || !projectId) return
+    if (!file) {
+      return
+    }
     setAttaching(true)
+
+    const effectiveProjectId = projectId ?? (task as any)?.project ?? undefined
+    const effectiveBoardId = (task as any)?.board ?? undefined
     try {
       const { publicUrl } = await uploadFileToS3(file, {
-        projectId,
+        projectId: effectiveProjectId,
+        boardId: effectiveBoardId,
         taskId: task._id?.toString?.() ?? (task as any)._id
       })
       const newAttachment = {
@@ -230,18 +242,20 @@ export function TaskDetailModal({
       const patchRes = await apiClient.patch(`/api/tasks/${task._id}`, {
         attachments: newAttachments
       })
-      if (!patchRes.ok) throw new Error("Failed to save attachment")
+      if (!patchRes.ok) {
+        throw new Error("Failed to save attachment")
+      }
       const updatedTask = await patchRes.json()
       onTaskUpdated?.(updatedTask)
       toast.success("File attached")
-      if (projectId) {
+      if (effectiveProjectId) {
         const sizeLabel =
           file.size < 1024
             ? `${file.size} B`
             : file.size < 1024 * 1024
               ? `${(file.size / 1024).toFixed(1)} KB`
               : `${(file.size / (1024 * 1024)).toFixed(1)} MB`
-        await apiClient.post(`/api/projects/${projectId}/documents`, {
+        await apiClient.post(`/api/projects/${effectiveProjectId}/documents`, {
           name: file.name,
           type: file.type?.startsWith("image/")
             ? "Image"
@@ -274,9 +288,31 @@ export function TaskDetailModal({
         const updatedTask = await res.json()
         onTaskUpdated?.(updatedTask)
         toast.success("Attachment removed")
-      } else throw new Error("Failed to remove")
+      } else {
+        throw new Error("Failed to remove")
+      }
     } catch {
       toast.error("Failed to remove attachment")
+    }
+  }
+
+  const handleSelectWorkPackage = async (wpId: string | null) => {
+    if (!task?._id) {
+      return
+    }
+    try {
+      const patchRes = await apiClient.patch(`/api/tasks/${task._id}`, {
+        workPackage: wpId ?? undefined
+      })
+      if (patchRes.ok) {
+        const updatedTask = await patchRes.json()
+        onTaskUpdated?.(updatedTask)
+        toast.success(wpId ? "Work package assigned" : "Work package cleared")
+      } else {
+        toast.error("Failed to update work package")
+      }
+    } catch {
+      toast.error("Failed to update work package")
     }
   }
 
@@ -290,7 +326,8 @@ export function TaskDetailModal({
     priority: priority as any,
     checklist: checklist.map((c) => ({ text: c.title || c.text, completed: !!c.completed })),
     members: task.assignee ? [task.assignee] : [],
-    coverColor: task.coverColor
+    coverColor: task.coverColor,
+    workPackage: (task as any).workPackage
   }
 
   return (
@@ -394,7 +431,7 @@ export function TaskDetailModal({
                       ref={fileInputRef}
                       className="hidden"
                       onChange={handleAttachFile}
-                      accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.md,.csv,.xls,.xlsx,.json"
+                      accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.md,.csv,.xls,.xlsx,.json,.zip,application/zip,application/x-zip-compressed"
                     />
                     <Button
                       variant="outline"
@@ -445,7 +482,7 @@ export function TaskDetailModal({
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={ async () => handleRemoveAttachment(idx)}
+                            onClick={async () => handleRemoveAttachment(idx)}
                             className="text-slate-300 opacity-0 transition-all group-hover:opacity-100 hover:text-rose-600"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -545,10 +582,42 @@ export function TaskDetailModal({
                   )}
                 </div>
 
+                {/* Completion Timeline link — only for project tasks */}
+                {projectId && task._id && (
+                  <div className="space-y-3">
+                    <h3 className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
+                      Completion
+                    </h3>
+                    <Link
+                      href={`/${locale}/projects/${projectId}/tasks/${task._id}/completion`}
+                      onClick={() => {
+                        onOpenChange(false)
+                      }}
+                    >
+                      <div className="group flex cursor-pointer items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 transition-all hover:border-blue-200 hover:bg-blue-50 dark:border-slate-800 dark:bg-slate-800/40 dark:hover:border-blue-800 dark:hover:bg-blue-900/20">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-100 text-blue-600 dark:bg-blue-900/40">
+                            <ClipboardCheck className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-black text-slate-700 dark:text-slate-200">
+                              Completion Timeline
+                            </p>
+                            <p className="text-[9px] font-bold tracking-wider text-slate-400 uppercase">
+                              Submit & review evidence
+                            </p>
+                          </div>
+                        </div>
+                        <ExternalLink className="h-3.5 w-3.5 text-slate-300 transition-colors group-hover:text-blue-500" />
+                      </div>
+                    </Link>
+                  </div>
+                )}
+
                 <CardSidebar
                   card={cardAdapter as any}
-                  boardId=""
-                  projectId=""
+                  boardId={(task as any)?.board || undefined}
+                  projectId={(task as any)?.project || undefined}
                   labels={labels}
                   onAddLabel={handleAddLabel}
                   onRemoveLabel={handleRemoveLabel}
@@ -562,7 +631,8 @@ export function TaskDetailModal({
                       : undefined
                   }
                   onDueDateChange={handleDueDateChange}
-                  onSelectWorkPackage={() => {}}
+                  onSelectWorkPackage={handleSelectWorkPackage}
+                  onAttachment={() => fileInputRef.current?.click()}
                   onArchive={handleArchive}
                   onDelete={handleDelete}
                 />

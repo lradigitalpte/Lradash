@@ -39,8 +39,8 @@ interface Card {
 
 interface CardSidebarProps {
   card: Card
-  boardId: string
-  projectId: string
+  boardId?: string
+  projectId?: string
   labels: Array<{ name: string; color: string }>
   onAddLabel: (label: { name: string; color: string }) => void
   onRemoveLabel: (index: number) => void
@@ -49,6 +49,7 @@ interface CardSidebarProps {
   dueDate?: string | null
   onDueDateChange?: (date: string | null) => void
   onSelectWorkPackage: (wpId: string | null) => void
+  onAttachment?: () => void
   onDelete?: () => void
   onArchive?: () => void
 }
@@ -65,6 +66,7 @@ export function CardSidebar({
   dueDate,
   onDueDateChange,
   onSelectWorkPackage,
+  onAttachment,
   onDelete,
   onArchive
 }: CardSidebarProps) {
@@ -126,12 +128,14 @@ export function CardSidebar({
           Add to Card
         </h3>
         <div className="space-y-4">
-          <WorkPackagePicker
-            boardId={boardId}
-            projectId={projectId}
-            currentWorkPackageId={card.workPackage}
-            onSelect={onSelectWorkPackage}
-          />
+          {boardId && projectId && (
+            <WorkPackagePicker
+              boardId={boardId}
+              projectId={projectId}
+              currentWorkPackageId={card.workPackage}
+              onSelect={onSelectWorkPackage}
+            />
+          )}
           <div className="space-y-2">
             <h4 className="text-[10px] font-black tracking-wider text-slate-500 uppercase">
               Labels
@@ -141,7 +145,9 @@ export function CardSidebar({
           <SidebarButton
             icon={CheckSquare}
             label="Checklist"
-            onClick={() =>{  onAddChecklistItem("New task"); }}
+            onClick={() => {
+              onAddChecklistItem("New task")
+            }}
           />
           {onDueDateChange && (
             <Popover>
@@ -165,7 +171,9 @@ export function CardSidebar({
                 <Calendar
                   mode="single"
                   selected={dueDate ? new Date(dueDate) : undefined}
-                  onSelect={(d) =>{  onDueDateChange(d ? d.toISOString() : null); }}
+                  onSelect={(d) => {
+                    onDueDateChange(d ? d.toISOString() : null)
+                  }}
                   initialFocus
                 />
                 <div className="border-t border-slate-100 p-2 dark:border-slate-800">
@@ -173,7 +181,9 @@ export function CardSidebar({
                     variant="ghost"
                     size="sm"
                     className="w-full text-xs"
-                    onClick={() =>{  onDueDateChange(null); }}
+                    onClick={() => {
+                      onDueDateChange(null)
+                    }}
                   >
                     Clear date
                   </Button>
@@ -184,7 +194,13 @@ export function CardSidebar({
           <SidebarButton
             icon={Paperclip}
             label="Attachment"
-            onClick={() => toast.info("File upload coming soon")}
+            onClick={() => {
+              if (onAttachment) {
+                onAttachment()
+                return
+              }
+              toast.info("File upload coming soon")
+            }}
           />
           <SidebarButton
             icon={Palette}

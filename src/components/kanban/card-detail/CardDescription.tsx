@@ -41,11 +41,12 @@ export function CardDescription({ description, onUpdateDescription }: CardDescri
         <div className="space-y-4">
           <Textarea
             value={editedDescription}
-            onChange={(e) =>{  setEditedDescription(e.target.value); }}
+            onChange={(e) => {
+              setEditedDescription(e.target.value)
+            }}
             placeholder="Add a more detailed description..."
             rows={6}
             className="resize-none rounded-2xl border-slate-200 bg-white p-4 text-sm font-medium transition-all focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800/50"
-            autoFocus
           />
           <div className="flex gap-2">
             <Button
@@ -67,7 +68,9 @@ export function CardDescription({ description, onUpdateDescription }: CardDescri
         </div>
       ) : (
         <div
-          onClick={() =>{  setIsEditing(true); }}
+          onClick={() => {
+            setIsEditing(true)
+          }}
           className={cn(
             "group min-h-[120px] cursor-pointer rounded-[1.5rem] border border-transparent p-6 transition-all duration-300",
             description

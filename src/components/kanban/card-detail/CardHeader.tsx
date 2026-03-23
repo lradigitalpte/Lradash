@@ -48,7 +48,6 @@ export function CardHeader({ title, onUpdateTitle, onClose }: CardHeaderProps) {
                 setIsEditing(false)
               }
             }}
-            autoFocus
             className="h-auto border-none bg-transparent p-0 py-1 text-2xl font-bold tracking-tight focus-visible:ring-0"
           />
         ) : (

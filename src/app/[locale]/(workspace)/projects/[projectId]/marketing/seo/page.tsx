@@ -118,7 +118,9 @@ export default function SEOPage() {
   }
 
   const calculateSEOScore = (): number => {
-    if (!metrics) return 0
+    if (!metrics) {
+      return 0
+    }
 
     let score = 0
     const weights = {
@@ -200,7 +202,9 @@ export default function SEOPage() {
             </Button>
           )}
           <Button
-            onClick={() =>{  setConfigModalOpen(true); }}
+            onClick={() => {
+              setConfigModalOpen(true)
+            }}
             className="h-11 gap-2 rounded-xl bg-blue-600 px-6 font-bold text-white shadow-lg shadow-blue-500/20 transition-all hover:scale-105 hover:bg-blue-700"
           >
             <Settings className="h-4 w-4" />
@@ -225,7 +229,9 @@ export default function SEOPage() {
                 </p>
               </div>
               <Button
-                onClick={() =>{  setConfigModalOpen(true); }}
+                onClick={() => {
+                  setConfigModalOpen(true)
+                }}
                 className="gap-2 bg-amber-600 hover:bg-amber-700"
               >
                 <Globe className="h-4 w-4" />
@@ -267,7 +273,9 @@ export default function SEOPage() {
                   Reset
                 </Button>
                 <Button
-                  onClick={() =>{  setConfigModalOpen(true); }}
+                  onClick={() => {
+                    setConfigModalOpen(true)
+                  }}
                   variant="outline"
                   className="gap-2"
                   size="sm"

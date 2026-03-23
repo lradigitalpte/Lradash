@@ -27,10 +27,11 @@ export function AddListForm({ onAdd, onCancel }: AddListFormProps) {
         New Relationship
       </h4>
       <Input
-        autoFocus
         placeholder="List title..."
         value={title}
-        onChange={(e) =>{  setTitle(e.target.value); }}
+        onChange={(e) => {
+          setTitle(e.target.value)
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             handleSubmit()

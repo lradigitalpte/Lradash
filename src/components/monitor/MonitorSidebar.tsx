@@ -30,9 +30,15 @@ import { cn } from "@/lib/utils"
 const ALL_NAV_ITEMS = [
   { title: "Overview", href: "/monitor", icon: LayoutDashboard, adminOnly: false },
   { title: "Costs & Spend", href: "/monitor/costs", icon: DollarSign, adminOnly: true },
-  { title: "Websites", href: "/monitor/websites", icon: Globe, adminOnly: false },
-  { title: "Infrastructure", href: "/monitor/infrastructure", icon: Mail, adminOnly: false },
+  { title: "Websites", href: "/monitor/websites-ur", icon: Globe, adminOnly: false },
+  { title: "Infrastructure", href: "/monitor/infrastructure-ur", icon: Mail, adminOnly: false },
   { title: "SSL & Domains", href: "/monitor/ssl", icon: ShieldCheck, adminOnly: false },
+  {
+    title: "UptimeRobot Config",
+    href: "/monitor/uptimerobot-config",
+    icon: ShieldCheck,
+    adminOnly: true
+  },
   { title: "Subscriptions", href: "/monitor/subscriptions", icon: CreditCard, adminOnly: true }
 ]
 

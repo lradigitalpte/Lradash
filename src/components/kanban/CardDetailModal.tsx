@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -12,6 +12,8 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select"
+import { apiClient } from "@/lib/api/client"
+import { uploadFileToS3 } from "@/lib/upload"
 
 import { CardActivity } from "./card-detail/CardActivity"
 import { CardAttachments } from "./card-detail/CardAttachments"
@@ -63,6 +65,8 @@ export function CardDetailModal({
   const [dueDate, setDueDate] = useState<string | null>(card.dueDate ?? null)
   const [status, setStatus] = useState(card.status || "TODO")
   const [saving, setSaving] = useState(false)
+  const [attaching, setAttaching] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Sync state with prop if card changes (e.g. from background refresh)
   useEffect(() => {
@@ -157,6 +161,66 @@ export function CardDetailModal({
     updateTask({ workPackage: wpId })
   }
 
+  const handleAttachFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (!file) {
+      return
+    }
+
+    setAttaching(true)
+    try {
+      const { publicUrl } = await uploadFileToS3(file, { boardId, taskId: card._id })
+
+      const newAttachment = {
+        name: file.name,
+        url: publicUrl,
+        type: file.type || "application/octet-stream",
+        size: file.size,
+        createdAt: new Date()
+      }
+
+      const updated = await apiClient.patch(`/api/tasks/${card._id}`, {
+        attachments: [...(card.attachments || []), newAttachment]
+      })
+
+      if (!updated.ok) {
+        throw new Error("Failed to save attachment")
+      }
+
+      // Also create a project-side document entry (linked asset)
+      const sizeLabel =
+        file.size < 1024
+          ? `${file.size} B`
+          : file.size < 1024 * 1024
+            ? `${(file.size / 1024).toFixed(1)} KB`
+            : `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+
+      await apiClient.post(`/api/projects/${projectId}/documents`, {
+        name: file.name,
+        type: file.type?.startsWith("image/")
+          ? "Image"
+          : file.type?.startsWith("video/")
+            ? "Video"
+            : file.type?.includes("pdf")
+              ? "PDF"
+              : "File",
+        size: sizeLabel,
+        folder: "From tasks",
+        url: publicUrl,
+        taskId: card._id,
+        taskTitle: card.title
+      })
+
+      toast.success("File attached")
+      onUpdate()
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to attach file")
+    } finally {
+      setAttaching(false)
+    }
+  }
+
   const handleStatusChange = (newStatus: string) => {
     setStatus(newStatus)
     updateTask({ status: newStatus })
@@ -169,6 +233,13 @@ export function CardDetailModal({
         aria-describedby={undefined}
       >
         <DialogTitle className="sr-only">Task Details</DialogTitle>
+        <input
+          type="file"
+          ref={fileInputRef}
+          className="hidden"
+          onChange={handleAttachFile}
+          accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.md,.csv,.xls,.xlsx,.json,.zip,application/zip,application/x-zip-compressed"
+        />
         <div className="relative flex h-full flex-col overflow-hidden">
           {/* Extra Glow for Premium Feel */}
           <div className="pointer-events-none absolute -top-20 -right-20 h-64 w-64 rounded-full bg-blue-500/10 blur-3xl" />
@@ -254,6 +325,11 @@ export function CardDetailModal({
                   dueDate={dueDate}
                   onDueDateChange={handleDueDateChange}
                   onSelectWorkPackage={handleSelectWorkPackage}
+                  onAttachment={() => {
+                    if (!attaching) {
+                      fileInputRef.current?.click()
+                    }
+                  }}
                 />
               </div>
             </div>

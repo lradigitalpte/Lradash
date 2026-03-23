@@ -51,7 +51,9 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
 
   const pathname = usePathname()
   const fetchUnreadCount = useCallback(async () => {
-    if (!projectId) return
+    if (!projectId) {
+      return
+    }
     try {
       const res = await apiClient.get(`/api/projects/${projectId}/announcements/unread-count`)
       if (res.ok) {
@@ -68,9 +70,11 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
   }, [fetchUnreadCount, pathname])
 
   useEffect(() => {
-    const onRefresh =  async () => fetchUnreadCount()
+    const onRefresh = async () => fetchUnreadCount()
     window.addEventListener("announcements-unread-refresh", onRefresh)
-    return () =>{  window.removeEventListener("announcements-unread-refresh", onRefresh); }
+    return () => {
+      window.removeEventListener("announcements-unread-refresh", onRefresh)
+    }
   }, [fetchUnreadCount])
 
   const fetchProjectTitle = async () => {

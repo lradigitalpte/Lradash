@@ -142,7 +142,9 @@ export default function SocialMediaStrategyPage() {
     actualEngagement: number
     roi: number
   }) => {
-    if (!selectedStrategy) return
+    if (!selectedStrategy) {
+      return
+    }
     setStrategies(strategies.map((s) => (s.id === selectedStrategy.id ? { ...s, ...results } : s)))
   }
 
@@ -222,7 +224,9 @@ export default function SocialMediaStrategyPage() {
             </Button>
           </Link>
           <Button
-            onClick={() =>{  setShowCreateModal(true); }}
+            onClick={() => {
+              setShowCreateModal(true)
+            }}
             className="h-11 rounded-xl bg-purple-600 px-6 text-[11px] font-bold tracking-widest text-white uppercase shadow-lg shadow-purple-500/20 hover:bg-purple-700"
           >
             <Plus className="mr-2 h-4 w-4" /> New Strategy
@@ -237,7 +241,7 @@ export default function SocialMediaStrategyPage() {
             <div
               key={i}
               className="h-24 animate-pulse rounded-2xl border border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/50"
-            ></div>
+            />
           ))}
         </div>
       ) : totalStrategies > 0 ? (
@@ -296,7 +300,9 @@ export default function SocialMediaStrategyPage() {
             </h4>
             <p className="mt-2 text-sm text-slate-500">Create your first strategy to get started</p>
             <Button
-              onClick={() =>{  setShowCreateModal(true); }}
+              onClick={() => {
+                setShowCreateModal(true)
+              }}
               className="mt-4 rounded-xl bg-purple-600 px-6 text-[11px] font-bold tracking-widest text-white uppercase hover:bg-purple-700"
             >
               <Plus className="mr-2 h-4 w-4" /> Create Strategy
@@ -356,20 +362,26 @@ export default function SocialMediaStrategyPage() {
                     </div>
                     <div className="flex gap-2">
                       <button
-                        onClick={() =>{  handleOpenResults(strategy); }}
+                        onClick={() => {
+                          handleOpenResults(strategy)
+                        }}
                         className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-emerald-100 hover:text-emerald-600 dark:hover:bg-emerald-500/20 dark:hover:text-emerald-400"
                         title="Update results"
                       >
                         <TrendingUp className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() =>{  handleOpenEdit(strategy); }}
+                        onClick={() => {
+                          handleOpenEdit(strategy)
+                        }}
                         className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-600 dark:hover:bg-slate-700"
                       >
                         <Edit2 className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() =>{  handleDelete(strategy.id); }}
+                        onClick={() => {
+                          handleDelete(strategy.id)
+                        }}
                         className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-500/20"
                       >
                         <Trash2 className="h-4 w-4" />
