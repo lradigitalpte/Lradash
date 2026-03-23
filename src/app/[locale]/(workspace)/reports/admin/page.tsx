@@ -176,7 +176,7 @@ export default function AdminReportsPage() {
     if (groupBy === "member") {
       const map = new Map<string, ReportGroup>()
       for (const r of filteredReports) {
-        const k = r.submittedBy.id
+        const k = String(r.submittedBy.id)
         if (!map.has(k)) {
           map.set(k, {
             key: k,
@@ -237,9 +237,15 @@ export default function AdminReportsPage() {
     >()
 
     for (const r of filteredReports) {
-      const k = r.submittedBy.id
+      const k = String(r.submittedBy.id)
       if (!map.has(k)) {
-        map.set(k, { memberInfo: r.submittedBy, reports: [] })
+        map.set(k, {
+          memberInfo: {
+            ...r.submittedBy,
+            id: String(r.submittedBy.id)
+          },
+          reports: []
+        })
       }
       map.get(k)!.reports.push(r)
     }

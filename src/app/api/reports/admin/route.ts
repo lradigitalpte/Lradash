@@ -68,12 +68,28 @@ export async function GET(request: NextRequest) {
       .sort({ submittedAt: -1 })
       .lean()
 
-    // Map to ensure avatar is included from the populated user data
+    // Normalize to plain JSON-safe shape for client components:
+    // - submittedBy.id must always be a string (not populated object)
+    // - keep latest profile fields when populate returned a user doc
     const enrichedReports = reports.map((report: any) => {
-      if (report.submittedBy && typeof report.submittedBy.id === "object") {
-        report.submittedBy.avatar = report.submittedBy.id.avatar || report.submittedBy.avatar
+      const populated = report?.submittedBy?.id
+      const isPopulatedUser = populated && typeof populated === "object"
+      return {
+        ...report,
+        submittedBy: {
+          ...report.submittedBy,
+          id: String(isPopulatedUser ? populated._id : (report.submittedBy?.id ?? "")),
+          name: isPopulatedUser
+            ? populated.name || report.submittedBy?.name || ""
+            : report.submittedBy?.name || "",
+          email: isPopulatedUser
+            ? populated.email || report.submittedBy?.email || ""
+            : report.submittedBy?.email || "",
+          avatar: isPopulatedUser
+            ? populated.avatar || report.submittedBy?.avatar || ""
+            : report.submittedBy?.avatar || ""
+        }
       }
-      return report
     })
 
     return NextResponse.json(enrichedReports)
