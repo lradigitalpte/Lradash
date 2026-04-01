@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 
-import { verifyAccessToken } from "@/lib/auth/tokens"
+import { requireAdmin } from "@/lib/admin/guard"
 import { connectToDatabase } from "@/lib/db/connect"
 import { ProjectModel } from "@/models/project.model"
 import { TaskModel } from "@/models/task.model"
-import { UserModel } from "@/models/user.model"
 
 /**
  * GET /api/analytics/projects
@@ -16,19 +15,13 @@ import { UserModel } from "@/models/user.model"
  */
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get("authorization")
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const guard = await requireAdmin(request)
+    if ("error" in guard) {
+      return guard.error
     }
-    const decoded = verifyAccessToken(authHeader.substring(7))
-    if (!decoded?.email) {return NextResponse.json({ error: "Invalid token" }, { status: 401 })}
 
     await connectToDatabase()
-    const user = await UserModel.findOne({ email: decoded.email.toLowerCase() }).lean()
-    if (!user) {return NextResponse.json({ error: "User not found" }, { status: 404 })}
-
-    const orgId = (user as any).defaultOrganizationId
-    if (!orgId) {return NextResponse.json({ error: "No organization" }, { status: 400 })}
+    const orgId = guard.orgId
 
     const now = new Date()
     // 8 weeks back (project tasks only)

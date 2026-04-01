@@ -26,7 +26,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const token = authHeader.substring(7)
     const decoded = verifyAccessToken(token)
 
-    if (!decoded || !decoded.email) {
+    if (!decoded || (!decoded.userId && !decoded.email)) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
@@ -59,7 +59,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // Get the user
-    const user = await getUserByEmail(decoded.email)
+    const user = decoded.userId
+      ? await getUserById(decoded.userId)
+      : decoded.email
+        ? await getUserByEmail(decoded.email)
+        : null
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }

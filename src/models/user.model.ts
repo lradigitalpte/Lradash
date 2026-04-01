@@ -18,6 +18,8 @@ const userSchema = new mongoose.Schema(
       google: { id: String },
       github: { id: String }
     },
+    // Optional separate email for receiving notifications (falls back to account email)
+    notificationEmail: { type: String, lowercase: true, default: "" },
     // User preferences
     preferences: {
       theme: { type: String, enum: ["light", "dark"], default: "light" },
@@ -48,9 +50,18 @@ userSchema.index({ defaultOrganizationId: 1 })
 userSchema.index({ deletedAt: 1 })
 
 let UserModel: Model<UserType>
-try {
-  UserModel = mongoose.model<UserType>("User")
-} catch {
+const existingUserModel = mongoose.models.User as Model<UserType> | undefined
+
+if (existingUserModel) {
+  // In development, hot reload can keep an older compiled schema around.
+  // Rebuild the model if the cached schema is missing newly added paths.
+  if (!existingUserModel.schema.path("notificationEmail")) {
+    mongoose.deleteModel("User")
+    UserModel = mongoose.model<UserType>("User", userSchema)
+  } else {
+    UserModel = existingUserModel
+  }
+} else {
   UserModel = mongoose.model<UserType>("User", userSchema)
 }
 

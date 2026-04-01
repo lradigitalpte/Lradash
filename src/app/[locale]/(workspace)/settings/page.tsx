@@ -86,6 +86,7 @@ const profileSchema = z.object({
     .min(2, "Name must be at least 2 characters")
     .max(50, "Name must be less than 50 characters"),
   email: z.string().email("Invalid email"),
+  notificationEmail: z.string().email("Invalid email").optional().or(z.literal("")),
   theme: z.enum(["light", "dark"]),
   language: z.enum(["en", "de"]),
   emailNotifications: z.boolean()
@@ -106,6 +107,7 @@ export default function SettingsPage() {
     defaultValues: {
       name: "",
       email: "",
+      notificationEmail: "",
       theme: "light",
       language: "en",
       emailNotifications: true
@@ -124,6 +126,7 @@ export default function SettingsPage() {
       }
 
       const response = await fetch("/api/auth/profile", {
+        cache: "no-store",
         headers: {
           Authorization: `Bearer ${accessToken}`
         }
@@ -135,6 +138,7 @@ export default function SettingsPage() {
         form.reset({
           name: userData.name || "",
           email: userData.email || "",
+          notificationEmail: userData.notificationEmail ?? "",
           theme: userData.preferences?.theme || "light",
           language: userData.preferences?.language || "en",
           emailNotifications: userData.preferences?.emailNotifications ?? true
@@ -184,6 +188,8 @@ export default function SettingsPage() {
       }
       const body: Record<string, unknown> = {
         name: data.name,
+        email: data.email,
+        notificationEmail: data.notificationEmail ?? "",
         preferences: {
           theme: data.theme,
           language: data.language,
@@ -204,7 +210,35 @@ export default function SettingsPage() {
       })
 
       if (response.ok) {
+        const updated = await response.json()
         setAvatarChanged(false)
+        // Keep localStorage in sync for header/user menus that read from it
+        try {
+          const storedUser = localStorage.getItem("user")
+          if (storedUser) {
+            const parsed = JSON.parse(storedUser) as { id?: string; email?: string; name?: string }
+            localStorage.setItem(
+              "user",
+              JSON.stringify({
+                ...parsed,
+                email: updated.email ?? parsed.email,
+                name: updated.name ?? parsed.name
+              })
+            )
+          }
+        } catch {
+          // ignore localStorage parse errors
+        }
+
+        // Ensure the form reflects the canonical saved values
+        form.reset({
+          name: updated.name || data.name,
+          email: updated.email || data.email,
+          notificationEmail: updated.notificationEmail ?? data.notificationEmail ?? "",
+          theme: updated.preferences?.theme || data.theme,
+          language: updated.preferences?.language || data.language,
+          emailNotifications: updated.preferences?.emailNotifications ?? data.emailNotifications
+        })
         toast.success("Profile updated!", { description: "Your changes have been saved." })
       } else {
         const err = await response.json()
@@ -237,8 +271,8 @@ export default function SettingsPage() {
       {/* Page Header */}
       <div>
         <div className="mb-2 flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 shadow-lg shadow-blue-500/30">
-            <Settings className="h-6 w-6 stroke-[2] text-white" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-linear-to-br from-blue-600 to-indigo-700 shadow-lg shadow-blue-500/30">
+            <Settings className="h-6 w-6 stroke-2 text-white" />
           </div>
           <div>
             <h1 className="text-4xl font-black tracking-tighter">Settings</h1>
@@ -259,7 +293,7 @@ export default function SettingsPage() {
             <CardHeader>
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-950">
-                  <Camera className="h-5 w-5 stroke-[2] text-blue-600 dark:text-blue-400" />
+                  <Camera className="h-5 w-5 stroke-2 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
                   <CardTitle className="text-2xl font-bold">Profile Picture</CardTitle>
@@ -407,7 +441,7 @@ export default function SettingsPage() {
             <CardHeader>
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-950">
-                  <User className="h-5 w-5 stroke-[2] text-blue-600 dark:text-blue-400" />
+                  <User className="h-5 w-5 stroke-2 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
                   <CardTitle className="text-2xl font-bold">Profile Information</CardTitle>
@@ -449,12 +483,12 @@ export default function SettingsPage() {
                       <Input
                         placeholder="your@email.com"
                         {...field}
-                        disabled
-                        className="cursor-not-allowed rounded-xl border-slate-200 bg-slate-100/50 text-slate-500 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/30 dark:text-slate-400"
+                        disabled={saving}
+                        className="rounded-xl border-slate-200 bg-white/60 backdrop-blur-sm transition-all placeholder:text-slate-400 focus:border-blue-500 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-900/60 dark:placeholder:text-slate-600"
                       />
                     </FormControl>
                     <FormDescription className="text-xs text-slate-500 dark:text-slate-400">
-                      Your email address cannot be changed. Contact support for modifications.
+                      Changing your email updates how you sign in.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -468,7 +502,7 @@ export default function SettingsPage() {
             <CardHeader>
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 dark:bg-purple-950">
-                  <Palette className="h-5 w-5 stroke-[2] text-purple-600 dark:text-purple-400" />
+                  <Palette className="h-5 w-5 stroke-2 text-purple-600 dark:text-purple-400" />
                 </div>
                 <div>
                   <CardTitle className="text-2xl font-bold">Preferences</CardTitle>
@@ -536,7 +570,7 @@ export default function SettingsPage() {
             <CardHeader>
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100 dark:bg-rose-950">
-                  <Bell className="h-5 w-5 stroke-[2] text-rose-600 dark:text-rose-400" />
+                  <Bell className="h-5 w-5 stroke-2 text-rose-600 dark:text-rose-400" />
                 </div>
                 <div>
                   <CardTitle className="text-2xl font-bold">Notifications</CardTitle>
@@ -544,7 +578,7 @@ export default function SettingsPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <FormField
                 control={form.control}
                 name="emailNotifications"
@@ -568,6 +602,84 @@ export default function SettingsPage() {
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="notificationEmail"
+                render={({ field }) => (
+                  <FormItem className="rounded-2xl border border-slate-200/60 bg-slate-50/50 p-4 dark:border-slate-800/60 dark:bg-slate-900/30">
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <FormLabel className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                          Notification Email
+                        </FormLabel>
+                        <FormDescription className="text-xs text-slate-500 dark:text-slate-400">
+                          Leave blank to use your account email
+                        </FormDescription>
+                      </div>
+                      <div className="flex gap-2">
+                        <FormControl>
+                          <Input
+                            placeholder="e.g. alerts@example.com"
+                            {...field}
+                            disabled={saving}
+                            className="flex-1 rounded-xl border-slate-200/60 bg-white dark:border-slate-700/60 dark:bg-slate-900/50"
+                          />
+                        </FormControl>
+                        <Button
+                          type="button"
+                          onClick={async () => {
+                            setSaving(true)
+                            try {
+                              const accessToken = localStorage.getItem("accessToken")
+                              if (!accessToken) {
+                                toast.error("Not authenticated")
+                                return
+                              }
+
+                              const response = await fetch("/api/auth/profile", {
+                                method: "PUT",
+                                headers: {
+                                  Authorization: `Bearer ${accessToken}`,
+                                  "Content-Type": "application/json"
+                                },
+                                body: JSON.stringify({
+                                  notificationEmail: field.value || ""
+                                })
+                              })
+
+                              if (response.ok) {
+                                const updated = await response.json()
+                                form.setValue(
+                                  "notificationEmail",
+                                  updated.notificationEmail ?? "",
+                                  {
+                                    shouldDirty: false,
+                                    shouldTouch: true
+                                  }
+                                )
+                                toast.success("Notification email saved!")
+                              } else {
+                                const err = await response.json()
+                                toast.error(err.error || "Failed to save")
+                              }
+                            } catch {
+                              toast.error("Failed to save")
+                            } finally {
+                              setSaving(false)
+                            }
+                          }}
+                          disabled={saving}
+                          size="sm"
+                          className="px-4"
+                        >
+                          Save
+                        </Button>
+                      </div>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </CardContent>
           </Card>
 
@@ -576,7 +688,7 @@ export default function SettingsPage() {
             <Button
               type="submit"
               disabled={saving}
-              className="h-12 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 px-8 font-black shadow-lg shadow-blue-500/25 transition-all hover:shadow-xl hover:shadow-blue-500/40 disabled:opacity-70 dark:shadow-none"
+              className="h-12 rounded-2xl bg-linear-to-r from-blue-600 to-indigo-700 px-8 font-black shadow-lg shadow-blue-500/25 transition-all hover:shadow-xl hover:shadow-blue-500/40 disabled:opacity-70 dark:shadow-none"
             >
               {saving ? (
                 <span className="flex items-center gap-2">

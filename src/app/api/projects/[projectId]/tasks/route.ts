@@ -1,7 +1,11 @@
+import "@/models/workpackage.model"
+
 import { NextRequest, NextResponse } from "next/server"
 
 import { verifyAccessToken } from "@/lib/auth/tokens"
 import { connectToDatabase } from "@/lib/db/connect"
+import { getNotificationEmail } from "@/lib/email/get-notification-email"
+import { dispatchNotification } from "@/lib/notifications/dispatcher"
 import { ProjectModel } from "@/models/project.model"
 import { TaskModel } from "@/models/task.model"
 import { UserModel } from "@/models/user.model"
@@ -76,6 +80,41 @@ export async function POST(
       { path: "lastModifier", select: "name avatar email" },
       { path: "workPackage", select: "title" }
     ])
+
+    const projectName = (project as any).name || (project as any).title || ""
+    const taskTitle = body.title
+
+    // Fire-and-forget: notify only the assignee if different from creator
+    if (body.assigneeId && String(body.assigneeId) !== String(user._id)) {
+      const assignee = (await UserModel.findById(body.assigneeId)
+        .select("name email notificationEmail avatar")
+        .lean()) as any
+      if (assignee?.email) {
+        dispatchNotification({
+          recipientUserId: String(assignee._id),
+          type: "task_created",
+          title: `New Task: ${taskTitle}`,
+          body: `${user.name ?? user.email} created and assigned you "${taskTitle}"${projectName ? ` in ${projectName}` : ""}.`,
+          taskId: String(task._id),
+          projectId,
+          triggeredBy: {
+            userId: String(user._id),
+            name: user.name ?? user.email,
+            avatar: user.avatar ?? undefined
+          },
+          email: {
+            recipientEmail: getNotificationEmail(assignee),
+            recipientName: assignee.name ?? assignee.email,
+            taskTitle,
+            taskDescription: body.description,
+            taskStatus: body.status || "TODO",
+            taskPriority: body.priority || "MEDIUM",
+            taskDueDate: body.dueDate ? new Date(body.dueDate).toLocaleDateString() : undefined,
+            projectName
+          }
+        }).catch(() => {})
+      }
+    }
 
     return NextResponse.json(task, {
       status: 201,

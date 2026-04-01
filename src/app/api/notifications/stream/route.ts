@@ -11,7 +11,7 @@
 import { NextRequest } from "next/server"
 
 import { verifyAccessToken } from "@/lib/auth/tokens"
-import { getUserByEmail } from "@/lib/db/user"
+import { getUserByEmail, getUserById } from "@/lib/db/user"
 import { registerSseClient } from "@/lib/notifications/sse-emitter"
 
 export const dynamic = "force-dynamic"
@@ -32,11 +32,15 @@ export async function GET(request: NextRequest) {
   }
 
   const decoded = verifyAccessToken(rawToken)
-  if (!decoded?.email) {
+  if (!decoded || (!decoded.userId && !decoded.email)) {
     return new Response("Invalid token", { status: 401 })
   }
 
-  const user = await getUserByEmail(decoded.email)
+  const user = decoded.userId
+    ? await getUserById(decoded.userId)
+    : decoded.email
+      ? await getUserByEmail(decoded.email)
+      : null
   if (!user) {
     return new Response("User not found", { status: 404 })
   }

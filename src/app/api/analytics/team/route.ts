@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
-import { verifyAccessToken } from "@/lib/auth/tokens"
+import { requireAdmin } from "@/lib/admin/guard"
 import { connectToDatabase } from "@/lib/db/connect"
 import { OrganizationModel } from "@/models/organization.model"
 import { TaskModel } from "@/models/task.model"
@@ -12,27 +12,25 @@ import { UserModel } from "@/models/user.model"
  */
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get("authorization")
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const guard = await requireAdmin(request)
+    if ("error" in guard) {
+      return guard.error
     }
-    const decoded = verifyAccessToken(authHeader.substring(7))
-    if (!decoded?.email) {return NextResponse.json({ error: "Invalid token" }, { status: 401 })}
 
     await connectToDatabase()
-    const user = await UserModel.findOne({ email: decoded.email.toLowerCase() }).lean()
-    if (!user) {return NextResponse.json({ error: "User not found" }, { status: 404 })}
-
-    const orgId = (user as any).defaultOrganizationId
-    if (!orgId) {return NextResponse.json({ error: "No organization" }, { status: 400 })}
+    const orgId = guard.orgId
 
     // ── Get org members ──────────────────────────────────────────────────
     const org = await OrganizationModel.findById(orgId).lean()
-    if (!org) {return NextResponse.json({ error: "Org not found" }, { status: 404 })}
+    if (!org) {
+      return NextResponse.json({ error: "Org not found" }, { status: 404 })
+    }
 
     const ownerIdStr = (org as any).owner.toString()
     const memberIds = new Set<string>([ownerIdStr])
-    for (const m of (org as any).members ?? []) {memberIds.add(m.userId.toString())}
+    for (const m of (org as any).members ?? []) {
+      memberIds.add(m.userId.toString())
+    }
 
     const members = await UserModel.find({
       _id: { $in: Array.from(memberIds) },

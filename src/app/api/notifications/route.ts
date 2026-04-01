@@ -22,9 +22,18 @@ async function resolveUserId(request: NextRequest): Promise<string | null> {
     return null
   }
   const decoded = verifyAccessToken(authHeader.substring(7))
-  if (!decoded?.email) {
+  if (!decoded) {
     return null
   }
+
+  if (decoded.userId) {
+    return decoded.userId
+  }
+
+  if (!decoded.email) {
+    return null
+  }
+
   const user = await getUserByEmail(decoded.email)
   return user ? String(user._id) : null
 }

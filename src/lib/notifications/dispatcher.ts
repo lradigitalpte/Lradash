@@ -6,6 +6,7 @@
  *  1. Persist the notification in MongoDB
  *  2. Push via SSE to any open browser tab (real-time)
  *  3. Send Firebase push notification if user has FCM tokens (background tab / mobile)
+ *  4. Send email notification via Gmail SMTP (fire-and-forget)
  */
 
 import type { NotificationType } from "@/models/notification.model"
@@ -15,6 +16,7 @@ import {
   getUserFcmTokens,
   type CreateNotificationInput
 } from "@/lib/db/notification"
+import { sendTaskEmail } from "@/lib/email/send-task-email"
 import { emitToUser } from "@/lib/notifications/sse-emitter"
 
 export interface DispatchNotificationInput {
@@ -29,6 +31,20 @@ export interface DispatchNotificationInput {
     userId: string
     name: string
     avatar?: string
+  }
+  /** Optional email-specific fields for richer email content */
+  email?: {
+    recipientEmail: string
+    recipientName: string
+    taskTitle: string
+    taskDescription?: string
+    taskStatus?: string
+    taskPriority?: string
+    taskDueDate?: string
+    projectName?: string
+    changes?: string
+    actionUrl?: string
+    actionLabel?: string
   }
 }
 
@@ -52,6 +68,29 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
     // 3. Firebase push notification (only if user is NOT currently connected via SSE)
     //    We attempt FCM regardless – the browser will deduplicate if the tab is open
     await sendFirebasePush(input.recipientUserId, input.title, input.body, input.taskId)
+
+    // 4. Email notification (fire-and-forget)
+    if (input.email?.recipientEmail) {
+      sendTaskEmail({
+        to: input.email.recipientEmail,
+        recipientName: input.email.recipientName,
+        type: input.type,
+        taskTitle: input.email.taskTitle,
+        taskDescription: input.email.taskDescription,
+        taskStatus: input.email.taskStatus,
+        taskPriority: input.email.taskPriority,
+        taskDueDate: input.email.taskDueDate,
+        projectName: input.email.projectName,
+        taskId: input.taskId || "",
+        triggeredByName: input.triggeredBy.name,
+        triggeredByAvatar: input.triggeredBy.avatar,
+        changes: input.email.changes,
+        actionUrl: input.email.actionUrl,
+        actionLabel: input.email.actionLabel
+      }).catch((err) => {
+        console.error("[Email] fire-and-forget error:", err)
+      })
+    }
   } catch (err) {
     console.error("[dispatchNotification] Error:", err)
   }
@@ -79,7 +118,7 @@ async function sendFirebasePush(
     const { getMessaging } = await import("firebase-admin/messaging")
     const messaging = getMessaging()
     const results = await Promise.allSettled(
-      tokens.map( async (token) =>
+      tokens.map(async (token) =>
         messaging.send({
           token,
           notification: { title, body },

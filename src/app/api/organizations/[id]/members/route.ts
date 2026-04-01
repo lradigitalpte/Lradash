@@ -5,6 +5,7 @@ import { verifyAccessToken } from "@/lib/auth/tokens"
 import { connectToDatabase } from "@/lib/db/connect"
 import { OrganizationModel } from "@/models/organization.model"
 import { UserModel } from "@/models/user.model"
+import { UserRole } from "@/types/dbInterface"
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -43,7 +44,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // 2. Parse body
-    const { email, password, name, role = "MEMBER" } = await request.json()
+    const { email, password, name, role: requestedRole = "MEMBER" } = await request.json()
+
+    const normalizedRole = String(requestedRole ?? "MEMBER").toUpperCase()
+    const allowedRoles = new Set<UserRole>([UserRole.MEMBER, UserRole.ADMIN, UserRole.OWNER])
+    const safeRole = allowedRoles.has(normalizedRole as UserRole)
+      ? (normalizedRole as UserRole)
+      : UserRole.MEMBER
+
+    // Only OWNER can grant elevated org roles.
+    const requesterIsOwner = requesterMember.role === "OWNER"
+    const finalRole: UserRole = requesterIsOwner ? safeRole : UserRole.MEMBER
 
     if (!email || !password || !name) {
       return NextResponse.json({ error: "Email, password, and name are required" }, { status: 400 })
@@ -78,7 +89,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // 4. Add user to organization
     org.members.push({
       userId: user._id,
-      role: role,
+      role: finalRole,
       joinedAt: new Date()
     })
 

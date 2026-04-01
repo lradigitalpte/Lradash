@@ -12,7 +12,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const token = authHeader.substring(7)
     const decoded = verifyAccessToken(token)
-    if (!decoded || !decoded.email) {
+    if (!decoded || (!decoded.userId && !decoded.email)) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
@@ -37,7 +37,7 @@ export async function DELETE(
 
     const token = authHeader.substring(7)
     const decoded = verifyAccessToken(token)
-    if (!decoded || !decoded.email) {
+    if (!decoded || (!decoded.userId && !decoded.email)) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 

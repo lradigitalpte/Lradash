@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { verifyAccessToken } from "@/lib/auth/tokens"
 import { saveFcmToken } from "@/lib/db/notification"
-import { getUserByEmail } from "@/lib/db/user"
+import { getUserByEmail, getUserById } from "@/lib/db/user"
 
 export async function POST(request: NextRequest) {
   const authHeader = request.headers.get("authorization")
@@ -17,11 +17,15 @@ export async function POST(request: NextRequest) {
   }
 
   const decoded = verifyAccessToken(authHeader.substring(7))
-  if (!decoded?.email) {
+  if (!decoded || (!decoded.userId && !decoded.email)) {
     return NextResponse.json({ error: "Invalid token" }, { status: 401 })
   }
 
-  const user = await getUserByEmail(decoded.email)
+  const user = decoded.userId
+    ? await getUserById(decoded.userId)
+    : decoded.email
+      ? await getUserByEmail(decoded.email)
+      : null
   if (!user) {
     return NextResponse.json({ error: "User not found" }, { status: 404 })
   }

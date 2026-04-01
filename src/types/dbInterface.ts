@@ -36,6 +36,8 @@ export interface User {
   email: string
   name: string
   avatar?: string
+  passwordHash?: string
+  notificationEmail?: string
   defaultOrganizationId?: string
   providers?: {
     google?: { id: string }
@@ -47,6 +49,9 @@ export interface User {
     emailNotifications: boolean
   }
   emailVerified?: Date
+  emailVerificationToken?: string
+  passwordResetToken?: string
+  passwordResetExpires?: Date
   role?: string
   status: "ACTIVE" | "INACTIVE" | "SUSPENDED"
   createdAt: Date
@@ -252,6 +257,34 @@ export interface Report {
   year: number
   status: ReportStatus
   fileType?: ReportFileType
+  fileUrl?: string
+  fileName?: string
+  fileSize?: string
+  createdAt: Date
+  updatedAt: Date
+  deletedAt?: Date
+}
+
+// ========== MINUTES TYPES ==========
+export enum MinutesFileType {
+  PPT = "ppt",
+  PDF = "pdf",
+  DOC = "doc",
+  TXT = "txt",
+  MD = "md",
+  XLS = "xls",
+  LINK = "link"
+}
+
+export interface Minutes {
+  _id: string
+  title: string
+  description?: string
+  organizationId: string
+  submittedBy: UserInfo
+  submittedAt: Date
+  meetingDate?: Date
+  fileType?: MinutesFileType
   fileUrl?: string
   fileName?: string
   fileSize?: string

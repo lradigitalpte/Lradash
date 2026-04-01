@@ -5,6 +5,7 @@ export type NotificationType =
   | "task_updated"
   | "task_assigned"
   | "task_completed"
+  | "task_deadline_reminder"
   | "status_change"
   | "mention"
   | "comment_reply"
@@ -49,6 +50,7 @@ const notificationSchema = new mongoose.Schema(
         "task_updated",
         "task_assigned",
         "task_completed",
+        "task_deadline_reminder",
         "status_change",
         "mention",
         "comment_reply",
@@ -130,8 +132,14 @@ function isNotificationModel(model: any): model is Model<any> {
 }
 
 function getNotificationModel(): Model<any> {
-  if (mongoose.models.Notification) {
-    return mongoose.models.Notification
+  const existingNotificationModel = mongoose.models.Notification as Model<any> | undefined
+  if (existingNotificationModel) {
+    const enumValues = existingNotificationModel.schema.path("type")?.enumValues || []
+    if (!enumValues.includes("task_deadline_reminder")) {
+      mongoose.deleteModel("Notification")
+      return mongoose.model("Notification", notificationSchema)
+    }
+    return existingNotificationModel
   }
   return mongoose.model("Notification", notificationSchema)
 }

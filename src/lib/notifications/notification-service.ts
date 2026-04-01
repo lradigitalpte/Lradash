@@ -7,6 +7,12 @@
 
 import { Types } from "mongoose"
 
+import { connectToDatabase } from "@/lib/db/connect"
+import { createNotification } from "@/lib/db/notification"
+import { getNotificationEmail } from "@/lib/email/get-notification-email"
+import { dispatchNotification } from "@/lib/notifications/dispatcher"
+import { UserModel } from "@/models/user.model"
+
 export interface NotificationPayload {
   userId: Types.ObjectId | string
   type: "mention" | "comment_reply" | "task_assigned"
@@ -44,13 +50,6 @@ export async function sendMentionNotifications(
   payload: NotificationPayload,
   notificationLog?: (log: Partial<NotificationLog>) => Promise<void>
 ) {
-  console.log("📧 Processing notifications for mentions:", {
-    userId: payload.userId,
-    taskId: payload.taskId,
-    type: payload.type,
-    methods: payload.methods
-  })
-
   const results: any = {
     email: { status: "pending" as const, error: null },
     push: { status: "pending" as const, error: null },
@@ -58,83 +57,65 @@ export async function sendMentionNotifications(
   }
 
   try {
-    // EMAIL NOTIFICATION
-    if (payload.methods.includes("email")) {
-      try {
-        // TODO: Integrate with email provider (SendGrid, AWS SES, etc.)
-        // const emailResult = await sendEmailNotification(payload);
-        results.email.status = "pending"
-        console.log("📨 Email notification queued for:", payload.userId)
-
-        // Log the notification attempt
-        if (notificationLog) {
-          await notificationLog({
-            userId: payload.userId,
-            type: payload.type,
-            method: "email",
-            status: "pending",
-            taskId: payload.taskId,
-            commentId: payload.commentId,
-            retryCount: 0,
-            createdAt: new Date()
-          })
-        }
-      } catch (error: any) {
-        results.email = { status: "failed" as any, error: error.message }
-        console.error("Failed to queue email notification:", error)
+    if (String(payload.userId) === payload.mentionedByUser.id) {
+      return {
+        success: true,
+        results,
+        message: "Skipped self-mention notification"
       }
     }
 
-    // PUSH NOTIFICATION
-    if (payload.methods.includes("push")) {
-      try {
-        // TODO: Integrate with push provider (Firebase Cloud Messaging, OneSignal, etc.)
-        // const pushResult = await sendPushNotification(payload);
-        results.push.status = "pending"
-        console.log("🔔 Push notification queued for:", payload.userId)
+    await connectToDatabase()
+    const recipient = await UserModel.findById(payload.userId)
+      .select("name email notificationEmail avatar")
+      .lean()
 
-        if (notificationLog) {
-          await notificationLog({
-            userId: payload.userId,
-            type: payload.type,
-            method: "push",
-            status: "pending",
-            taskId: payload.taskId,
-            commentId: payload.commentId,
-            retryCount: 0,
-            createdAt: new Date()
-          })
-        }
-      } catch (error: any) {
-        results.push = { status: "failed" as any, error: error.message }
-        console.error("Failed to queue push notification:", error)
-      }
+    if (!recipient) {
+      throw new Error("Mention recipient not found")
     }
 
-    // IN-APP NOTIFICATION
-    if (payload.methods.includes("in-app")) {
-      try {
-        // Store in-app notification in database
-        // This will be fetched by the app when user logs in or via WebSocket
-        results.inApp.status = "pending"
-        console.log("🔵 In-app notification queued for:", payload.userId)
+    const commentPreview =
+      payload.commentText.length > 160
+        ? `${payload.commentText.slice(0, 157)}...`
+        : payload.commentText
 
-        if (notificationLog) {
-          await notificationLog({
-            userId: payload.userId,
-            type: payload.type,
-            method: "in-app",
-            status: "pending",
-            taskId: payload.taskId,
-            commentId: payload.commentId,
-            retryCount: 0,
-            createdAt: new Date()
-          })
-        }
-      } catch (error: any) {
-        results.inApp = { status: "failed" as any, error: error.message }
-        console.error("Failed to queue in-app notification:", error)
-      }
+    await dispatchNotification({
+      recipientUserId: String(payload.userId),
+      type: payload.type,
+      title: `Mentioned in ${payload.taskTitle}`,
+      body: `${payload.mentionedByUser.name} mentioned you: ${commentPreview}`,
+      taskId: payload.taskId,
+      triggeredBy: {
+        userId: payload.mentionedByUser.id,
+        name: payload.mentionedByUser.name,
+        avatar: payload.mentionedByUser.avatar
+      },
+      email: payload.methods.includes("email")
+        ? {
+            recipientEmail: getNotificationEmail(recipient as any),
+            recipientName: (recipient as any).name ?? (recipient as any).email,
+            taskTitle: payload.taskTitle,
+            taskDescription: payload.commentText,
+            actionLabel: "Open Task Discussion →"
+          }
+        : undefined
+    })
+
+    results.inApp.status = payload.methods.includes("in-app") ? "sent" : "pending"
+    results.email.status = payload.methods.includes("email") ? "sent" : "pending"
+
+    if (notificationLog) {
+      await notificationLog({
+        userId: payload.userId,
+        type: payload.type,
+        method: payload.methods.includes("email") ? "email" : "in-app",
+        status: "sent",
+        taskId: payload.taskId,
+        commentId: payload.commentId,
+        retryCount: 0,
+        createdAt: new Date(),
+        sentAt: new Date()
+      })
     }
 
     return {

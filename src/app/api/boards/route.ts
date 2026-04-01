@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { verifyAccessToken } from "@/lib/auth/tokens"
 import { fetchBoardsFromDb, createBoardInDb } from "@/lib/db/board"
+import { getUserByEmail, getUserById } from "@/lib/db/user"
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,12 +16,22 @@ export async function GET(request: NextRequest) {
     const token = authHeader.substring(7)
     const decoded = verifyAccessToken(token)
 
-    if (!decoded || !decoded.email) {
+    if (!decoded || (!decoded.userId && !decoded.email)) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
+    const user = decoded.userId
+      ? await getUserById(decoded.userId)
+      : decoded.email
+        ? await getUserByEmail(decoded.email)
+        : null
+
+    if (!user?.email) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+
     // Use email directly from token (same pattern as tasks API)
-    const boards = await fetchBoardsFromDb(decoded.email)
+    const boards = await fetchBoardsFromDb(user.email)
 
     return NextResponse.json({ success: true, boards })
   } catch (error) {
@@ -39,8 +50,18 @@ export async function POST(request: NextRequest) {
 
     const token = authHeader.substring(7)
     const decoded = verifyAccessToken(token)
-    if (!decoded || !decoded.email) {
+    if (!decoded || (!decoded.userId && !decoded.email)) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+    }
+
+    const user = decoded.userId
+      ? await getUserById(decoded.userId)
+      : decoded.email
+        ? await getUserByEmail(decoded.email)
+        : null
+
+    if (!user?.email) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
     const body = await request.json()
@@ -53,7 +74,7 @@ export async function POST(request: NextRequest) {
     // Use email directly from token (same pattern as tasks API)
     const board = await createBoardInDb({
       title,
-      userEmail: decoded.email,
+      userEmail: user.email,
       description
     })
 

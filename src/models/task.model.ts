@@ -95,6 +95,7 @@ const taskSchema = new mongoose.Schema(
         createdAt: { type: Date, default: Date.now }
       }
     ],
+    deadlineReminder12hSentAt: { type: Date },
     completionSubmissions: [
       {
         submittedBy: {
@@ -158,7 +159,17 @@ function isTaskModel(model: any): model is Model<TaskType> {
 }
 
 function getTaskModel(): Model<TaskType> {
-  return (mongoose.models.Task as Model<TaskType>) || mongoose.model<TaskType>("Task", taskSchema)
+  const existingTaskModel = mongoose.models.Task as Model<TaskType> | undefined
+
+  if (existingTaskModel) {
+    if (!existingTaskModel.schema.path("deadlineReminder12hSentAt")) {
+      mongoose.deleteModel("Task")
+      return mongoose.model<TaskType>("Task", taskSchema)
+    }
+    return existingTaskModel
+  }
+
+  return mongoose.model<TaskType>("Task", taskSchema)
 }
 
 const TaskModel = getTaskModel()

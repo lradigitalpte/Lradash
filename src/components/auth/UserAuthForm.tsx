@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import useAuthForm from "@/hooks/useAuthForm"
+import { Link } from "@/i18n/navigation"
 
 export default function UserAuthForm() {
   const { form, loading, onSubmit } = useAuthForm()
@@ -83,6 +84,15 @@ export default function UserAuthForm() {
               </FormItem>
             )}
           />
+        </div>
+
+        <div className="-mt-3 flex justify-end">
+          <Link
+            href="/forgot-password"
+            className="text-[11px] font-black tracking-widest text-blue-400 uppercase hover:text-blue-300"
+          >
+            Forgot Password?
+          </Link>
         </div>
 
         <Button

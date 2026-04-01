@@ -1,9 +1,37 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { verifyAccessToken } from "@/lib/auth/tokens"
+import { connectToDatabase } from "@/lib/db/connect"
 import { updateTaskInDb, deleteTaskInDb, getTaskById } from "@/lib/db/task"
-import { getUserByEmail } from "@/lib/db/user"
+import { getUserByEmail, getUserById } from "@/lib/db/user"
+import { getNotificationEmail } from "@/lib/email/get-notification-email"
 import { dispatchNotification } from "@/lib/notifications/dispatcher"
+import { UserModel } from "@/models/user.model"
+
+function getEntityId(value: unknown): string | null {
+  if (!value) {
+    return null
+  }
+
+  if (typeof value === "string") {
+    return value
+  }
+
+  if (typeof value === "object") {
+    const entity = value as { _id?: unknown; id?: unknown; toString?: () => string }
+    if (entity._id) {
+      return String(entity._id)
+    }
+    if (entity.id) {
+      return String(entity.id)
+    }
+    if (entity.toString && entity.toString() !== "[object Object]") {
+      return entity.toString()
+    }
+  }
+
+  return String(value)
+}
 
 /**
  * GET /api/tasks/[id]
@@ -43,17 +71,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    let userEmail = decoded.email
-    if (!userEmail) {
-      const { UserModel } = await import("@/models/user.model")
-      const user = await UserModel.findById(decoded.userId).lean()
-      if (user) {
-        userEmail = user.email
-      }
-    }
+    const user = decoded.userId
+      ? await getUserById(decoded.userId)
+      : decoded.email
+        ? await getUserByEmail(decoded.email)
+        : null
 
+    const userEmail = user?.email
     if (!userEmail) {
-      return NextResponse.json({ error: "User email not found" }, { status: 401 })
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
     const body = await request.json()
@@ -61,35 +87,121 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const updatedTask = await updateTaskInDb(taskId, userEmail, body)
 
-    // Fire-and-forget notification
-    const updater = await getUserByEmail(userEmail)
-    if (updater) {
-      // Determine what changed for a meaningful message
+    // Fire-and-forget notifications
+    if (user) {
       const changedFields = Object.keys(body).filter((k) => k !== "updatedAt")
       const changeDesc =
         changedFields.length === 1
           ? `${changedFields[0]} was updated`
           : `${changedFields.length} fields were updated`
 
-      const notifType =
-        body.status === "DONE" || body.status === "COMPLETED"
-          ? ("task_completed" as const)
-          : body.assignee
-            ? ("task_assigned" as const)
-            : ("task_updated" as const)
+      const taskTitle = (updatedTask as any)?.title ?? taskId
+      const isCompleting = body.status === "DONE" || body.status === "COMPLETED"
+      const nextAssigneeId = getEntityId(body.assigneeId ?? body.assignee)
+      const isAssigning = !!nextAssigneeId
 
+      const notifType = isCompleting
+        ? ("task_completed" as const)
+        : isAssigning
+          ? ("task_assigned" as const)
+          : ("task_updated" as const)
+
+      // Notify the current user (self)
       dispatchNotification({
-        recipientUserId: String(updater._id),
+        recipientUserId: String(user._id),
         type: notifType,
-        title: `Task Updated: ${(updatedTask as any)?.title ?? taskId}`,
-        body: `${changeDesc} by ${updater.name ?? userEmail}.`,
+        title: `Task Updated: ${taskTitle}`,
+        body: `${changeDesc} by ${user.name ?? userEmail}.`,
         taskId,
         triggeredBy: {
-          userId: String(updater._id),
-          name: updater.name ?? userEmail,
-          avatar: updater.avatar ?? undefined
+          userId: String(user._id),
+          name: user.name ?? userEmail,
+          avatar: user.avatar ?? undefined
         }
       }).catch(() => {})
+
+      // Email + in-app notify the ASSIGNEE when a task is assigned to them
+      if (isAssigning && nextAssigneeId !== String(user._id)) {
+        try {
+          await connectToDatabase()
+          const assignee = (await UserModel.findById(nextAssigneeId)
+            .select("name email notificationEmail avatar")
+            .lean()) as any
+          if (assignee?.email) {
+            dispatchNotification({
+              recipientUserId: String(assignee._id),
+              type: "task_assigned",
+              title: `Task Assigned: ${taskTitle}`,
+              body: `${user.name ?? userEmail} assigned you to "${taskTitle}".`,
+              taskId,
+              triggeredBy: {
+                userId: String(user._id),
+                name: user.name ?? userEmail,
+                avatar: user.avatar ?? undefined
+              },
+              email: {
+                recipientEmail: getNotificationEmail(assignee),
+                recipientName: assignee.name ?? assignee.email,
+                taskTitle,
+                taskDescription: (updatedTask as any)?.description,
+                taskStatus: (updatedTask as any)?.status,
+                taskPriority: (updatedTask as any)?.priority,
+                taskDueDate: (updatedTask as any)?.dueDate
+                  ? new Date((updatedTask as any).dueDate).toLocaleDateString()
+                  : undefined
+              }
+            }).catch(() => {})
+          }
+        } catch (err) {
+          console.error("[Notify assignee] Error:", err)
+        }
+      }
+
+      // Email + in-app notify the CREATOR when someone else updates or completes their task
+      const creatorId = getEntityId((updatedTask as any)?.creator)
+      if (creatorId && creatorId !== String(user._id)) {
+        try {
+          await connectToDatabase()
+          const creator = (await UserModel.findById(creatorId)
+            .select("name email notificationEmail avatar")
+            .lean()) as any
+          if (creator?.email) {
+            const creatorBody = isCompleting
+              ? `${user.name ?? userEmail} completed a task you assigned.`
+              : `${changeDesc} by ${user.name ?? userEmail}.`
+            const creatorChanges = isCompleting
+              ? `Task completed by ${user.name ?? userEmail}`
+              : `${changeDesc} by ${user.name ?? userEmail}`
+
+            dispatchNotification({
+              recipientUserId: creatorId,
+              type: notifType,
+              title: isCompleting ? `Task Completed: ${taskTitle}` : `Task Updated: ${taskTitle}`,
+              body: creatorBody,
+              taskId,
+              triggeredBy: {
+                userId: String(user._id),
+                name: user.name ?? userEmail,
+                avatar: user.avatar ?? undefined
+              },
+              email: {
+                recipientEmail: getNotificationEmail(creator),
+                recipientName: creator.name ?? creator.email,
+                taskTitle,
+                taskDescription: (updatedTask as any)?.description,
+                taskStatus: (updatedTask as any)?.status,
+                taskPriority: (updatedTask as any)?.priority,
+                taskDueDate: (updatedTask as any)?.dueDate
+                  ? new Date((updatedTask as any).dueDate).toLocaleDateString()
+                  : undefined,
+                changes: creatorChanges
+              }
+            }).catch(() => {})
+          }
+        } catch (err) {
+          console.error("[Notify creator] Error:", err)
+        }
+      }
     }
 
     return NextResponse.json(updatedTask)

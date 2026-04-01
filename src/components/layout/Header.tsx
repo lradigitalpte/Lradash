@@ -1,7 +1,20 @@
 "use client"
 
 import { formatDistanceToNow } from "date-fns"
-import { Bell, Search, Zap, Activity, CheckCheck } from "lucide-react"
+import {
+  Bell,
+  Search,
+  CheckCheck,
+  UserPlus,
+  Edit3,
+  CheckCircle2,
+  PlusCircle,
+  MessageSquare,
+  AtSign,
+  Megaphone,
+  RefreshCw
+} from "lucide-react"
+import { useRouter } from "next/navigation"
 import { useState } from "react"
 
 import { SearchInput } from "@/components/common"
@@ -27,6 +40,55 @@ import { UserNav } from "./UserNav"
 export default function Header() {
   const [searchOpen, setSearchOpen] = useState(false)
   const { notifications, unreadCount, loading, markRead, markAllRead } = useNotifications()
+  const router = useRouter()
+
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case "task_assigned":
+        return <UserPlus className="h-4 w-4 text-violet-500" />
+      case "task_updated":
+        return <Edit3 className="h-4 w-4 text-amber-500" />
+      case "task_completed":
+        return <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+      case "task_deadline_reminder":
+        return <Bell className="h-4 w-4 text-amber-500" />
+      case "task_created":
+        return <PlusCircle className="h-4 w-4 text-blue-500" />
+      case "status_change":
+        return <RefreshCw className="h-4 w-4 text-orange-500" />
+      case "mention":
+        return <AtSign className="h-4 w-4 text-pink-500" />
+      case "comment_reply":
+        return <MessageSquare className="h-4 w-4 text-cyan-500" />
+      case "announcement_created":
+        return <Megaphone className="h-4 w-4 text-indigo-500" />
+      default:
+        return <Bell className="h-4 w-4 text-slate-400" />
+    }
+  }
+
+  const getNotificationAccent = (type: string) => {
+    switch (type) {
+      case "task_assigned":
+        return "border-l-violet-500"
+      case "task_updated":
+        return "border-l-amber-500"
+      case "task_completed":
+        return "border-l-emerald-500"
+      case "task_deadline_reminder":
+        return "border-l-amber-500"
+      case "task_created":
+        return "border-l-blue-500"
+      case "status_change":
+        return "border-l-orange-500"
+      case "mention":
+        return "border-l-pink-500"
+      case "comment_reply":
+        return "border-l-cyan-500"
+      default:
+        return "border-l-slate-300"
+    }
+  }
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-200/60 bg-white/60 backdrop-blur-xl supports-backdrop-filter:bg-white/60 dark:border-slate-800/60 dark:bg-slate-950/60">
@@ -136,13 +198,26 @@ export default function Header() {
               <DropdownMenuSeparator className="mx-2 opacity-50" />
               <div className="custom-scrollbar max-h-100 overflow-y-auto px-1 py-2">
                 {loading && (
-                  <div className="py-8 text-center text-[10px] font-black tracking-widest text-slate-400 uppercase">
-                    Loading…
+                  <div className="flex flex-col items-center gap-2 py-10">
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+                    <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                      Loading notifications…
+                    </span>
                   </div>
                 )}
                 {!loading && notifications.length === 0 && (
-                  <div className="py-8 text-center text-[10px] font-black tracking-widest text-slate-400 uppercase">
-                    No notifications
+                  <div className="flex flex-col items-center gap-3 py-10">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800">
+                      <Bell className="h-5 w-5 text-slate-300 dark:text-slate-600" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                        No notifications yet
+                      </p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                        You&apos;re all caught up!
+                      </p>
+                    </div>
                   </div>
                 )}
                 {!loading &&
@@ -150,38 +225,66 @@ export default function Header() {
                     <DropdownMenuItem
                       key={notification.id}
                       className={cn(
-                        "mb-1 flex cursor-pointer flex-col items-start gap-2 rounded-2xl p-4 transition-all",
+                        "mb-1.5 flex cursor-pointer flex-col items-start gap-2 rounded-xl border-l-[3px] p-3.5 transition-all",
+                        getNotificationAccent(notification.type),
                         !notification.read
-                          ? "bg-slate-50 dark:bg-slate-800/50"
-                          : "hover:bg-slate-50 dark:hover:bg-slate-800/30"
+                          ? "bg-blue-50/60 dark:bg-blue-950/20"
+                          : "border-l-transparent hover:bg-slate-50 dark:hover:bg-slate-800/30"
                       )}
                       onClick={() => {
                         if (!notification.read) {
                           markRead(notification.id)
                         }
+                        if (notification.taskId) {
+                          router.push(`/dashboard/tasks/${notification.taskId}`)
+                        }
                       }}
                     >
-                      <div className="flex w-full items-start justify-between gap-4">
-                        <div className="flex items-center gap-2">
-                          {!notification.read && (
-                            <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.6)]" />
-                          )}
-                          <span className="text-[11px] font-black tracking-tight text-slate-900 uppercase dark:text-white">
-                            {notification.title}
-                          </span>
+                      <div className="flex w-full items-start gap-3">
+                        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm dark:bg-slate-800">
+                          {getNotificationIcon(notification.type)}
                         </div>
-                        <span className="text-[9px] font-black tracking-widest whitespace-nowrap text-slate-400 uppercase">
-                          {notification.createdAt &&
-                          !isNaN(new Date(notification.createdAt).getTime())
-                            ? formatDistanceToNow(new Date(notification.createdAt), {
-                                addSuffix: true
-                              })
-                            : "recently"}
-                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <span
+                              className={cn(
+                                "line-clamp-1 text-[12px] leading-tight",
+                                !notification.read
+                                  ? "font-bold text-slate-900 dark:text-white"
+                                  : "font-semibold text-slate-700 dark:text-slate-300"
+                              )}
+                            >
+                              {notification.title}
+                            </span>
+                            {!notification.read && (
+                              <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-blue-600 shadow-[0_0_6px_rgba(37,99,235,0.5)]" />
+                            )}
+                          </div>
+                          <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                            {notification.body}
+                          </p>
+                          <div className="mt-1.5 flex items-center gap-2">
+                            {notification.triggeredBy?.name && (
+                              <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">
+                                {notification.triggeredBy.name}
+                              </span>
+                            )}
+                            {notification.triggeredBy?.name && (
+                              <span className="text-[8px] text-slate-300 dark:text-slate-600">
+                                &bull;
+                              </span>
+                            )}
+                            <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                              {notification.createdAt &&
+                              !isNaN(new Date(notification.createdAt).getTime())
+                                ? formatDistanceToNow(new Date(notification.createdAt), {
+                                    addSuffix: true
+                                  })
+                                : "recently"}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <p className="pl-1 text-xs leading-relaxed font-medium text-slate-500 italic dark:text-slate-400">
-                        {notification.body}
-                      </p>
                     </DropdownMenuItem>
                   ))}
               </div>

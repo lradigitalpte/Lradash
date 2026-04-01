@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { verifyAccessToken } from "@/lib/auth/tokens"
 import { getAllUserTasks, createPersonalTask } from "@/lib/db/task"
-import { getUserByEmail } from "@/lib/db/user"
-import { dispatchNotification } from "@/lib/notifications/dispatcher"
+import { getUserByEmail, getUserById } from "@/lib/db/user"
 
 /**
  * GET /api/tasks
@@ -22,14 +21,27 @@ export async function GET(request: NextRequest) {
     const token = authHeader.substring(7)
     const decoded = verifyAccessToken(token)
 
-    if (!decoded || !decoded.email) {
+    if (!decoded || (!decoded.userId && !decoded.email)) {
       return NextResponse.json(
         { error: "Invalid token" },
         { status: 401, headers: { "Content-Type": "application/json" } }
       )
     }
 
-    const tasks = await getAllUserTasks(decoded.email)
+    const user = decoded.userId
+      ? await getUserById(decoded.userId)
+      : decoded.email
+        ? await getUserByEmail(decoded.email)
+        : null
+
+    if (!user?.email) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404, headers: { "Content-Type": "application/json" } }
+      )
+    }
+
+    const tasks = await getAllUserTasks(user.email)
 
     return NextResponse.json(tasks, {
       status: 200,
@@ -61,10 +73,23 @@ export async function POST(request: NextRequest) {
     const token = authHeader.substring(7)
     const decoded = verifyAccessToken(token)
 
-    if (!decoded || !decoded.email) {
+    if (!decoded || (!decoded.userId && !decoded.email)) {
       return NextResponse.json(
         { error: "Invalid token" },
         { status: 401, headers: { "Content-Type": "application/json" } }
+      )
+    }
+
+    const user = decoded.userId
+      ? await getUserById(decoded.userId)
+      : decoded.email
+        ? await getUserByEmail(decoded.email)
+        : null
+
+    if (!user?.email) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404, headers: { "Content-Type": "application/json" } }
       )
     }
 
@@ -79,32 +104,13 @@ export async function POST(request: NextRequest) {
     }
 
     const task = await createPersonalTask(
-      decoded.email,
+      user.email,
       title,
       description,
       dueDate ? new Date(dueDate) : undefined,
       priority || "MEDIUM",
       status || "TODO"
     )
-
-    // Fire-and-forget notification to the task creator
-    const creator = await getUserByEmail(decoded.email)
-    if (creator) {
-      dispatchNotification({
-        recipientUserId: String(creator._id),
-        type: "task_created",
-        title: `Task Created: ${title}`,
-        body: description
-          ? `${description.slice(0, 100)}${description.length > 100 ? "…" : ""}`
-          : `New task "${title}" has been created.`,
-        taskId: String(task._id),
-        triggeredBy: {
-          userId: String(creator._id),
-          name: creator.name ?? decoded.email,
-          avatar: creator.avatar ?? undefined
-        }
-      }).catch(() => {}) // don't block the response
-    }
 
     return NextResponse.json(task, {
       status: 201,

@@ -1,8 +1,12 @@
 "use server"
 
+import crypto from "crypto"
+
 import type { TokenPayload } from "./tokens"
 
 import { connectToDatabase } from "@/lib/db/connect"
+import { sendUserEmail } from "@/lib/email/send-user-email"
+import { getAppUrl } from "@/lib/url/get-app-url"
 import { OrganizationModel } from "@/models/organization.model"
 import { RefreshTokenModel } from "@/models/refreshToken.model"
 import { UserModel } from "@/models/user.model"
@@ -275,5 +279,83 @@ export async function logoutUser(
   } catch (error) {
     console.error("Logout error:", error)
     return { success: false, error: "Logout failed" }
+  }
+}
+
+export async function requestPasswordReset(
+  email: string,
+  appUrlOverride?: string
+): Promise<{ success: boolean }> {
+  try {
+    await connectToDatabase()
+
+    const normalizedEmail = email.trim().toLowerCase()
+    const user = await UserModel.findOne({ email: normalizedEmail })
+
+    if (!user) {
+      return { success: true }
+    }
+
+    const rawToken = crypto.randomBytes(32).toString("hex")
+    const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex")
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000)
+
+    user.passwordResetToken = hashedToken
+    user.passwordResetExpires = expiresAt
+    await user.save()
+
+    const appUrl = appUrlOverride || getAppUrl()
+    const resetUrl = `${appUrl}/en/reset-password?token=${rawToken}&email=${encodeURIComponent(normalizedEmail)}`
+
+    await sendUserEmail({
+      to: normalizedEmail,
+      type: "password_reset",
+      recipientName: user.name || normalizedEmail,
+      subjectEntity: "Reset your password",
+      bodyText:
+        "We received a request to reset your password. Use the link below to set a new password.",
+      actionUrl: resetUrl,
+      actionLabel: "Reset Password"
+    })
+
+    return { success: true }
+  } catch (error) {
+    console.error("Request password reset error:", error)
+    return { success: true }
+  }
+}
+
+export async function resetPassword(input: {
+  email: string
+  token: string
+  password: string
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    await connectToDatabase()
+
+    const normalizedEmail = input.email.trim().toLowerCase()
+    const hashedToken = crypto.createHash("sha256").update(input.token).digest("hex")
+
+    const user = await UserModel.findOne({
+      email: normalizedEmail,
+      passwordResetToken: hashedToken,
+      passwordResetExpires: { $gt: new Date() }
+    })
+
+    if (!user) {
+      return { success: false, error: "Reset link is invalid or has expired" }
+    }
+
+    user.passwordHash = await hashPassword(input.password)
+    user.passwordResetToken = undefined as any
+    user.passwordResetExpires = undefined as any
+    await user.save()
+
+    await RefreshTokenModel.updateMany({ userId: user._id }, { revokedAt: new Date() })
+
+    return { success: true }
+  } catch (error) {
+    console.error("Reset password error:", error)
+    return { success: false, error: "Failed to reset password" }
   }
 }

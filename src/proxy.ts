@@ -3,8 +3,12 @@ import { NextRequest, NextResponse } from "next/server"
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
 
-  // Allow auth API routes and monitor cron to pass through
-  if (pathname.startsWith("/api/auth") || pathname.startsWith("/api/monitor/cron")) {
+  // Allow auth API routes and cron endpoints to pass through
+  if (
+    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/monitor/cron") ||
+    pathname.startsWith("/api/tasks/deadline-reminders/cron")
+  ) {
     return NextResponse.next()
   }
 

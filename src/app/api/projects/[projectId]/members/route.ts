@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { verifyAccessToken } from "@/lib/auth/tokens"
 import { connectToDatabase } from "@/lib/db/connect"
+import { getNotificationEmail } from "@/lib/email/get-notification-email"
+import { sendUserEmail } from "@/lib/email/send-user-email"
+import { getAppUrl } from "@/lib/url/get-app-url"
 import { ProjectModel } from "@/models/project.model"
 import { UserModel } from "@/models/user.model"
 
@@ -81,6 +84,8 @@ export async function POST(
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
+    await connectToDatabase()
+
     let organizationId = decoded.organizationId
     // Fallback for organizationId if missing in token
     if (!organizationId) {
@@ -101,8 +106,6 @@ export async function POST(
     if (!email && !targetUserId) {
       return NextResponse.json({ error: "Email or User ID is required" }, { status: 400 })
     }
-
-    await connectToDatabase()
 
     let userToAdd
 
@@ -134,13 +137,35 @@ export async function POST(
 
     // Check if user is already a member
     const isMember = project.members.some((m: any) => m.toString() === userToAdd._id.toString())
-    if (isMember) {
+    const isOwner = project.owner?.toString() === userToAdd._id.toString()
+    if (isMember || isOwner) {
       return NextResponse.json({ error: "User is already a member" }, { status: 400 })
     }
 
     // Add user to members
     ;(project.members as any).push(userToAdd._id)
     await project.save()
+
+    try {
+      const actor = await UserModel.findById(decoded.userId).select("name email avatar").lean()
+      const projectTitle = (project as any).title || "Project"
+      const appUrl = getAppUrl(request)
+      const projectUrl = `${appUrl}/en/projects/${projectId}/team`
+
+      if (String(userToAdd._id) !== String(decoded.userId)) {
+        await sendUserEmail({
+          to: getNotificationEmail(userToAdd as any),
+          type: "project_member_added",
+          recipientName: userToAdd.name || userToAdd.email,
+          subjectEntity: projectTitle,
+          bodyText: `${(actor as any)?.name || "Someone"} added you to the project ${projectTitle}.`,
+          actionUrl: projectUrl,
+          actionLabel: "Open Project"
+        })
+      }
+    } catch (emailError) {
+      console.error("Project member email error:", emailError)
+    }
 
     return NextResponse.json({ success: true, message: "Member added successfully" })
   } catch (error: any) {

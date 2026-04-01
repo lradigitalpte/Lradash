@@ -5,7 +5,6 @@ import { verifyAccessToken } from "@/lib/auth/tokens"
 import { connectToDatabase } from "@/lib/db/connect"
 import { getUserByEmail, getUserById } from "@/lib/db/user"
 import { sendMentionNotifications } from "@/lib/notifications/notification-service"
-import { NotificationModel } from "@/models/notification.model"
 import { TaskModel } from "@/models/task.model"
 
 /**
@@ -55,7 +54,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const token = authHeader.substring(7)
     const decoded = verifyAccessToken(token)
 
-    if (!decoded || !decoded.email) {
+    if (!decoded || (!decoded.userId && !decoded.email)) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
@@ -68,7 +67,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: "Comment text is required" }, { status: 400 })
     }
 
-    const user = await getUserByEmail(decoded.email)
+    const user = decoded.userId
+      ? await getUserById(decoded.userId)
+      : decoded.email
+        ? await getUserByEmail(decoded.email)
+        : null
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
@@ -127,34 +130,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (mentions.length > 0) {
       try {
         for (const mention of mentions) {
-          await sendMentionNotifications(
-            {
-              userId: mention.userId,
-              type: "mention",
-              taskId,
-              commentId: newComment._id.toString(),
-              mentionedByUser: {
-                id: user._id.toString(),
-                name: user.name,
-                email: user.email,
-                avatar: user.avatar
-              },
-              taskTitle: task.title,
-              commentText: text.trim(),
-              methods: ["in-app"] // Start with in-app, can be extended to email/push
+          await sendMentionNotifications({
+            userId: mention.userId,
+            type: "mention",
+            taskId,
+            commentId: newComment._id.toString(),
+            mentionedByUser: {
+              id: user._id.toString(),
+              name: user.name,
+              email: user.email,
+              avatar: user.avatar
             },
-            async (log) => {
-              // Log notification in database
-              try {
-                await NotificationModel.create({
-                  ...log,
-                  triggeredBy: user._id
-                })
-              } catch (error) {
-                console.error("Failed to log notification:", error)
-              }
-            }
-          )
+            taskTitle: task.title,
+            commentText: text.trim(),
+            methods: ["in-app", "email"]
+          })
         }
       } catch (error) {
         console.error("Error sending notifications:", error)
@@ -195,7 +185,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const token = authHeader.substring(7)
     const decoded = verifyAccessToken(token)
 
-    if (!decoded || !decoded.email) {
+    if (!decoded || (!decoded.userId && !decoded.email)) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
@@ -208,7 +198,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: "Comment text is required" }, { status: 400 })
     }
 
-    const user = await getUserByEmail(decoded.email)
+    const user = decoded.userId
+      ? await getUserById(decoded.userId)
+      : decoded.email
+        ? await getUserByEmail(decoded.email)
+        : null
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
@@ -282,7 +276,7 @@ export async function DELETE(
     const token = authHeader.substring(7)
     const decoded = verifyAccessToken(token)
 
-    if (!decoded || !decoded.email) {
+    if (!decoded || (!decoded.userId && !decoded.email)) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
@@ -291,7 +285,11 @@ export async function DELETE(
     const body = await request.json()
     const { commentId } = body
 
-    const user = await getUserByEmail(decoded.email)
+    const user = decoded.userId
+      ? await getUserById(decoded.userId)
+      : decoded.email
+        ? await getUserByEmail(decoded.email)
+        : null
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }

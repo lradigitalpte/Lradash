@@ -19,7 +19,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     const token = authHeader.substring(7)
     const decoded = verifyAccessToken(token)
-    if (!decoded?.email) {
+    if (!decoded?.userId) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
@@ -72,18 +72,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const token = authHeader.substring(7)
     const decoded = verifyAccessToken(token)
-    if (!decoded?.email) {
+    if (!decoded?.userId) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
     await connectToDatabase()
 
-    const user = await UserModel.findOne({
-      email: decoded.email.toLowerCase(),
-      deletedAt: null
-    }).lean()
+    const user = await UserModel.findById(decoded.userId).lean()
 
-    if (!user) {
+    if (!user || (user as any).deletedAt) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
@@ -102,7 +99,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       _id: subId,
       submittedBy: {
         userId: (user as any)._id,
-        name: (user as any).name || decoded.email,
+        name: (user as any).name || (user as any).email,
         email: (user as any).email,
         avatar: (user as any).avatar || ""
       },

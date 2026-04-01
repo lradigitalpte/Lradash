@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     const token = authHeader.substring(7)
     const decoded = verifyAccessToken(token)
 
-    if (!decoded || !decoded.email) {
+    if (!decoded || (!decoded.userId && !decoded.email)) {
       console.error("❌ User search: Invalid token")
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
@@ -25,7 +25,9 @@ export async function GET(req: NextRequest) {
     const searchParams = req.nextUrl.searchParams
     const username = searchParams.get("username") || ""
 
-    console.log(`🔍 User search: query="${username}" by ${decoded.email}`)
+    console.log(
+      `🔍 User search: query="${username}" by ${decoded.email ?? decoded.userId ?? "unknown"}`
+    )
 
     let query = {}
     if (username && username.trim()) {

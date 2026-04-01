@@ -24,7 +24,7 @@ import { getUserByEmail } from "./db/user"
 interface State {
   userEmail: string | null
   userId: string | null
-  setUserInfo: (email: string) => Promise<void>
+  setUserInfo: (email: string, userId?: string | null) => Promise<void>
   projects: Project[]
   isLoadingProjects: boolean
   fetchProjects: (boardId: string) => Promise<void>
@@ -74,15 +74,23 @@ export const useTaskStore = create<State>()(
       userId: null,
       projects: [] as Project[],
       isLoadingProjects: false,
-      setUserInfo: async (email: string) => {
+      setUserInfo: async (email: string, userId?: string | null) => {
         try {
+          if (userId) {
+            set({
+              userEmail: email,
+              userId,
+              projects: [],
+              currentBoardId: null
+            })
+            return
+          }
+
           const user = await getUserByEmail(email)
           if (!user) {
             console.error("User not found")
             return
           }
-          // Use user._id (MongoDB ObjectId) converted to string, not user.id which is undefined
-          console.log("[setUserInfo] Setting userId:", user._id)
           set({
             userEmail: email,
             userId: (user._id as any).toString(),

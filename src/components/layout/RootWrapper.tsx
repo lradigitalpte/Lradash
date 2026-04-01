@@ -24,14 +24,7 @@ export default function RootWrapper({ children }: { children: React.ReactNode })
         const response = await apiClient.get("/api/auth/me")
         if (response.ok && mounted) {
           const user = await response.json()
-          console.log("[RootWrapper] Initializing user:", user.email)
-          // Serialize user to plain object to avoid MongoDB ObjectId issues
-          const plainUser = {
-            email: user.email,
-            name: user.name,
-            id: user._id?.toString ? user._id.toString() : user._id
-          }
-          await setUserInfo(plainUser.email)
+          await setUserInfo(user.email, user.id ?? null)
         }
       } catch (error) {
         console.error("[RootWrapper] Failed to initialize user:", error)

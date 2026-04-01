@@ -47,6 +47,11 @@ interface NavItem {
   accentColor?: string
 }
 
+interface NavGroup {
+  label: string
+  items: NavItem[]
+}
+
 export default function AppSidebar() {
   const t = useTranslations("sidebar")
   const pathname = usePathname()
@@ -54,6 +59,10 @@ export default function AppSidebar() {
   const isAdmin = useAdminAccess()
   const [myBoardsOpen, setMyBoardsOpen] = useState(true)
   const [teamBoardsOpen, setTeamBoardsOpen] = useState(true)
+  const [workspaceNavOpen, setWorkspaceNavOpen] = useState(true)
+  const [insightsNavOpen, setInsightsNavOpen] = useState(true)
+  const [adminNavOpen, setAdminNavOpen] = useState(true)
+
   const baseNavItems: NavItem[] = [
     { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard, accentColor: "blue" },
     { title: "Workspace", href: "/boards", icon: Home, accentColor: "indigo" },
@@ -61,17 +70,35 @@ export default function AppSidebar() {
     { title: "Tasks", href: "/tasks", icon: CheckSquare, accentColor: "emerald" },
     { title: "Calendar", href: "/calendar", icon: CalendarDays, accentColor: "orange" },
     { title: "Reports", href: "/reports", icon: FileText, accentColor: "amber" },
+    { title: "Minutes", href: "/minutes", icon: FileText, accentColor: "indigo" },
     { title: "Monitor", href: "/monitor", icon: Activity, accentColor: "red" }
   ]
 
-  const mainNavItems: NavItem[] = [
-    ...baseNavItems,
+  const dashboardItem = baseNavItems.find((item) => item.href === "/dashboard")!
+  const workspaceGroupItems = baseNavItems.filter((item) =>
+    ["/boards", "/projects", "/tasks", "/calendar"].includes(item.href)
+  )
+  const insightsGroupItems = [
+    ...baseNavItems.filter((item) => ["/reports", "/minutes", "/monitor"].includes(item.href)),
     ...(isAdmin
       ? ([
-          { title: "Team", href: "/team", icon: Users, accentColor: "rose" },
-          { title: "Analytics", href: "/analytics", icon: BarChart3, accentColor: "indigo" },
-          { title: "Admin", href: "/admin", icon: Shield, accentColor: "violet" }
+          { title: "Analytics", href: "/analytics", icon: BarChart3, accentColor: "indigo" }
         ] as NavItem[])
+      : [])
+  ]
+  const adminGroupItems = isAdmin
+    ? ([
+        { title: "Team", href: "/team", icon: Users, accentColor: "rose" },
+        { title: "Admin", href: "/admin", icon: Shield, accentColor: "violet" }
+      ] as NavItem[])
+    : []
+
+  const mainNavGroups: Array<NavGroup | NavItem> = [
+    dashboardItem,
+    { label: "Workspace", items: workspaceGroupItems },
+    { label: "Insights", items: insightsGroupItems },
+    ...(adminGroupItems.length > 0
+      ? ([{ label: "Admin", items: adminGroupItems }] as NavGroup[])
       : [])
   ]
 
@@ -102,44 +129,129 @@ export default function AppSidebar() {
               Main Menu
             </SidebarGroupLabel>
             <SidebarMenu className="space-y-1">
-              {mainNavItems.map((item) => {
-                const active = isActive(item.href)
-                return (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={active}
-                      className={cn(
-                        "group/item relative h-12 overflow-hidden rounded-[1.25rem] px-4 transition-all duration-300",
-                        active
-                          ? "border border-slate-100 bg-white text-blue-600 shadow-xl shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none"
-                          : "text-slate-500 hover:bg-white/80 hover:text-slate-900 dark:hover:bg-slate-900/50 dark:hover:text-white"
-                      )}
-                    >
-                      <Link href={item.href} className="flex items-center gap-4">
-                        <div
-                          className={cn(
-                            "flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-500 group-hover/item:scale-110",
-                            active
-                              ? "rotate-3 bg-blue-600 text-white shadow-lg shadow-blue-500/30"
-                              : "bg-slate-100 text-slate-400 group-hover/item:bg-white group-hover/item:text-blue-500 dark:bg-slate-800 dark:group-hover/item:bg-slate-700"
-                          )}
-                        >
-                          <item.icon className="h-5 w-5 stroke-[2.5]" />
-                        </div>
-                        <span className="mt-0.5 text-[11px] leading-none font-black tracking-widest uppercase">
-                          {item.title}
-                        </span>
-                        {active && (
-                          <div className="absolute top-0 right-0 bottom-0 w-1 rounded-full bg-blue-600" />
+              {mainNavGroups.map((groupOrItem) => {
+                if ("href" in groupOrItem) {
+                  const item = groupOrItem
+                  const active = isActive(item.href)
+                  return (
+                    <SidebarMenuItem key={item.href}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={active}
+                        className={cn(
+                          "group/item relative h-12 overflow-hidden rounded-[1.25rem] px-4 transition-all duration-300",
+                          active
+                            ? "border border-slate-100 bg-white text-blue-600 shadow-xl shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none"
+                            : "text-slate-500 hover:bg-white/80 hover:text-slate-900 dark:hover:bg-slate-900/50 dark:hover:text-white"
                         )}
-                        {item.badge && (
-                          <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-lg bg-rose-500 px-1 text-[10px] font-black text-white shadow-lg shadow-rose-500/20">
-                            {item.badge}
+                      >
+                        <Link href={item.href} className="flex items-center gap-4">
+                          <div
+                            className={cn(
+                              "flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-500 group-hover/item:scale-110",
+                              active
+                                ? "rotate-3 bg-blue-600 text-white shadow-lg shadow-blue-500/30"
+                                : "bg-slate-100 text-slate-400 group-hover/item:bg-white group-hover/item:text-blue-500 dark:bg-slate-800 dark:group-hover/item:bg-slate-700"
+                            )}
+                          >
+                            <item.icon className="h-5 w-5 stroke-[2.5]" />
+                          </div>
+                          <span className="mt-0.5 text-[11px] leading-none font-black tracking-widest uppercase">
+                            {item.title}
                           </span>
-                        )}
-                      </Link>
-                    </SidebarMenuButton>
+                          {active && (
+                            <div className="absolute top-0 right-0 bottom-0 w-1 rounded-full bg-blue-600" />
+                          )}
+                          {item.badge && (
+                            <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-lg bg-rose-500 px-1 text-[10px] font-black text-white shadow-lg shadow-rose-500/20">
+                              {item.badge}
+                            </span>
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                }
+
+                const group = groupOrItem
+                const groupOpen =
+                  group.label === "Workspace"
+                    ? workspaceNavOpen
+                    : group.label === "Insights"
+                      ? insightsNavOpen
+                      : adminNavOpen
+
+                const setGroupOpen =
+                  group.label === "Workspace"
+                    ? setWorkspaceNavOpen
+                    : group.label === "Insights"
+                      ? setInsightsNavOpen
+                      : setAdminNavOpen
+
+                return (
+                  <SidebarMenuItem key={group.label} className="pt-2">
+                    <Collapsible open={groupOpen} onOpenChange={setGroupOpen}>
+                      <div className="mb-2 flex items-center justify-between px-4">
+                        <CollapsibleTrigger asChild>
+                          <button className="group flex items-center gap-2 text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase transition-colors hover:text-blue-600">
+                            <div className="flex h-5 w-5 items-center justify-center rounded-lg border border-slate-200 transition-colors group-hover:border-blue-500/50 dark:border-slate-800">
+                              {groupOpen ? (
+                                <ChevronDown className="h-3 w-3 stroke-[3]" />
+                              ) : (
+                                <ChevronRight className="h-3 w-3 stroke-[3]" />
+                              )}
+                            </div>
+                            {group.label}
+                          </button>
+                        </CollapsibleTrigger>
+                      </div>
+
+                      <CollapsibleContent className="px-0">
+                        <SidebarMenu className="space-y-1">
+                          {group.items.map((item) => {
+                            const active = isActive(item.href)
+                            return (
+                              <SidebarMenuItem key={item.href}>
+                                <SidebarMenuButton
+                                  asChild
+                                  isActive={active}
+                                  className={cn(
+                                    "group/item relative h-12 overflow-hidden rounded-[1.25rem] px-4 transition-all duration-300",
+                                    active
+                                      ? "border border-slate-100 bg-white text-blue-600 shadow-xl shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none"
+                                      : "text-slate-500 hover:bg-white/80 hover:text-slate-900 dark:hover:bg-slate-900/50 dark:hover:text-white"
+                                  )}
+                                >
+                                  <Link href={item.href} className="flex items-center gap-4">
+                                    <div
+                                      className={cn(
+                                        "flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-500 group-hover/item:scale-110",
+                                        active
+                                          ? "rotate-3 bg-blue-600 text-white shadow-lg shadow-blue-500/30"
+                                          : "bg-slate-100 text-slate-400 group-hover/item:bg-white group-hover/item:text-blue-500 dark:bg-slate-800 dark:group-hover/item:bg-slate-700"
+                                      )}
+                                    >
+                                      <item.icon className="h-5 w-5 stroke-[2.5]" />
+                                    </div>
+                                    <span className="mt-0.5 text-[11px] leading-none font-black tracking-widest uppercase">
+                                      {item.title}
+                                    </span>
+                                    {active && (
+                                      <div className="absolute top-0 right-0 bottom-0 w-1 rounded-full bg-blue-600" />
+                                    )}
+                                    {item.badge && (
+                                      <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-lg bg-rose-500 px-1 text-[10px] font-black text-white shadow-lg shadow-rose-500/20">
+                                        {item.badge}
+                                      </span>
+                                    )}
+                                  </Link>
+                                </SidebarMenuButton>
+                              </SidebarMenuItem>
+                            )
+                          })}
+                        </SidebarMenu>
+                      </CollapsibleContent>
+                    </Collapsible>
                   </SidebarMenuItem>
                 )
               })}

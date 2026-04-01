@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { verifyAccessToken } from "@/lib/auth/tokens"
 import { connectToDatabase } from "@/lib/db/connect"
-import { createNotification } from "@/lib/db/notification"
+import { getNotificationEmail } from "@/lib/email/get-notification-email"
+import { dispatchNotification } from "@/lib/notifications/dispatcher"
 import { AnnouncementModel } from "@/models/announcement.model"
 import { ProjectModel } from "@/models/project.model"
 import { UserModel } from "@/models/user.model"
@@ -107,28 +108,50 @@ export async function POST(
     // Notify all project team (owner + members) except the author
     try {
       const projectWithMembers = await ProjectModel.findById(projectId)
-        .select("owner members")
+        .select("title owner members")
+        .populate("owner", "name email notificationEmail avatar")
+        .populate("members", "name email notificationEmail avatar")
         .lean()
       const authorUser = await UserModel.findById(decoded.userId).select("name avatar").lean()
       const authorIdStr = decoded.userId.toString()
-      const recipientIds = new Set<string>()
-      if (projectWithMembers?.owner) {
-        recipientIds.add((projectWithMembers.owner as any).toString())
+      const recipients = new Map<string, any>()
+
+      if ((projectWithMembers as any)?.owner?._id) {
+        const owner = (projectWithMembers as any).owner
+        recipients.set(String(owner._id), owner)
       }
-      ;(projectWithMembers?.members || []).forEach((m: any) => recipientIds.add(m.toString()))
-      recipientIds.delete(authorIdStr)
+
+      ;((projectWithMembers as any)?.members || []).forEach((member: any) => {
+        if (member?._id) {
+          recipients.set(String(member._id), member)
+        }
+      })
+
+      recipients.delete(authorIdStr)
 
       const authorName = (authorUser as any)?.name || "Someone"
       const authorAvatar = (authorUser as any)?.avatar
+      const projectTitle = (projectWithMembers as any)?.title || title
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+      const projectUrl = `${appUrl}/en/projects/${projectId}`
 
-      for (const userId of recipientIds) {
-        await createNotification({
-          userId,
+      for (const [userId, recipient] of recipients) {
+        await dispatchNotification({
+          recipientUserId: userId,
           type: "announcement_created",
           title: "New announcement",
           body: `${authorName}: ${title}`,
           projectId,
-          triggeredBy: { userId: authorIdStr, name: authorName, avatar: authorAvatar }
+          triggeredBy: { userId: authorIdStr, name: authorName, avatar: authorAvatar },
+          email: {
+            recipientEmail: getNotificationEmail(recipient),
+            recipientName: recipient.name ?? recipient.email,
+            taskTitle: title,
+            taskDescription: content,
+            projectName: projectTitle,
+            actionUrl: projectUrl,
+            actionLabel: "Open Project →"
+          }
         })
       }
     } catch (notifyErr) {
