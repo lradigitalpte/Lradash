@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { verifyAccessToken } from "@/lib/auth/tokens"
+import { canAccessBoard } from "@/lib/board-access"
 import { connectToDatabase } from "@/lib/db/connect"
+import { BoardModel } from "@/models/board.model"
 import { ListModel } from "@/models/list.model"
 import { TaskModel } from "@/models/task.model"
 
@@ -38,6 +40,21 @@ export async function POST(
 
     if (!organizationId) {
       return NextResponse.json({ error: "Organization not found" }, { status: 401 })
+    }
+
+    const board = await BoardModel.findOne({
+      _id: boardId,
+      organizationId,
+      deletedAt: null
+    }).lean()
+
+    if (!board) {
+      return NextResponse.json({ error: "Board not found" }, { status: 404 })
+    }
+
+    const hasAccess = await canAccessBoard(board, decoded.userId?.toString())
+    if (!hasAccess) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
     const body = await request.json()

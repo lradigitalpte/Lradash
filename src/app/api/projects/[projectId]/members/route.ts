@@ -1,34 +1,38 @@
 import { NextRequest, NextResponse } from "next/server"
 
-import { verifyAccessToken } from "@/lib/auth/tokens"
+import { requireOrganizationAccess } from "@/lib/auth/organization-access"
 import { connectToDatabase } from "@/lib/db/connect"
 import { getNotificationEmail } from "@/lib/email/get-notification-email"
 import { sendUserEmail } from "@/lib/email/send-user-email"
 import { getAppUrl } from "@/lib/url/get-app-url"
+import { OrganizationModel } from "@/models/organization.model"
 import { ProjectModel } from "@/models/project.model"
 import { UserModel } from "@/models/user.model"
+import { UserRole } from "@/types/dbInterface"
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const authHeader = request.headers.get("authorization")
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const access = await requireOrganizationAccess(request)
+    if ("error" in access) {
+      return access.error
     }
 
-    const token = authHeader.substring(7)
-    const decoded = verifyAccessToken(token)
-    if (!decoded) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+    if (access.orgRole === UserRole.CLIENT) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
     await connectToDatabase()
 
     const { projectId } = await params
 
-    const project = await ProjectModel.findOne({ _id: projectId, deletedAt: null })
+    const project = await ProjectModel.findOne({
+      _id: projectId,
+      organizationId: access.org._id,
+      deletedAt: null
+    } as any)
       .populate("members", "name email avatar _id")
       .populate("owner", "name email avatar _id")
       .lean()
@@ -37,9 +41,21 @@ export async function GET(
       return NextResponse.json({ error: "Project not found" }, { status: 404 })
     }
 
-    // Build a deduplicated list: owner + members
     const ownerObj = project.owner as any
     const membersList = (project.members as any[]) || []
+    const isProjectOwner = ownerObj?._id?.toString() === access.user._id
+    const isProjectMember = membersList.some((m) => m?._id?.toString() === access.user._id)
+    const canAccessMembers =
+      access.orgRole === UserRole.OWNER ||
+      access.orgRole === UserRole.ADMIN ||
+      isProjectOwner ||
+      isProjectMember
+
+    if (!canAccessMembers) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    // Build a deduplicated list: owner + members
 
     const allIds = new Set<string>()
     const result: any[] = []
@@ -73,31 +89,16 @@ export async function POST(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const authHeader = request.headers.get("authorization")
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const access = await requireOrganizationAccess(request)
+    if ("error" in access) {
+      return access.error
     }
 
-    const token = authHeader.substring(7)
-    const decoded = verifyAccessToken(token)
-    if (!decoded) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+    if (access.orgRole === UserRole.CLIENT) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
     await connectToDatabase()
-
-    let organizationId = decoded.organizationId
-    // Fallback for organizationId if missing in token
-    if (!organizationId) {
-      const user = await UserModel.findById(decoded.userId).lean()
-      if (user && user.defaultOrganizationId) {
-        organizationId = user.defaultOrganizationId.toString()
-      }
-    }
-
-    if (!organizationId) {
-      return NextResponse.json({ error: "Organization not found" }, { status: 401 })
-    }
 
     const body = await request.json()
     const { email, userId: targetUserId } = body
@@ -107,15 +108,16 @@ export async function POST(
       return NextResponse.json({ error: "Email or User ID is required" }, { status: 400 })
     }
 
+    const organization = await OrganizationModel.findById(access.org._id).select("members").lean()
+    const orgMemberIds = new Set(
+      ((organization as any)?.members || []).map((member: any) => member.userId.toString())
+    )
+
     let userToAdd
 
     if (targetUserId) {
       userToAdd = await UserModel.findOne({
         _id: targetUserId
-        // Ensure user is in the same organization if your app supports multi-org users,
-        // OR if users are global but projects are org-scoped, you might just check existence.
-        // Assuming users are global or linked to orgs via members collection, strictly checking org might be tricky if not stored on user.
-        // However, for safety, let's assume we can add any user for now, or check if they are "findable".
       })
     } else {
       userToAdd = await UserModel.findOne({ email })
@@ -125,14 +127,32 @@ export async function POST(
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
+    if (!orgMemberIds.has(userToAdd._id.toString())) {
+      return NextResponse.json(
+        { error: "User must belong to this organization before being added to the project" },
+        { status: 400 }
+      )
+    }
+
     const project = await ProjectModel.findOne({
       _id: projectId,
-      organizationId,
+      organizationId: access.org._id,
       deletedAt: null
-    })
+    } as any)
 
     if (!project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 })
+    }
+
+    const isProjectOwner = project.owner?.toString() === access.user._id
+    const canManageMembers =
+      access.orgRole === UserRole.OWNER || access.orgRole === UserRole.ADMIN || isProjectOwner
+
+    if (!canManageMembers) {
+      return NextResponse.json(
+        { error: "Forbidden: owner/admin/project owner required" },
+        { status: 403 }
+      )
     }
 
     // Check if user is already a member
@@ -147,12 +167,12 @@ export async function POST(
     await project.save()
 
     try {
-      const actor = await UserModel.findById(decoded.userId).select("name email avatar").lean()
+      const actor = await UserModel.findById(access.user._id).select("name email avatar").lean()
       const projectTitle = (project as any).title || "Project"
       const appUrl = getAppUrl(request)
       const projectUrl = `${appUrl}/en/projects/${projectId}/team`
 
-      if (String(userToAdd._id) !== String(decoded.userId)) {
+      if (String(userToAdd._id) !== String(access.user._id)) {
         await sendUserEmail({
           to: getNotificationEmail(userToAdd as any),
           type: "project_member_added",

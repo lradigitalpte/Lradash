@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { verifyAccessToken } from "@/lib/auth/tokens"
+import { canAccessBoard } from "@/lib/board-access"
 import { connectToDatabase } from "@/lib/db/connect"
 import { BoardModel } from "@/models/board.model"
 import { ListModel } from "@/models/list.model"
@@ -36,10 +37,8 @@ export async function GET(
     if (!board) {
       return NextResponse.json({ error: "Board not found" }, { status: 404 })
     }
-    const userId = decoded.userId?.toString()
-    const ownerId = (board as any).owner?.toString()
-    const memberIds = ((board as any).members || []).map((m: any) => m?.toString?.() ?? m)
-    if (userId && ownerId !== userId && !memberIds.includes(userId)) {
+    const hasAccess = await canAccessBoard(board, decoded.userId?.toString())
+    if (!hasAccess) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
@@ -126,6 +125,14 @@ export async function POST(
       return NextResponse.json(
         { error: "Board not found" },
         { status: 404, headers: { "Content-Type": "application/json" } }
+      )
+    }
+
+    const hasAccess = await canAccessBoard(board, decoded.userId?.toString())
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: "Forbidden" },
+        { status: 403, headers: { "Content-Type": "application/json" } }
       )
     }
 

@@ -1,35 +1,64 @@
 import { NextRequest, NextResponse } from "next/server"
 
-import { verifyAccessToken } from "@/lib/auth/tokens"
+import { requireOrganizationAccess } from "@/lib/auth/organization-access"
 import { connectToDatabase } from "@/lib/db/connect"
 import { ContentClusterModel } from "@/models/content-cluster.model"
+import { ProjectModel } from "@/models/project.model"
+import { UserRole } from "@/types/dbInterface"
+
+async function ensureProjectAccess(projectId: string, request: NextRequest) {
+  const access = await requireOrganizationAccess(request)
+  if ("error" in access) {
+    return access
+  }
+
+  await connectToDatabase()
+
+  const project = await ProjectModel.findOne({
+    _id: projectId,
+    organizationId: access.org._id,
+    deletedAt: null
+  } as any)
+    .select("owner members")
+    .lean()
+
+  if (!project) {
+    return { error: NextResponse.json({ error: "Project not found" }, { status: 404 }) }
+  }
+
+  const ownerId = (project as any).owner?.toString()
+  const memberIds = new Set(((project as any).members || []).map((id: any) => id.toString()))
+  const hasReadAccess =
+    access.orgRole === UserRole.OWNER ||
+    access.orgRole === UserRole.ADMIN ||
+    ownerId === access.user._id ||
+    memberIds.has(access.user._id)
+
+  if (!hasReadAccess) {
+    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
+  }
+
+  const canWrite =
+    access.orgRole === UserRole.OWNER ||
+    access.orgRole === UserRole.ADMIN ||
+    ownerId === access.user._id
+
+  return {
+    access,
+    canWrite
+  }
+}
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const authHeader = request.headers.get("authorization")
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      )
-    }
-
-    const token = authHeader.substring(7)
-    const decoded = verifyAccessToken(token)
-
-    if (!decoded) {
-      return NextResponse.json(
-        { error: "Invalid token" },
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      )
-    }
-
     const { projectId } = await params
-
-    await connectToDatabase()
+    const auth = await ensureProjectAccess(projectId, request)
+    if ("error" in auth) {
+      return auth.error
+    }
 
     const clusters = await ContentClusterModel.find({ projectId }).sort({ createdAt: -1 }).lean()
 
@@ -65,25 +94,18 @@ export async function POST(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const authHeader = request.headers.get("authorization")
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      )
-    }
-
-    const token = authHeader.substring(7)
-    const decoded = verifyAccessToken(token)
-
-    if (!decoded) {
-      return NextResponse.json(
-        { error: "Invalid token" },
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      )
-    }
-
     const { projectId } = await params
+    const auth = await ensureProjectAccess(projectId, request)
+    if ("error" in auth) {
+      return auth.error
+    }
+    if (!auth.canWrite) {
+      return NextResponse.json(
+        { error: "Forbidden: owner/admin/project owner required" },
+        { status: 403, headers: { "Content-Type": "application/json" } }
+      )
+    }
+
     const body = await request.json()
     const { name, subtopics, pillarPageUrl } = body
 
@@ -101,7 +123,7 @@ export async function POST(
       name,
       subtopics: subtopics || [],
       pillarPageUrl,
-      createdBy: decoded.userId
+      createdBy: auth.access.user._id
     })
 
     return NextResponse.json(
@@ -136,25 +158,18 @@ export async function PUT(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const authHeader = request.headers.get("authorization")
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      )
-    }
-
-    const token = authHeader.substring(7)
-    const decoded = verifyAccessToken(token)
-
-    if (!decoded) {
-      return NextResponse.json(
-        { error: "Invalid token" },
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      )
-    }
-
     const { projectId } = await params
+    const auth = await ensureProjectAccess(projectId, request)
+    if ("error" in auth) {
+      return auth.error
+    }
+    if (!auth.canWrite) {
+      return NextResponse.json(
+        { error: "Forbidden: owner/admin/project owner required" },
+        { status: 403, headers: { "Content-Type": "application/json" } }
+      )
+    }
+
     const body = await request.json()
     const { clusterId, name, subtopics, authorityScore, status, pillarPageUrl } = body
 
@@ -164,8 +179,6 @@ export async function PUT(
         { status: 400, headers: { "Content-Type": "application/json" } }
       )
     }
-
-    await connectToDatabase()
 
     const updateData: any = {}
     if (name !== undefined) {
@@ -228,25 +241,18 @@ export async function DELETE(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const authHeader = request.headers.get("authorization")
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      )
-    }
-
-    const token = authHeader.substring(7)
-    const decoded = verifyAccessToken(token)
-
-    if (!decoded) {
-      return NextResponse.json(
-        { error: "Invalid token" },
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      )
-    }
-
     const { projectId } = await params
+    const auth = await ensureProjectAccess(projectId, request)
+    if ("error" in auth) {
+      return auth.error
+    }
+    if (!auth.canWrite) {
+      return NextResponse.json(
+        { error: "Forbidden: owner/admin/project owner required" },
+        { status: 403, headers: { "Content-Type": "application/json" } }
+      )
+    }
+
     const { searchParams } = new URL(request.url)
     const clusterId = searchParams.get("clusterId")
 
@@ -256,8 +262,6 @@ export async function DELETE(
         { status: 400, headers: { "Content-Type": "application/json" } }
       )
     }
-
-    await connectToDatabase()
 
     const result = await ContentClusterModel.deleteOne({ _id: clusterId, projectId })
 

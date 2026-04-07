@@ -15,7 +15,8 @@ export enum TaskPriority {
 export enum UserRole {
   OWNER = "OWNER",
   ADMIN = "ADMIN",
-  MEMBER = "MEMBER"
+  MEMBER = "MEMBER",
+  CLIENT = "CLIENT"
 }
 
 export enum SubscriptionPlan {

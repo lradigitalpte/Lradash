@@ -96,7 +96,7 @@ export function CreateMemberDialog({ organizationId, onMemberCreated }: CreateMe
                 Direct Creation
               </DialogTitle>
               <DialogDescription className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
-                Manually create a new team member account
+                Manually create an internal or client account
               </DialogDescription>
             </div>
           </div>
@@ -113,7 +113,9 @@ export function CreateMemberDialog({ organizationId, onMemberCreated }: CreateMe
                 placeholder="John Doe"
                 className="h-14 rounded-2xl border-none bg-slate-50 pl-12 text-sm font-bold focus:ring-2 focus:ring-indigo-500/20 dark:bg-slate-800"
                 value={name}
-                onChange={(e) =>{  setName(e.target.value); }}
+                onChange={(e) => {
+                  setName(e.target.value)
+                }}
               />
             </div>
           </div>
@@ -129,7 +131,9 @@ export function CreateMemberDialog({ organizationId, onMemberCreated }: CreateMe
                 placeholder="email@example.com"
                 className="h-14 rounded-2xl border-none bg-slate-50 pl-12 text-sm font-bold focus:ring-2 focus:ring-indigo-500/20 dark:bg-slate-800"
                 value={email}
-                onChange={(e) =>{  setEmail(e.target.value); }}
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                }}
               />
             </div>
           </div>
@@ -145,7 +149,9 @@ export function CreateMemberDialog({ organizationId, onMemberCreated }: CreateMe
                 placeholder="e.g. TempPass123!"
                 className="h-14 rounded-2xl border-none bg-slate-50 pl-12 text-sm font-bold focus:ring-2 focus:ring-indigo-500/20 dark:bg-slate-800"
                 value={password}
-                onChange={(e) =>{  setPassword(e.target.value); }}
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                }}
               />
             </div>
           </div>
@@ -167,6 +173,12 @@ export function CreateMemberDialog({ organizationId, onMemberCreated }: CreateMe
                   className="rounded-xl py-3 text-xs font-bold focus:bg-indigo-50 focus:text-indigo-600 dark:focus:bg-indigo-900/10"
                 >
                   MEMBER
+                </SelectItem>
+                <SelectItem
+                  value="CLIENT"
+                  className="rounded-xl py-3 text-xs font-bold focus:bg-emerald-50 focus:text-emerald-600 dark:focus:bg-emerald-900/10"
+                >
+                  CLIENT
                 </SelectItem>
                 <SelectItem
                   value="ADMIN"

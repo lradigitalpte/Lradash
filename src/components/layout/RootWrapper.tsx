@@ -1,19 +1,29 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import { usePathname } from "next/navigation"
-import React, { useEffect } from "react"
+import React, { useEffect, useState } from "react"
 import { Toaster } from "sonner"
 
 import AppSidebar from "@/components/layout/AppSidebar"
+import ClientSidebar from "@/components/layout/ClientSidebar"
 import Header from "@/components/layout/Header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { TOAST_DURATION_MS } from "@/constants/ui"
 import { apiClient } from "@/lib/api/client"
 import { useTaskStore } from "@/lib/store"
 
+interface UserInfo {
+  name?: string
+  email?: string
+}
+
 export default function RootWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const router = useRouter()
   const setUserInfo = useTaskStore((state) => state.setUserInfo)
+  const [orgRole, setOrgRole] = useState<string | null>(null)
+  const [clientUser, setClientUser] = useState<UserInfo | null>(null)
 
   // Initialize user info on mount (only once)
   useEffect(() => {
@@ -25,6 +35,8 @@ export default function RootWrapper({ children }: { children: React.ReactNode })
         if (response.ok && mounted) {
           const user = await response.json()
           await setUserInfo(user.email, user.id ?? null)
+          setOrgRole(user.orgRole ?? null)
+          setClientUser({ name: user.name ?? user.email, email: user.email })
         }
       } catch (error) {
         console.error("[RootWrapper] Failed to initialize user:", error)
@@ -38,20 +50,45 @@ export default function RootWrapper({ children }: { children: React.ReactNode })
     }
   }, [setUserInfo])
 
-  // Hide app sidebar when viewing project or board detail page, or the monitor section
+  // Segment-based layout decisions (path-derived, no async wait)
   const segments = pathname.split("/").filter(Boolean)
-  // Check if path starts with locale and contains /projects/[id], /boards/[id] or /monitor
+  // segments[0] = locale, segments[1] = top-level route
   const isDetailView =
     segments.length >= 3 && (segments[1] === "projects" || segments[1] === "boards") && segments[2]
   const isMonitorView = segments.length >= 2 && segments[1] === "monitor"
+  // Client portal uses its own dedicated sidebar — detected from URL so it's instant (no flash)
+  const isClientPortal = segments.length >= 2 && segments[1] === "client"
+
+  useEffect(() => {
+    if (orgRole !== "CLIENT") {
+      return
+    }
+
+    const locale = segments[0] || "en"
+    const allowedClientRoutes = new Set(["client", "settings"])
+    const currentTopLevel = segments[1]
+
+    if (!currentTopLevel || !allowedClientRoutes.has(currentTopLevel)) {
+      router.replace(`/${locale}/client`)
+    }
+  }, [orgRole, router, segments])
 
   return (
     <>
       {isDetailView || isMonitorView ? (
-        // For detail views and monitor, render children directly (they provide their own sidebar/layout)
+        // Detail views and monitor pages provide their own sidebar/layout
         <>{children}</>
+      ) : isClientPortal ? (
+        // Client portal: dedicated sidebar with no admin nav — rendered from URL, never flashes
+        <SidebarProvider>
+          <ClientSidebar user={clientUser} />
+          <SidebarInset>
+            <Header />
+            {children}
+          </SidebarInset>
+        </SidebarProvider>
       ) : (
-        // For all other pages (including board projects), render with sidebar and header
+        // All other workspace pages: full app sidebar
         <SidebarProvider>
           <AppSidebar />
           <SidebarInset>

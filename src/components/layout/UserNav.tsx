@@ -22,6 +22,8 @@ interface User {
   email: string
   name: string
   avatar?: string
+  orgRole?: string
+  isClient?: boolean
 }
 
 export function UserNav() {
@@ -119,6 +121,7 @@ export function UserNav() {
                 name={user.name}
                 email={user.email}
                 image={user.avatar}
+                role={user.orgRole === "CLIENT" ? "Client" : user.orgRole}
                 showPopover={false}
               />
             </DropdownMenuLabel>

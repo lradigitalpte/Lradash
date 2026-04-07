@@ -2,6 +2,7 @@
 
 import { Types } from "mongoose"
 
+import { canManageBoard, getAccessibleProjectIdsForUser, toIdString } from "@/lib/board-access"
 import { BoardModel } from "@/models/board.model"
 import { ProjectModel } from "@/models/project.model"
 import { Board, BoardDocument, Project } from "@/types/dbInterface"
@@ -19,9 +20,26 @@ export async function fetchBoardsFromDb(userEmail: string): Promise<Board[]> {
       return []
     }
 
-    const boardsFromDb = await BoardModel.find({
-      $or: [{ owner: user._id }, { members: user._id }]
-    } as any)
+    const accessibleProjectIds = await getAccessibleProjectIdsForUser(
+      user._id.toString(),
+      user.defaultOrganizationId
+    )
+
+    const boardFilters: Record<string, unknown>[] = [{ owner: user._id }, { members: user._id }]
+    if (accessibleProjectIds.length > 0) {
+      boardFilters.push({ projectId: { $in: accessibleProjectIds } })
+    }
+
+    const organizationId = toIdString(user.defaultOrganizationId)
+    const query: Record<string, unknown> = {
+      deletedAt: null,
+      $or: boardFilters
+    }
+    if (organizationId) {
+      query.organizationId = organizationId
+    }
+
+    const boardsFromDb = await BoardModel.find(query as any)
       .populate("owner", "name avatar")
       .populate("members", "name avatar")
       .lean()
@@ -150,9 +168,9 @@ export async function updateBoardInDb(
       throw new Error("Board not found")
     }
 
-    const existingOwnerId = getObjectIdString(existingBoard.owner)
-    if (existingOwnerId !== user._id.toString()) {
-      throw new Error("Unauthorized: Only board owner can update the board")
+    const canManage = await canManageBoard(existingBoard, user._id.toString())
+    if (!canManage) {
+      throw new Error("Unauthorized: Only board owner or project owner can update the board")
     }
 
     const board = await BoardModel.findByIdAndUpdate(boardId, { ...data }, { new: true }).lean()
@@ -193,16 +211,17 @@ export async function deleteBoardInDb(boardId: string, userEmail: string): Promi
       throw new Error("Board not found")
     }
 
-    const boardOwnerId = getObjectIdString(board.owner)
     const userId = getObjectIdString(user._id)
-    if (boardOwnerId !== userId) {
-      throw new Error("Unauthorized: Only board owner can delete the board")
+    const canManage = await canManageBoard(board, userId)
+    if (!canManage) {
+      throw new Error("Unauthorized: Only board owner or project owner can delete the board")
     }
 
     const { TaskModel } = await import("@/models/task.model")
-    await TaskModel.deleteMany({
-      project: { $in: board.projects }
-    } as any)
+    const { ListModel } = await import("@/models/list.model")
+
+    await TaskModel.deleteMany({ board: boardId } as any)
+    await ListModel.deleteMany({ boardId } as any)
 
     await ProjectModel.deleteMany({ board: boardId })
     await BoardModel.findByIdAndDelete(boardId)

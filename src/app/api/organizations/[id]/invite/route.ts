@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { inviteUserToOrganization } from "@/lib/db/invitation"
-import { verifyAccessToken } from "@/lib/auth/tokens"
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+import { verifyAccessToken } from "@/lib/auth/tokens"
+import { inviteUserToOrganization } from "@/lib/db/invitation"
+import { UserRole } from "@/types/dbInterface"
+
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: organizationId } = await params
     const authHeader = request.headers.get("authorization")
@@ -28,7 +27,7 @@ export async function POST(
     }
 
     const body = await request.json()
-    const { email, role = "MEMBER" } = body
+    const { email, role = UserRole.MEMBER } = body
 
     if (!email) {
       return NextResponse.json(
@@ -41,7 +40,7 @@ export async function POST(
       organizationId,
       email,
       decoded.userId,
-      role
+      role as UserRole
     )
 
     if (!result.success) {
@@ -52,7 +51,7 @@ export async function POST(
     }
 
     return NextResponse.json(
-      { success: true, token: result.token },
+      { success: true, token: result.token, invitationUrl: result.invitationUrl },
       { status: 200, headers: { "Content-Type": "application/json" } }
     )
   } catch (error) {

@@ -1,15 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { verifyAccessToken } from "@/lib/auth/tokens"
+import { canAccessBoard } from "@/lib/board-access"
 import { connectToDatabase } from "@/lib/db/connect"
 import { BoardModel } from "@/models/board.model"
 import { TaskModel } from "@/models/task.model"
-
-function canAccessBoard(board: any, userId: string): boolean {
-  const ownerId = board?.owner?.toString()
-  const memberIds = (board?.members || []).map((m: any) => m?.toString?.() ?? m)
-  return ownerId === userId || memberIds.includes(userId)
-}
 
 /** GET: single board task */
 export async function GET(
@@ -31,7 +26,7 @@ export async function GET(
     await connectToDatabase()
 
     const board = await BoardModel.findOne({ _id: boardId, deletedAt: null }).lean()
-    if (!board || !canAccessBoard(board, decoded.userId.toString())) {
+    if (!board || !(await canAccessBoard(board, decoded.userId.toString()))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
@@ -78,7 +73,7 @@ export async function PATCH(
     await connectToDatabase()
 
     const board = await BoardModel.findOne({ _id: boardId, deletedAt: null }).lean()
-    if (!board || !canAccessBoard(board, decoded.userId.toString())) {
+    if (!board || !(await canAccessBoard(board, decoded.userId.toString()))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
@@ -95,12 +90,24 @@ export async function PATCH(
     const set: Record<string, unknown> = {
       lastModifier: decoded.userId
     }
-    if (body.title !== undefined) {set.title = body.title}
-    if (body.description !== undefined) {set.description = body.description}
-    if (body.status !== undefined) {set.status = body.status}
-    if (body.priority !== undefined) {set.priority = body.priority}
-    if (body.dueDate !== undefined) {set.dueDate = body.dueDate ? new Date(body.dueDate) : null}
-    if (body.attachments !== undefined) {set.attachments = body.attachments}
+    if (body.title !== undefined) {
+      set.title = body.title
+    }
+    if (body.description !== undefined) {
+      set.description = body.description
+    }
+    if (body.status !== undefined) {
+      set.status = body.status
+    }
+    if (body.priority !== undefined) {
+      set.priority = body.priority
+    }
+    if (body.dueDate !== undefined) {
+      set.dueDate = body.dueDate ? new Date(body.dueDate) : null
+    }
+    if (body.attachments !== undefined) {
+      set.attachments = body.attachments
+    }
 
     const updated = await TaskModel.findOneAndUpdate(
       { _id: taskId, board: boardId, deletedAt: null },
@@ -140,7 +147,7 @@ export async function DELETE(
     await connectToDatabase()
 
     const board = await BoardModel.findOne({ _id: boardId, deletedAt: null }).lean()
-    if (!board || !canAccessBoard(board, decoded.userId.toString())) {
+    if (!board || !(await canAccessBoard(board, decoded.userId.toString()))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 

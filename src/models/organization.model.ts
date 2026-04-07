@@ -22,7 +22,7 @@ const organizationSchema = new mongoose.Schema(
         },
         role: {
           type: String,
-          enum: ["OWNER", "ADMIN", "MEMBER"],
+          enum: ["OWNER", "ADMIN", "MEMBER", "CLIENT"],
           default: "MEMBER"
         },
         joinedAt: { type: Date, default: Date.now }
@@ -61,9 +61,23 @@ organizationSchema.index({ "members.userId": 1 })
 organizationSchema.index({ deletedAt: 1 }) // For soft deletes
 
 let OrganizationModel: Model<OrganizationType>
-try {
-  OrganizationModel = mongoose.model<OrganizationType>("Organization")
-} catch {
+const existingOrganizationModel = mongoose.models.Organization as
+  | Model<OrganizationType>
+  | undefined
+
+if (existingOrganizationModel) {
+  const memberRolePath = existingOrganizationModel.schema.path("members") as
+    | { schema?: { path: (name: string) => { options?: { enum?: string[] } } | undefined } }
+    | undefined
+  const enumValues = memberRolePath?.schema?.path("role")?.options?.enum
+
+  if (!enumValues?.includes("CLIENT")) {
+    mongoose.deleteModel("Organization")
+    OrganizationModel = mongoose.model<OrganizationType>("Organization", organizationSchema)
+  } else {
+    OrganizationModel = existingOrganizationModel
+  }
+} else {
   OrganizationModel = mongoose.model<OrganizationType>("Organization", organizationSchema)
 }
 

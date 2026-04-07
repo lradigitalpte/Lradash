@@ -10,9 +10,9 @@ import {
   useSensors
 } from "@dnd-kit/core"
 import { SortableContext, horizontalListSortingStrategy } from "@dnd-kit/sortable"
-import { ArrowLeft, Plus, MoreHorizontal, Settings } from "lucide-react"
+import { ArrowLeft, Plus, Settings, Trash2 } from "lucide-react"
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
@@ -20,7 +20,25 @@ import { AddListForm } from "@/components/kanban/AddListForm"
 import { CardDetailModal } from "@/components/kanban/CardDetailModal"
 import { KanbanCard } from "@/components/kanban/KanbanCard"
 import { KanbanList } from "@/components/kanban/KanbanList"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu"
+import { apiClient } from "@/lib/api/client"
 
 interface Card {
   _id: string
@@ -48,11 +66,13 @@ interface Board {
   _id: string
   title: string
   description?: string
+  canManage?: boolean
   lists: List[]
 }
 
 export default function KanbanBoardPage() {
   const params = useParams()
+  const router = useRouter()
   const boardId = params?.boardId as string
   const projectId = params?.projectId as string
   const locale = params?.locale as string
@@ -62,6 +82,8 @@ export default function KanbanBoardPage() {
   const [activeCard, setActiveCard] = useState<Card | null>(null)
   const [selectedCard, setSelectedCard] = useState<Card | null>(null)
   const [showAddList, setShowAddList] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [deletingBoard, setDeletingBoard] = useState(false)
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -283,9 +305,31 @@ export default function KanbanBoardPage() {
     }
   }
 
+  const handleDeleteBoard = async () => {
+    try {
+      setDeletingBoard(true)
+      const response = await apiClient.delete(`/api/boards/${boardId}`)
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null)
+        throw new Error(data?.error || "Failed to delete board")
+      }
+
+      toast.success("Board deleted")
+      router.push(`/${locale}/projects/${projectId}/board`)
+      router.refresh()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to delete board"
+      toast.error(message)
+    } finally {
+      setDeletingBoard(false)
+      setShowDeleteDialog(false)
+    }
+  }
+
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+      <div className="flex h-screen items-center justify-center bg-linear-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
         <div className="text-center">
           <div className="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-primary" />
           <p className="mt-4 text-muted-foreground">Loading your beautiful board...</p>
@@ -316,7 +360,7 @@ export default function KanbanBoardPage() {
       <div className="flex shrink-0 flex-col justify-between gap-6 border-b border-slate-200/50 bg-white/70 px-8 py-6 backdrop-blur-2xl md:flex-row md:items-center dark:border-slate-800/50 dark:bg-slate-900/70">
         <div className="flex items-center gap-5">
           {/* 3D/High-contrast Icon Container */}
-          <div className="flex h-14 w-14 transform items-center justify-center rounded-[1.5rem] bg-gradient-to-br from-blue-600 to-indigo-700 shadow-xl shadow-blue-500/20 transition-transform duration-300 hover:rotate-6">
+          <div className="flex h-14 w-14 transform items-center justify-center rounded-3xl bg-linear-to-br from-blue-600 to-indigo-700 shadow-xl shadow-blue-500/20 transition-transform duration-300 hover:rotate-6">
             <Settings className="h-7 w-7 stroke-[2.5] text-white" />
           </div>
 
@@ -349,14 +393,40 @@ export default function KanbanBoardPage() {
               Back
             </Button>
           </Link>
+          {board.canManage && (
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="h-10 rounded-xl border-slate-200 px-4 shadow-sm dark:border-slate-800"
+                >
+                  <Settings className="mr-2 h-4 w-4" />
+                  Settings
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link href={`/${locale}/boards/${boardId}/settings`}>Board settings</Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-red-600 focus:text-red-600"
+                  onSelect={() => {
+                    setShowDeleteDialog(true)
+                  }}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete board
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           <Button
-            variant="outline"
-            className="h-10 rounded-xl border-slate-200 px-4 shadow-sm dark:border-slate-800"
+            className="h-10 rounded-xl bg-blue-600 px-4 shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5 hover:bg-blue-700"
+            onClick={() => {
+              setShowAddList(true)
+            }}
           >
-            <Settings className="mr-2 h-4 w-4" />
-            Settings
-          </Button>
-          <Button className="h-10 rounded-xl bg-blue-600 px-4 shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5 hover:bg-blue-700">
             <Plus className="mr-2 h-4 w-4" />
             New List
           </Button>
@@ -396,7 +466,7 @@ export default function KanbanBoardPage() {
                 onClick={() => {
                   setShowAddList(true)
                 }}
-                className="group relative h-32 w-80 flex-shrink-0 rounded-[2rem] border-2 border-dashed border-slate-200 bg-white/40 backdrop-blur transition-all duration-300 hover:border-blue-500/50 hover:bg-white/60 dark:border-slate-800 dark:bg-slate-900/40 dark:hover:bg-slate-900/60"
+                className="group relative h-32 w-80 shrink-0 rounded-4xl border-2 border-dashed border-slate-200 bg-white/40 backdrop-blur transition-all duration-300 hover:border-blue-500/50 hover:bg-white/60 dark:border-slate-800 dark:bg-slate-900/40 dark:hover:bg-slate-900/60"
               >
                 <div className="flex h-full flex-col items-center justify-center gap-2 p-6">
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 transition-all duration-300 group-hover:bg-blue-600 group-hover:text-white dark:bg-slate-800">
@@ -432,6 +502,30 @@ export default function KanbanBoardPage() {
           onUpdate={async () => loadBoard(true)}
         />
       )}
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete board</AlertDialogTitle>
+            <AlertDialogDescription>
+              {`Delete "${board.title}" from this project? This also removes its lists and board tasks.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingBoard}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={deletingBoard}
+              onClick={(event) => {
+                event.preventDefault()
+                void handleDeleteBoard()
+              }}
+            >
+              {deletingBoard ? "Deleting..." : "Delete board"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

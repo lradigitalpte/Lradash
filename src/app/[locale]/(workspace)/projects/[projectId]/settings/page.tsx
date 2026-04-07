@@ -16,6 +16,7 @@ import {
   Clock,
   Fingerprint,
   User,
+  Users,
   ChevronRight,
   Sparkles,
   Zap,
@@ -54,6 +55,11 @@ export default function SettingsPage() {
   const [projectName, setProjectName] = useState("")
   const [projectDescription, setProjectDescription] = useState("")
   const [isPublic, setIsPublic] = useState(false)
+  const [availableClients, setAvailableClients] = useState<
+    Array<{ _id: string; name: string; email: string; avatar?: string }>
+  >([])
+  const [selectedClientIds, setSelectedClientIds] = useState<string[]>([])
+  const [loadingClientSharing, setLoadingClientSharing] = useState(false)
   const [loading, setLoading] = useState(true)
   const [hasChanges, setHasChanges] = useState(false)
 
@@ -75,12 +81,40 @@ export default function SettingsPage() {
       setProjectName(data.title || "")
       setProjectDescription(data.description || "")
       setIsPublic(data.visibility === "PUBLIC")
+      await fetchClientSharing()
     } catch (err) {
       console.error("Failed to fetch project:", err)
       toast.error("Failed to load project settings")
     } finally {
       setLoading(false)
     }
+  }
+
+  const fetchClientSharing = async () => {
+    try {
+      setLoadingClientSharing(true)
+      const response = await apiClient.get(`/api/projects/${projectId}/client-sharing`)
+      if (!response.ok) {
+        return
+      }
+      const data = await response.json()
+      setAvailableClients(data.availableClients || [])
+      setSelectedClientIds(data.selectedClientIds || [])
+    } catch (error) {
+      console.error("Failed to load client sharing:", error)
+    } finally {
+      setLoadingClientSharing(false)
+    }
+  }
+
+  const toggleClientSharing = (clientId: string, enabled: boolean) => {
+    setSelectedClientIds((current) => {
+      if (enabled) {
+        return current.includes(clientId) ? current : [...current, clientId]
+      }
+      return current.filter((id) => id !== clientId)
+    })
+    setHasChanges(true)
   }
 
   const handleSave = async () => {
@@ -96,10 +130,19 @@ export default function SettingsPage() {
         throw new Error("Failed to update project")
       }
 
+      const sharingResponse = await apiClient.put(`/api/projects/${projectId}/client-sharing`, {
+        clientIds: selectedClientIds
+      })
+      if (!sharingResponse.ok) {
+        throw new Error("Failed to update client sharing")
+      }
+
+      const sharingData = await sharingResponse.json()
+
       const updatedProject = await response.json()
       setProject(updatedProject)
       toast.success("Project settings saved", {
-        description: "Everything is up to date and saved to the cloud."
+        description: `Everything is up to date. Shared with ${sharingData.sharedCount || 0} client account(s).`
       })
       setHasChanges(false)
     } catch (error) {
@@ -357,6 +400,55 @@ export default function SettingsPage() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div className="space-y-4 rounded-3xl border border-slate-100 bg-slate-50 p-6 dark:border-slate-800 dark:bg-slate-950">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 rounded-xl bg-emerald-50 p-2 text-emerald-600">
+                    <Users className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-black text-slate-900 dark:text-white">
+                      Client Report Sharing
+                    </h4>
+                    <p className="text-xs font-medium text-slate-500">
+                      Select which client accounts can access this project in the client portal and
+                      weekly digest.
+                    </p>
+                  </div>
+                </div>
+
+                {loadingClientSharing ? (
+                  <p className="text-xs font-medium text-slate-500">
+                    Loading client access list...
+                  </p>
+                ) : availableClients.length === 0 ? (
+                  <p className="text-xs font-medium text-slate-500">
+                    No client users are available in this organization yet.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {availableClients.map((client) => (
+                      <div
+                        key={client._id}
+                        className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900"
+                      >
+                        <div>
+                          <p className="text-sm font-black text-slate-900 dark:text-white">
+                            {client.name}
+                          </p>
+                          <p className="text-[11px] font-medium text-slate-500">{client.email}</p>
+                        </div>
+                        <Switch
+                          checked={selectedClientIds.includes(client._id)}
+                          onCheckedChange={(checked: boolean) => {
+                            toggleClientSharing(client._id, checked)
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

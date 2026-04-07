@@ -255,7 +255,12 @@ export async function hasPermission(
   requiredRole: UserRole
 ): Promise<boolean> {
   try {
-    const roleHierarchy = { OWNER: 3, ADMIN: 2, MEMBER: 1 }
+    const roleHierarchy: Record<UserRole, number> = {
+      [UserRole.OWNER]: 4,
+      [UserRole.ADMIN]: 3,
+      [UserRole.MEMBER]: 2,
+      [UserRole.CLIENT]: 1
+    }
     const memberRole = await getMemberRole(orgId, userId)
 
     if (!memberRole) {

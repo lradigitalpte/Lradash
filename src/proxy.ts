@@ -7,7 +7,8 @@ export function proxy(req: NextRequest) {
   if (
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/monitor/cron") ||
-    pathname.startsWith("/api/tasks/deadline-reminders/cron")
+    pathname.startsWith("/api/tasks/deadline-reminders/cron") ||
+    pathname.startsWith("/api/client/weekly-digest/cron")
   ) {
     return NextResponse.next()
   }

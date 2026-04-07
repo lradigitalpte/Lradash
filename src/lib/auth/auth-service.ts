@@ -10,6 +10,7 @@ import { getAppUrl } from "@/lib/url/get-app-url"
 import { OrganizationModel } from "@/models/organization.model"
 import { RefreshTokenModel } from "@/models/refreshToken.model"
 import { UserModel } from "@/models/user.model"
+import { UserRole } from "@/types/dbInterface"
 
 import { hashPassword, verifyPassword } from "./password"
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from "./tokens"
@@ -34,7 +35,24 @@ export interface AuthResponse {
     id: string
     email: string
     name: string
+    orgRole?: UserRole
+    isClient?: boolean
   }
+}
+
+async function resolveOrganizationRole(userId: string, organizationId: string): Promise<UserRole> {
+  const org = await OrganizationModel.findById(organizationId).select("owner members").lean()
+
+  if (!org) {
+    return UserRole.MEMBER
+  }
+
+  if (org.owner.toString() === userId) {
+    return UserRole.OWNER
+  }
+
+  const member = (org.members as any[]).find((entry) => entry.userId.toString() === userId)
+  return (member?.role as UserRole) ?? UserRole.MEMBER
 }
 
 /**
@@ -88,7 +106,8 @@ export async function registerUser(data: SignUpData): Promise<AuthResponse> {
     const tokenPayload: TokenPayload = {
       userId: userId,
       email: userEmail,
-      organizationId: orgId
+      organizationId: orgId,
+      role: UserRole.OWNER
     }
 
     const accessToken = generateAccessToken(tokenPayload)
@@ -108,7 +127,9 @@ export async function registerUser(data: SignUpData): Promise<AuthResponse> {
       user: {
         id: userId,
         email: userEmail,
-        name: userName
+        name: userName,
+        orgRole: UserRole.OWNER,
+        isClient: false
       }
     }
   } catch (error) {
@@ -163,10 +184,13 @@ export async function loginUser(data: SignInData): Promise<AuthResponse> {
       orgId = org._id.toString()
     }
 
+    const orgRole = await resolveOrganizationRole(userId, orgId)
+
     const tokenPayload: TokenPayload = {
       userId: userId,
       email: userEmail,
-      organizationId: orgId
+      organizationId: orgId,
+      role: orgRole
     }
 
     const accessToken = generateAccessToken(tokenPayload)
@@ -186,7 +210,9 @@ export async function loginUser(data: SignInData): Promise<AuthResponse> {
       user: {
         id: userId,
         email: userEmail,
-        name: userName
+        name: userName,
+        orgRole,
+        isClient: orgRole === UserRole.CLIENT
       }
     }
   } catch (error) {
@@ -241,10 +267,13 @@ export async function refreshAccessToken(refreshToken: string): Promise<AuthResp
     }
 
     // Generate new access token
+    const orgRole = await resolveOrganizationRole(user._id.toString(), orgId)
+
     const tokenPayload: TokenPayload = {
       userId: user._id.toString(),
       email: user.email,
-      organizationId: orgId
+      organizationId: orgId,
+      role: orgRole
     }
 
     const newAccessToken = generateAccessToken(tokenPayload)
@@ -255,7 +284,9 @@ export async function refreshAccessToken(refreshToken: string): Promise<AuthResp
       user: {
         id: user._id.toString(),
         email: user.email,
-        name: user.name
+        name: user.name,
+        orgRole,
+        isClient: orgRole === UserRole.CLIENT
       }
     }
   } catch (error) {

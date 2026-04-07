@@ -54,7 +54,17 @@ export function InviteUserDialog({ organizationId, onInviteSent }: InviteUserDia
         return
       }
 
-      toast.success(`Invitation sent to ${email}`)
+      const data = await response.json()
+
+      if (data.invitationUrl && typeof navigator !== "undefined") {
+        await navigator.clipboard.writeText(data.invitationUrl).catch(() => undefined)
+      }
+
+      toast.success(`Invitation sent to ${email}`, {
+        description: data.invitationUrl
+          ? "The secure invite link has been copied to your clipboard."
+          : "The invitation is ready for your delivery workflow."
+      })
       setEmail("")
       setRole("MEMBER")
       setOpen(false)
@@ -76,7 +86,7 @@ export function InviteUserDialog({ organizationId, onInviteSent }: InviteUserDia
         >
           <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-indigo-600/20 opacity-0 transition-opacity group-hover:opacity-100" />
           <UserPlus className="h-5 w-5 stroke-[3]" />
-          Invite Member
+          Invite User
         </Button>
       </DialogTrigger>
       <DialogContent className="rounded-[2.5rem] border-none bg-white/80 p-10 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.2)] backdrop-blur-2xl sm:max-w-[500px] dark:bg-slate-900/80 dark:shadow-none">
@@ -90,7 +100,7 @@ export function InviteUserDialog({ organizationId, onInviteSent }: InviteUserDia
                 Add Member
               </DialogTitle>
               <DialogDescription className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
-                Send an invitation to join your team
+                Send a secure invite to a teammate or client
               </DialogDescription>
             </div>
           </div>
@@ -112,7 +122,9 @@ export function InviteUserDialog({ organizationId, onInviteSent }: InviteUserDia
               type="email"
               placeholder="member@company.com"
               value={email}
-              onChange={(e) =>{  setEmail(e.target.value); }}
+              onChange={(e) => {
+                setEmail(e.target.value)
+              }}
               disabled={loading}
               className="h-14 rounded-2xl border-none bg-slate-50 px-6 text-sm font-bold transition-all placeholder:text-slate-300 focus:ring-2 focus:ring-blue-500/20 dark:bg-slate-800/50"
             />
@@ -143,6 +155,12 @@ export function InviteUserDialog({ organizationId, onInviteSent }: InviteUserDia
                   Member
                 </SelectItem>
                 <SelectItem
+                  value="CLIENT"
+                  className="rounded-xl py-3 font-bold focus:bg-emerald-50 focus:text-emerald-600"
+                >
+                  Client
+                </SelectItem>
+                <SelectItem
                   value="ADMIN"
                   className="rounded-xl py-3 font-bold focus:bg-indigo-50 focus:text-indigo-600"
                 >
@@ -156,7 +174,9 @@ export function InviteUserDialog({ organizationId, onInviteSent }: InviteUserDia
         <div className="flex flex-col gap-4 pt-4 sm:flex-row">
           <Button
             variant="ghost"
-            onClick={() =>{  setOpen(false); }}
+            onClick={() => {
+              setOpen(false)
+            }}
             disabled={loading}
             className="h-14 flex-1 rounded-2xl text-[10px] font-black tracking-widest text-slate-400 uppercase transition-all hover:bg-slate-100 dark:hover:bg-slate-800"
           >

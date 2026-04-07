@@ -47,14 +47,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { email, password, name, role: requestedRole = "MEMBER" } = await request.json()
 
     const normalizedRole = String(requestedRole ?? "MEMBER").toUpperCase()
-    const allowedRoles = new Set<UserRole>([UserRole.MEMBER, UserRole.ADMIN, UserRole.OWNER])
+    const allowedRoles = new Set<UserRole>([
+      UserRole.MEMBER,
+      UserRole.ADMIN,
+      UserRole.OWNER,
+      UserRole.CLIENT
+    ])
     const safeRole = allowedRoles.has(normalizedRole as UserRole)
       ? (normalizedRole as UserRole)
       : UserRole.MEMBER
 
     // Only OWNER can grant elevated org roles.
     const requesterIsOwner = requesterMember.role === "OWNER"
-    const finalRole: UserRole = requesterIsOwner ? safeRole : UserRole.MEMBER
+    const finalRole: UserRole = requesterIsOwner
+      ? safeRole
+      : safeRole === UserRole.ADMIN || safeRole === UserRole.OWNER
+        ? UserRole.MEMBER
+        : safeRole
 
     if (!email || !password || !name) {
       return NextResponse.json({ error: "Email, password, and name are required" }, { status: 400 })

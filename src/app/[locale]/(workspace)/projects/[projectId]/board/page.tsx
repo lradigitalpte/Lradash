@@ -1,11 +1,21 @@
 "use client"
 
-import { LayoutGrid, Loader2, Plus } from "lucide-react"
+import { LayoutGrid, Loader2, MoreHorizontal, Plus, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -16,9 +26,16 @@ import {
   DialogTitle,
   DialogTrigger
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { apiClient } from "@/lib/api/client"
 
 interface Board {
   id: string
@@ -29,6 +46,7 @@ interface Board {
     name: string
     email: string
   }
+  canManage?: boolean
   isArchived: boolean
   createdAt: string
   updatedAt: string
@@ -37,12 +55,15 @@ interface Board {
 export default function ProjectBoardsPage() {
   const params = useParams()
   const projectId = (params?.projectId || params?.boardId) as string
+  const locale = (params?.locale as string) || "en"
   const [boards, setBoards] = useState<Board[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [formData, setFormData] = useState({ title: "", description: "" })
   const [projectTitle, setProjectTitle] = useState("Project")
+  const [boardToDelete, setBoardToDelete] = useState<Board | null>(null)
+  const [deletingBoardId, setDeletingBoardId] = useState<string | null>(null)
 
   useEffect(() => {
     if (projectId) {
@@ -53,7 +74,7 @@ export default function ProjectBoardsPage() {
 
   const fetchProjectTitle = async () => {
     try {
-      const response = await fetch(`/api/projects/${projectId}`)
+      const response = await apiClient.get(`/api/projects/${projectId}`)
       if (response.ok) {
         const data = await response.json()
         setProjectTitle(data.title || "Project")
@@ -88,6 +109,31 @@ export default function ProjectBoardsPage() {
       toast.error("Failed to load boards")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDeleteBoard = async () => {
+    if (!boardToDelete) {
+      return
+    }
+
+    try {
+      setDeletingBoardId(boardToDelete.id)
+      const response = await apiClient.delete(`/api/boards/${boardToDelete.id}`)
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null)
+        throw new Error(data?.error || "Failed to delete board")
+      }
+
+      setBoards((currentBoards) => currentBoards.filter((board) => board.id !== boardToDelete.id))
+      toast.success("Board deleted successfully")
+      setBoardToDelete(null)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to delete board"
+      toast.error(message)
+    } finally {
+      setDeletingBoardId(null)
     }
   }
 
@@ -282,17 +328,55 @@ export default function ProjectBoardsPage() {
           {boards.map((board) => (
             <Link
               key={board.id}
-              href={`/en/projects/${projectId}/boards/${board.id}`}
+              href={`/${locale}/projects/${projectId}/boards/${board.id}`}
               className="group block h-full"
             >
               <div className="relative h-full">
-                <div className="absolute -inset-1 rounded-3xl bg-gradient-to-r from-blue-600 to-indigo-600 opacity-0 blur transition duration-700 group-hover:opacity-10 group-hover:duration-200" />
-                <div className="relative flex h-full flex-col rounded-3xl border border-white/20 bg-white/60 p-10 shadow-2xl shadow-slate-200/40 backdrop-blur-xl transition-all duration-500 group-hover:-translate-y-3 group-hover:bg-white group-hover:shadow-blue-500/10 hover:border-blue-500/30 dark:border-slate-800/50 dark:bg-slate-900/60 dark:shadow-none dark:group-hover:bg-slate-900">
+                <div className="absolute -inset-1 rounded-3xl bg-gradient-to-r from-blue-600 to-indigo-600 opacity-0 blur transition duration-500 group-hover:opacity-[0.06]" />
+                <div className="relative flex h-full flex-col rounded-3xl border border-white/20 bg-white/60 p-10 shadow-xl shadow-slate-200/30 backdrop-blur-xl transition-all duration-300 group-hover:-translate-y-1 group-hover:bg-white group-hover:shadow-blue-500/5 hover:border-blue-500/20 dark:border-slate-800/50 dark:bg-slate-900/60 dark:shadow-none dark:group-hover:bg-slate-900">
+                  {board.canManage && (
+                    <div className="absolute top-6 right-6 z-10">
+                      <DropdownMenu modal={false}>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 rounded-xl bg-white/80 text-slate-500 opacity-70 shadow-sm backdrop-blur transition-opacity hover:opacity-100 dark:bg-slate-900/80 dark:text-slate-300"
+                            onClick={(event) => {
+                              event.preventDefault()
+                              event.stopPropagation()
+                            }}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          onClick={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                          }}
+                        >
+                          <DropdownMenuItem
+                            className="text-red-600 focus:text-red-600"
+                            onSelect={(event) => {
+                              event.preventDefault()
+                              setBoardToDelete(board)
+                            }}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete board
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  )}
                   <div className="mb-10 flex items-start justify-between border-b border-slate-100 pb-6 dark:border-slate-800/50">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 transition-all duration-500 group-hover:scale-110 group-hover:bg-blue-600 group-hover:text-white group-hover:shadow-lg group-hover:shadow-blue-500/30 dark:bg-blue-900/30">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 transition-all duration-300 group-hover:scale-105 group-hover:bg-blue-600 group-hover:text-white group-hover:shadow-md group-hover:shadow-blue-500/20 dark:bg-blue-900/30">
                       <LayoutGrid className="h-7 w-7 stroke-[2] text-blue-600 group-hover:text-white dark:text-blue-400" />
                     </div>
-                    <div className="flex -space-x-3 transition-transform group-hover:translate-x-1">
+                    <div className="flex -space-x-3">
                       {[1, 2, 3].map((i) => (
                         <div
                           key={i}
@@ -341,6 +425,32 @@ export default function ProjectBoardsPage() {
           ))}
         </div>
       )}
+
+      <AlertDialog open={!!boardToDelete} onOpenChange={(open) => !open && setBoardToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete board</AlertDialogTitle>
+            <AlertDialogDescription>
+              {boardToDelete
+                ? `Delete "${boardToDelete.title}" from this project? This also removes its lists and board tasks.`
+                : "Delete this board?"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!deletingBoardId}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={!!deletingBoardId}
+              onClick={(event) => {
+                event.preventDefault()
+                void handleDeleteBoard()
+              }}
+            >
+              {deletingBoardId ? "Deleting..." : "Delete board"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

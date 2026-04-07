@@ -2,6 +2,8 @@ import mongoose from "mongoose"
 import { NextRequest, NextResponse } from "next/server"
 
 import { verifyAccessToken } from "@/lib/auth/tokens"
+import { canAccessBoard, canManageBoard } from "@/lib/board-access"
+import { deleteBoardInDb } from "@/lib/db/board"
 import { connectToDatabase } from "@/lib/db/connect"
 import { BoardModel } from "@/models/board.model"
 import { ListModel } from "@/models/list.model"
@@ -49,9 +51,8 @@ export async function GET(
     }
 
     const userId = decoded.userId?.toString()
-    const ownerId = (board as any).owner?.toString()
-    const memberIds = ((board as any).members || []).map((m: any) => m?.toString?.() ?? m)
-    if (userId && ownerId !== userId && !memberIds.includes(userId)) {
+    const hasAccess = await canAccessBoard(board, userId)
+    if (!hasAccess) {
       return NextResponse.json(
         { error: "Forbidden" },
         { status: 403, headers: { "Content-Type": "application/json" } }
@@ -82,6 +83,7 @@ export async function GET(
       description: board.description,
       projectId:
         (board as any).projectId?.toString() || (board as any).projects?.[0]?._id?.toString(),
+      canManage: await canManageBoard(board, userId),
       lists: lists.map((list: any) => ({
         _id: list._id.toString(),
         title: list.title,
@@ -151,6 +153,11 @@ export async function PATCH(
       return NextResponse.json({ error: "Board not found" }, { status: 404 })
     }
 
+    const canManage = await canManageBoard(board, decoded.userId.toString())
+    if (!canManage) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
     let orgId = decoded.organizationId?.toString()
     if (!orgId) {
       const user = await UserModel.findById(decoded.userId).select("defaultOrganizationId").lean()
@@ -183,8 +190,12 @@ export async function PATCH(
       }
     }
 
-    if (body.hasOwnProperty("title")) {updates.title = body.title}
-    if (body.hasOwnProperty("description")) {updates.description = body.description}
+    if (body.hasOwnProperty("title")) {
+      updates.title = body.title
+    }
+    if (body.hasOwnProperty("description")) {
+      updates.description = body.description
+    }
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: "No valid fields to update" }, { status: 400 })
@@ -205,5 +216,51 @@ export async function PATCH(
   } catch (error) {
     console.error("Patch board error:", error)
     return NextResponse.json({ error: "Failed to update board" }, { status: 500 })
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ boardId: string }> }
+) {
+  try {
+    const authHeader = request.headers.get("authorization")
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const token = authHeader.substring(7)
+    const decoded = verifyAccessToken(token)
+    if (!decoded?.userId) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+    }
+
+    const { boardId } = await params
+    await connectToDatabase()
+
+    const board = await BoardModel.findOne({ _id: boardId, deletedAt: null }).lean()
+    if (!board) {
+      return NextResponse.json({ error: "Board not found" }, { status: 404 })
+    }
+
+    const canManage = await canManageBoard(board, decoded.userId.toString())
+    if (!canManage) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    const user = await UserModel.findById(decoded.userId).select("email").lean()
+    if (!user?.email) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+
+    const deleted = await deleteBoardInDb(boardId, user.email)
+    if (!deleted) {
+      return NextResponse.json({ error: "Failed to delete board" }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error("Delete board error:", error)
+    return NextResponse.json({ error: "Failed to delete board" }, { status: 500 })
   }
 }

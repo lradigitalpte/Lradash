@@ -1,7 +1,10 @@
 import mongoose from "mongoose"
 import { NextRequest, NextResponse } from "next/server"
 
+import { requireOrganizationAccess } from "@/lib/auth/organization-access"
 import { connectToDatabase } from "@/lib/db/connect"
+import { ProjectModel } from "@/models/project.model"
+import { UserRole } from "@/types/dbInterface"
 
 interface SocialStrategy {
   _id?: string
@@ -43,13 +46,58 @@ const socialStrategySchema = new mongoose.Schema({
 const SocialStrategy =
   mongoose.models.SocialStrategy || mongoose.model("SocialStrategy", socialStrategySchema)
 
+async function ensureProjectAccess(projectId: string, request: NextRequest) {
+  const access = await requireOrganizationAccess(request)
+  if ("error" in access) {
+    return access
+  }
+
+  await connectToDatabase()
+  const project = await ProjectModel.findOne({
+    _id: projectId,
+    organizationId: access.org._id,
+    deletedAt: null
+  } as any)
+    .select("owner members")
+    .lean()
+
+  if (!project) {
+    return { error: NextResponse.json({ error: "Project not found" }, { status: 404 }) }
+  }
+
+  const ownerId = (project as any).owner?.toString()
+  const memberIds = new Set(((project as any).members || []).map((id: any) => id.toString()))
+  const hasReadAccess =
+    access.orgRole === UserRole.OWNER ||
+    access.orgRole === UserRole.ADMIN ||
+    ownerId === access.user._id ||
+    memberIds.has(access.user._id)
+
+  if (!hasReadAccess) {
+    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
+  }
+
+  const canWrite =
+    access.orgRole === UserRole.OWNER ||
+    access.orgRole === UserRole.ADMIN ||
+    ownerId === access.user._id
+
+  return {
+    access,
+    canWrite
+  }
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
     const { projectId } = await params
-    await connectToDatabase()
+    const auth = await ensureProjectAccess(projectId, request)
+    if ("error" in auth) {
+      return auth.error
+    }
 
     const strategies = await SocialStrategy.find({ projectId }).lean()
 
@@ -66,7 +114,16 @@ export async function POST(
 ) {
   try {
     const { projectId } = await params
-    await connectToDatabase()
+    const auth = await ensureProjectAccess(projectId, request)
+    if ("error" in auth) {
+      return auth.error
+    }
+    if (!auth.canWrite) {
+      return NextResponse.json(
+        { error: "Forbidden: owner/admin/project owner required" },
+        { status: 403 }
+      )
+    }
 
     const body = await request.json()
 
@@ -91,8 +148,17 @@ export async function PUT(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    await params
-    await connectToDatabase()
+    const { projectId } = await params
+    const auth = await ensureProjectAccess(projectId, request)
+    if ("error" in auth) {
+      return auth.error
+    }
+    if (!auth.canWrite) {
+      return NextResponse.json(
+        { error: "Forbidden: owner/admin/project owner required" },
+        { status: 403 }
+      )
+    }
 
     const body = await request.json()
     const { id } = body
@@ -126,8 +192,17 @@ export async function DELETE(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    await params
-    await connectToDatabase()
+    const { projectId } = await params
+    const auth = await ensureProjectAccess(projectId, request)
+    if ("error" in auth) {
+      return auth.error
+    }
+    if (!auth.canWrite) {
+      return NextResponse.json(
+        { error: "Forbidden: owner/admin/project owner required" },
+        { status: 403 }
+      )
+    }
 
     const { searchParams } = new URL(request.url)
     const id = searchParams.get("id")

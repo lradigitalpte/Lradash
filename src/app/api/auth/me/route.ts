@@ -1,45 +1,27 @@
 import { NextRequest, NextResponse } from "next/server"
 
-import { verifyAccessToken } from "@/lib/auth/tokens"
-import { connectToDatabase } from "@/lib/db/connect"
-import { UserModel } from "@/models/user.model"
+import { requireOrganizationAccess } from "@/lib/auth/organization-access"
 
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get("authorization")
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      )
-    }
-
-    const token = authHeader.substring(7)
-    const decoded = verifyAccessToken(token)
-
-    if (!decoded) {
-      return NextResponse.json(
-        { error: "Invalid token" },
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      )
-    }
-
-    await connectToDatabase()
-    const user = await UserModel.findById(decoded.userId).select("-passwordHash").lean()
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404, headers: { "Content-Type": "application/json" } }
-      )
+    const access = await requireOrganizationAccess(request)
+    if ("error" in access) {
+      return access.error
     }
 
     return NextResponse.json(
       {
-        id: user._id.toString(),
-        email: user.email,
-        name: user.name,
-        avatar: user.avatar || null
+        id: access.user._id,
+        email: access.user.email,
+        name: access.user.name,
+        avatar: access.user.avatar || null,
+        orgRole: access.orgRole,
+        isClient: access.orgRole === "CLIENT",
+        organization: {
+          id: access.org._id,
+          name: access.org.name,
+          slug: access.org.slug
+        }
       },
       {
         status: 200,

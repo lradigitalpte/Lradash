@@ -1,62 +1,35 @@
-import mongoose from "mongoose"
 import { NextRequest, NextResponse } from "next/server"
 
-import { verifyAccessToken } from "@/lib/auth/tokens"
+import { requireOrganizationAccess } from "@/lib/auth/organization-access"
 import { connectToDatabase } from "@/lib/db/connect"
 import { getTasksByProjectId } from "@/lib/db/task"
 import { ProjectModel } from "@/models/project.model"
+import { UserRole } from "@/types/dbInterface"
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const authHeader = request.headers.get("authorization")
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      )
-    }
-
-    const token = authHeader.substring(7)
-    const decoded = verifyAccessToken(token)
-
-    if (!decoded) {
-      return NextResponse.json(
-        { error: "Invalid token" },
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      )
-    }
-
-    let organizationId = decoded.organizationId
-    if (!organizationId) {
-      const { UserModel } = await import("@/models/user.model")
-      const user = await UserModel.findById(decoded.userId).lean()
-      if (user && user.defaultOrganizationId) {
-        organizationId = user.defaultOrganizationId.toString()
-      }
-    }
-
-    if (!organizationId) {
-      return NextResponse.json({ error: "Organization not found" }, { status: 401 })
+    const access = await requireOrganizationAccess(request)
+    if ("error" in access) {
+      return access.error
     }
 
     const { projectId } = await params
     await connectToDatabase()
 
-    const userId = decoded.userId
-    const userIdObj =
-      typeof userId === "string" && mongoose.Types.ObjectId.isValid(userId)
-        ? new mongoose.Types.ObjectId(userId)
-        : userId
-
-    const project = await ProjectModel.findOne({
+    const projectQuery: any = {
       _id: projectId,
-      organizationId: organizationId,
+      organizationId: access.org._id,
       deletedAt: null,
-      $or: [{ owner: userIdObj }, { members: userIdObj }]
-    } as any)
+      $or:
+        access.orgRole === UserRole.OWNER || access.orgRole === UserRole.ADMIN
+          ? [{ owner: { $exists: true } }]
+          : [{ owner: access.user._id }, { members: access.user._id }]
+    }
+
+    const project = await ProjectModel.findOne(projectQuery)
       .populate("owner", "name email avatar createdAt")
       .populate("members", "name email avatar createdAt")
       .lean()
@@ -116,30 +89,38 @@ export async function PATCH(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const authHeader = request.headers.get("authorization")
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-    const token = authHeader.substring(7)
-    const decoded = verifyAccessToken(token)
-    if (!decoded) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
-    }
-
-    let organizationId = decoded.organizationId
-    if (!organizationId) {
-      const { UserModel } = await import("@/models/user.model")
-      const user = await UserModel.findById(decoded.userId).lean()
-      if (user?.defaultOrganizationId) {
-        organizationId = user.defaultOrganizationId.toString()
-      }
-    }
-    if (!organizationId) {
-      return NextResponse.json({ error: "Organization not found" }, { status: 401 })
+    const access = await requireOrganizationAccess(request)
+    if ("error" in access) {
+      return access.error
     }
 
     const { projectId } = await params
     await connectToDatabase()
+
+    const project = await ProjectModel.findOne({
+      _id: projectId,
+      organizationId: access.org._id,
+      deletedAt: null
+    } as any)
+      .select("owner")
+      .lean()
+
+    if (!project) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 })
+    }
+
+    const ownerId = (project as any).owner?.toString()
+    const canManage =
+      access.orgRole === UserRole.OWNER ||
+      access.orgRole === UserRole.ADMIN ||
+      ownerId === access.user._id
+
+    if (!canManage) {
+      return NextResponse.json(
+        { error: "Forbidden: owner/admin/project owner required" },
+        { status: 403 }
+      )
+    }
 
     const body = await request.json()
     const allowedFields: Record<string, unknown> = {}
@@ -167,7 +148,7 @@ export async function PATCH(
     }
 
     const updated = await ProjectModel.findOneAndUpdate(
-      { _id: projectId, organizationId, deletedAt: null },
+      { _id: projectId, organizationId: access.org._id, deletedAt: null } as any,
       { $set: allowedFields },
       { new: true }
     )
@@ -203,33 +184,37 @@ export async function DELETE(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
-    const authHeader = request.headers.get("authorization")
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-    const token = authHeader.substring(7)
-    const decoded = verifyAccessToken(token)
-    if (!decoded) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
-    }
-
-    let organizationId = decoded.organizationId
-    if (!organizationId) {
-      const { UserModel } = await import("@/models/user.model")
-      const user = await UserModel.findById(decoded.userId).lean()
-      if (user?.defaultOrganizationId) {
-        organizationId = user.defaultOrganizationId.toString()
-      }
-    }
-    if (!organizationId) {
-      return NextResponse.json({ error: "Organization not found" }, { status: 401 })
+    const access = await requireOrganizationAccess(request)
+    if ("error" in access) {
+      return access.error
     }
 
     const { projectId } = await params
     await connectToDatabase()
 
+    const project = await ProjectModel.findOne({
+      _id: projectId,
+      organizationId: access.org._id,
+      deletedAt: null
+    } as any)
+      .select("owner")
+      .lean()
+
+    if (!project) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 })
+    }
+
+    const ownerId = (project as any).owner?.toString()
+    const canDelete = access.orgRole === UserRole.OWNER || ownerId === access.user._id
+    if (!canDelete) {
+      return NextResponse.json(
+        { error: "Forbidden: organization owner or project owner required" },
+        { status: 403 }
+      )
+    }
+
     const deleted = await ProjectModel.findOneAndUpdate(
-      { _id: projectId, organizationId, deletedAt: null },
+      { _id: projectId, organizationId: access.org._id, deletedAt: null } as any,
       { $set: { deletedAt: new Date() } },
       { new: true }
     )
