@@ -134,6 +134,31 @@ const taskSchema = new mongoose.Schema(
             type: { type: String },
             size: { type: Number }
           }
+        ],
+        reviewHistory: [
+          {
+            reviewer: {
+              userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+              name: { type: String },
+              email: { type: String },
+              avatar: { type: String }
+            },
+            action: {
+              type: String,
+              enum: ["approve", "reject", "review"],
+              required: true
+            },
+            note: { type: String },
+            attachments: [
+              {
+                name: { type: String, required: true },
+                url: { type: String, required: true },
+                type: { type: String },
+                size: { type: Number }
+              }
+            ],
+            createdAt: { type: Date, default: Date.now }
+          }
         ]
       }
     ]
@@ -162,7 +187,10 @@ function getTaskModel(): Model<TaskType> {
   const existingTaskModel = mongoose.models.Task as Model<TaskType> | undefined
 
   if (existingTaskModel) {
-    if (!existingTaskModel.schema.path("deadlineReminder12hSentAt")) {
+    const completionPath = existingTaskModel.schema.path("completionSubmissions")
+    const hasReviewHistory = Boolean(completionPath?.schema?.path("reviewHistory"))
+
+    if (!existingTaskModel.schema.path("deadlineReminder12hSentAt") || !hasReviewHistory) {
       mongoose.deleteModel("Task")
       return mongoose.model<TaskType>("Task", taskSchema)
     }

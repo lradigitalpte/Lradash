@@ -17,6 +17,7 @@ export interface NotificationPayload {
   userId: Types.ObjectId | string
   type: "mention" | "comment_reply" | "task_assigned"
   taskId: string
+  projectId?: string
   commentId?: string
   mentionedByUser: {
     id: string
@@ -85,6 +86,7 @@ export async function sendMentionNotifications(
       title: `Mentioned in ${payload.taskTitle}`,
       body: `${payload.mentionedByUser.name} mentioned you: ${commentPreview}`,
       taskId: payload.taskId,
+      projectId: payload.projectId,
       triggeredBy: {
         userId: payload.mentionedByUser.id,
         name: payload.mentionedByUser.name,

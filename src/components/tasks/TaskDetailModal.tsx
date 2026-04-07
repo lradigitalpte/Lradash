@@ -95,6 +95,35 @@ export function TaskDetailModal({
     }
   }, [task])
 
+  useEffect(() => {
+    if (!open || !task?._id || !onTaskUpdated) {
+      return
+    }
+
+    let cancelled = false
+
+    const refreshLatestTask = async () => {
+      try {
+        const response = await apiClient.get(`/api/tasks/${task._id}`)
+        if (!response.ok) {
+          return
+        }
+        const latestTask = await response.json()
+        if (!cancelled) {
+          onTaskUpdated(latestTask)
+        }
+      } catch {
+        // best-effort refresh only
+      }
+    }
+
+    refreshLatestTask()
+
+    return () => {
+      cancelled = true
+    }
+  }, [open, task?._id, onTaskUpdated])
+
   if (!task) {
     return null
   }

@@ -72,6 +72,20 @@ export async function markAllNotificationsRead(userId: string): Promise<number> 
   return result.modifiedCount
 }
 
+/** Delete a single notification for a user */
+export async function deleteNotification(notificationId: string, userId: string): Promise<boolean> {
+  await connectToDatabase()
+  const result = await NotificationModel.deleteOne({ _id: notificationId, userId })
+  return result.deletedCount > 0
+}
+
+/** Delete all notifications for a user */
+export async function deleteAllNotifications(userId: string): Promise<number> {
+  await connectToDatabase()
+  const result = await NotificationModel.deleteMany({ userId })
+  return result.deletedCount ?? 0
+}
+
 /** Store a Firebase FCM token for a user (upsert on device fingerprint) */
 export async function saveFcmToken(userId: string, token: string): Promise<void> {
   await connectToDatabase()

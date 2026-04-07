@@ -13,7 +13,6 @@ import {
   Archive,
   Loader2,
   ChevronDown,
-  ChevronUp,
   ExternalLink
 } from "lucide-react"
 import { useRef, useState, useEffect, useCallback } from "react"
@@ -34,6 +33,14 @@ interface Attachment {
   size?: number
 }
 
+interface ReviewEntry {
+  reviewer: { userId: string; name: string; email?: string; avatar?: string }
+  action: "approve" | "reject" | "review"
+  note?: string
+  attachments?: Attachment[]
+  createdAt: string
+}
+
 interface Submission {
   _id: string
   submittedBy: { userId: string; name: string; email: string; avatar?: string }
@@ -45,6 +52,7 @@ interface Submission {
   reviewedAt?: string
   reviewNote?: string
   reviewAttachments?: Attachment[]
+  reviewHistory?: ReviewEntry[]
 }
 
 interface Props {
@@ -105,6 +113,34 @@ function timeAgo(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric" })
 }
 
+function getSubmissionReviews(submission: Submission): ReviewEntry[] {
+  const history = Array.isArray(submission.reviewHistory) ? [...submission.reviewHistory] : []
+  history.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+  if (history.length > 0) {
+    return history
+  }
+
+  if (submission.reviewedBy) {
+    return [
+      {
+        reviewer: submission.reviewedBy,
+        action:
+          submission.status === "approved"
+            ? "approve"
+            : submission.status === "rejected"
+              ? "reject"
+              : "review",
+        note: submission.reviewNote,
+        attachments: submission.reviewAttachments,
+        createdAt: submission.reviewedAt || submission.submittedAt
+      }
+    ]
+  }
+
+  return []
+}
+
 export function TaskCompletionTimeline({
   taskId,
   projectId,
@@ -128,7 +164,7 @@ export function TaskCompletionTimeline({
 
   const fetchSubmissions = useCallback(async () => {
     try {
-      const res = await apiClient.get(`/api/tasks/${taskId}/completion`)
+      const res = await apiClient.get(`/api/tasks/${taskId}/completion?_ts=${Date.now()}`)
       if (res.ok) {
         const data = await res.json()
         setSubmissions(data.submissions || [])
@@ -226,16 +262,48 @@ export function TaskCompletionTimeline({
 
   const handleReview = async (submissionId: string, action: "approve" | "reject" | "review") => {
     setReviewingId(submissionId)
+    const noteSnapshot = reviewNote.trim()
+    const attachmentsSnapshot = [...reviewAttachments]
+
     try {
       const res = await apiClient.patch(`/api/tasks/${taskId}/completion/${submissionId}`, {
         action,
-        reviewNote: reviewNote.trim(),
-        reviewAttachments
+        reviewNote: noteSnapshot,
+        reviewAttachments: attachmentsSnapshot
       })
       if (!res.ok) {
         const err = await res.json()
         throw new Error(err.error || "Review failed")
       }
+
+      // Immediately prepend the latest review so the UI never feels like it's replacing old entries.
+      setSubmissions((prev) =>
+        prev.map((sub) => {
+          if (sub._id !== submissionId) {
+            return sub
+          }
+
+          const newReview: ReviewEntry = {
+            reviewer: {
+              userId: "current-user",
+              name: "You"
+            },
+            action,
+            note: noteSnapshot,
+            attachments: attachmentsSnapshot,
+            createdAt: new Date().toISOString()
+          }
+
+          const existingHistory = Array.isArray(sub.reviewHistory) ? sub.reviewHistory : []
+          return {
+            ...sub,
+            status:
+              action === "approve" ? "approved" : action === "reject" ? "rejected" : sub.status,
+            reviewHistory: [newReview, ...existingHistory]
+          }
+        })
+      )
+
       if (action === "approve") {
         toast.success("Task approved and marked DONE!")
       } else if (action === "reject") {
@@ -304,7 +372,7 @@ export function TaskCompletionTimeline({
               setNote(e.target.value)
             }}
             placeholder="Describe what was done, how it was completed, any notes for the reviewer…"
-            className="mb-3 min-h-[90px] resize-none rounded-xl border-slate-200 bg-slate-50 text-sm font-medium text-slate-800 placeholder:text-slate-300 dark:border-slate-700 dark:bg-slate-800/50 dark:text-white"
+            className="mb-3 min-h-22.5 resize-none rounded-xl border-slate-200 bg-slate-50 text-sm font-medium text-slate-800 placeholder:text-slate-300 dark:border-slate-700 dark:bg-slate-800/50 dark:text-white"
           />
 
           {attachments.length > 0 && (
@@ -315,7 +383,7 @@ export function TaskCompletionTimeline({
                   className="flex items-center gap-1.5 rounded-lg border border-slate-100 bg-slate-50 px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-800"
                 >
                   {fileIcon(att.type)}
-                  <span className="max-w-[120px] truncate text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                  <span className="max-w-30 truncate text-[11px] font-bold text-slate-700 dark:text-slate-300">
                     {att.name}
                   </span>
                   {att.size && (
@@ -394,7 +462,7 @@ export function TaskCompletionTimeline({
                 )}
 
                 {/* Avatar column */}
-                <div className="z-10 flex-shrink-0">
+                <div className="z-10 shrink-0">
                   <UserAvatar
                     name={sub.submittedBy.name}
                     image={sub.submittedBy.avatar}
@@ -446,7 +514,7 @@ export function TaskCompletionTimeline({
                           className="group flex items-center gap-1.5 rounded-xl border border-slate-100 bg-slate-50 px-2.5 py-1.5 text-[11px] font-bold text-slate-700 transition-all hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
                         >
                           {fileIcon(att.type)}
-                          <span className="max-w-[140px] truncate">{att.name}</span>
+                          <span className="max-w-35 truncate">{att.name}</span>
                           {att.size && (
                             <span className="text-[9px] font-normal text-slate-300">
                               {formatBytes(att.size)}
@@ -458,77 +526,87 @@ export function TaskCompletionTimeline({
                     </div>
                   )}
 
-                  {/* Review result (show when reviewer saved something) */}
-                  {sub.reviewedBy && (
-                    <div
-                      className={cn(
-                        "mt-2 flex items-start gap-2 rounded-xl px-3 py-2",
-                        sub.status === "approved"
-                          ? "bg-emerald-100/60 dark:bg-emerald-900/20"
-                          : sub.status === "rejected"
-                            ? "bg-rose-100/60 dark:bg-rose-900/20"
-                            : "bg-amber-100/60 dark:bg-amber-900/20"
-                      )}
-                    >
-                      <ShieldCheck
-                        className={cn(
-                          "mt-0.5 h-3.5 w-3.5 flex-shrink-0",
-                          sub.status === "approved"
-                            ? "text-emerald-600"
-                            : sub.status === "rejected"
-                              ? "text-rose-500"
-                              : "text-amber-600"
-                        )}
-                      />
-                      <div className="min-w-0">
-                        <span
-                          className={cn(
-                            "text-[11px] font-black",
-                            sub.status === "approved"
-                              ? "text-emerald-700"
-                              : sub.status === "rejected"
-                                ? "text-rose-600"
-                                : "text-amber-700"
-                          )}
-                        >
-                          {sub.reviewedBy.name}
-                        </span>
-                        <span className="ml-1 text-[11px] text-slate-500">
-                          {sub.status === "approved"
-                            ? "approved"
-                            : sub.status === "rejected"
-                              ? "rejected"
-                              : "reviewed (pending)"}{" "}
-                          {sub.reviewedAt ? `· ${timeAgo(sub.reviewedAt)}` : ""}
-                        </span>
-                        {sub.reviewNote && (
-                          <p className="mt-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-400">
-                            "{sub.reviewNote}"
-                          </p>
-                        )}
-                        {sub.reviewAttachments && sub.reviewAttachments.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {sub.reviewAttachments.map((att, i) => (
-                              <a
-                                key={i}
-                                href={att.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="group flex items-center gap-1.5 rounded-xl border border-slate-100 bg-slate-50 px-2.5 py-1.5 text-[11px] font-bold text-slate-700 transition-all hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                              >
-                                {fileIcon(att.type)}
-                                <span className="max-w-[140px] truncate">{att.name}</span>
-                                {att.size && (
-                                  <span className="text-[9px] font-normal text-slate-300">
-                                    {formatBytes(att.size)}
-                                  </span>
+                  {/* Review history (newest first) */}
+                  {getSubmissionReviews(sub).length > 0 && (
+                    <div className="mt-2 space-y-2">
+                      {getSubmissionReviews(sub).map((review, reviewIdx) => {
+                        const isApprove = review.action === "approve"
+                        const isReject = review.action === "reject"
+
+                        return (
+                          <div
+                            key={`${sub._id}-review-${review.createdAt || reviewIdx}-${review.action}-${review.reviewer?.userId || "reviewer"}`}
+                            className={cn(
+                              "flex items-start gap-2 rounded-xl px-3 py-2",
+                              isApprove
+                                ? "bg-emerald-100/60 dark:bg-emerald-900/20"
+                                : isReject
+                                  ? "bg-rose-100/60 dark:bg-rose-900/20"
+                                  : "bg-amber-100/60 dark:bg-amber-900/20"
+                            )}
+                          >
+                            <ShieldCheck
+                              className={cn(
+                                "mt-0.5 h-3.5 w-3.5 shrink-0",
+                                isApprove
+                                  ? "text-emerald-600"
+                                  : isReject
+                                    ? "text-rose-500"
+                                    : "text-amber-600"
+                              )}
+                            />
+                            <div className="min-w-0">
+                              <span
+                                className={cn(
+                                  "text-[11px] font-black",
+                                  isApprove
+                                    ? "text-emerald-700"
+                                    : isReject
+                                      ? "text-rose-600"
+                                      : "text-amber-700"
                                 )}
-                                <ExternalLink className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
-                              </a>
-                            ))}
+                              >
+                                {review.reviewer?.name || "Reviewer"}
+                              </span>
+                              <span className="ml-1 text-[11px] text-slate-500">
+                                {isApprove
+                                  ? "approved"
+                                  : isReject
+                                    ? "rejected"
+                                    : "reviewed (pending)"}
+                                {review.createdAt ? ` · ${timeAgo(review.createdAt)}` : ""}
+                              </span>
+                              {review.note && (
+                                <p className="mt-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-400">
+                                  "{review.note}"
+                                </p>
+                              )}
+                              {review.attachments && review.attachments.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {review.attachments.map((att, i) => (
+                                    <a
+                                      key={`${sub._id}-review-${reviewIdx}-att-${i}`}
+                                      href={att.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="group flex items-center gap-1.5 rounded-xl border border-slate-100 bg-slate-50 px-2.5 py-1.5 text-[11px] font-bold text-slate-700 transition-all hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                    >
+                                      {fileIcon(att.type)}
+                                      <span className="max-w-35 truncate">{att.name}</span>
+                                      {att.size && (
+                                        <span className="text-[9px] font-normal text-slate-300">
+                                          {formatBytes(att.size)}
+                                        </span>
+                                      )}
+                                      <ExternalLink className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
+                                    </a>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        )}
-                      </div>
+                        )
+                      })}
                     </div>
                   )}
 
@@ -543,7 +621,7 @@ export function TaskCompletionTimeline({
                               setReviewNote(e.target.value)
                             }}
                             placeholder="Optional feedback / review note…"
-                            className="min-h-[60px] resize-none rounded-xl border-slate-200 bg-slate-50 text-xs font-medium dark:border-slate-700 dark:bg-slate-800"
+                            className="min-h-15 resize-none rounded-xl border-slate-200 bg-slate-50 text-xs font-medium dark:border-slate-700 dark:bg-slate-800"
                           />
                           {reviewAttachments.length > 0 && (
                             <div className="flex flex-wrap gap-2">
@@ -553,7 +631,7 @@ export function TaskCompletionTimeline({
                                   className="flex items-center gap-1.5 rounded-lg border border-slate-100 bg-slate-50 px-2.5 py-1.5 dark:border-slate-700 dark:bg-slate-800"
                                 >
                                   {fileIcon(att.type)}
-                                  <span className="max-w-[120px] truncate text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                                  <span className="max-w-30 truncate text-[11px] font-bold text-slate-700 dark:text-slate-300">
                                     {att.name}
                                   </span>
                                   {att.size && (

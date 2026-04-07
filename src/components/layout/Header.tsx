@@ -12,9 +12,9 @@ import {
   MessageSquare,
   AtSign,
   Megaphone,
-  RefreshCw
+  RefreshCw,
+  X
 } from "lucide-react"
-import { useRouter } from "next/navigation"
 import { useState } from "react"
 
 import { SearchInput } from "@/components/common"
@@ -31,6 +31,8 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { useNotifications } from "@/hooks/useNotifications"
+import { useRouter } from "@/i18n/navigation"
+import { getNotificationRoute } from "@/lib/notifications/routing"
 import { cn } from "@/lib/utils"
 
 import LanguageSwitcher from "./LanguageSwitcher"
@@ -39,7 +41,15 @@ import { UserNav } from "./UserNav"
 
 export default function Header() {
   const [searchOpen, setSearchOpen] = useState(false)
-  const { notifications, unreadCount, loading, markRead, markAllRead } = useNotifications()
+  const {
+    notifications,
+    unreadCount,
+    loading,
+    markRead,
+    markAllRead,
+    clearAll,
+    dismissNotification
+  } = useNotifications()
   const router = useRouter()
 
   const getNotificationIcon = (type: string) => {
@@ -85,6 +95,8 @@ export default function Header() {
         return "border-l-pink-500"
       case "comment_reply":
         return "border-l-cyan-500"
+      case "announcement_created":
+        return "border-l-indigo-500"
       default:
         return "border-l-slate-300"
     }
@@ -193,13 +205,26 @@ export default function Header() {
                       Mark all read
                     </Button>
                   )}
+                  {notifications.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 rounded-xl px-4 text-[10px] font-black tracking-widest text-slate-500 uppercase hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        clearAll()
+                      }}
+                    >
+                      Clear all
+                    </Button>
+                  )}
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator className="mx-2 opacity-50" />
               <div className="custom-scrollbar max-h-100 overflow-y-auto px-1 py-2">
                 {loading && (
                   <div className="flex flex-col items-center gap-2 py-10">
-                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-blue-500 dark:border-slate-700" />
                     <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
                       Loading notifications…
                     </span>
@@ -228,16 +253,20 @@ export default function Header() {
                         "mb-1.5 flex cursor-pointer flex-col items-start gap-2 rounded-xl border-l-[3px] p-3.5 transition-all",
                         getNotificationAccent(notification.type),
                         !notification.read
-                          ? "bg-blue-50/60 dark:bg-blue-950/20"
-                          : "border-l-transparent hover:bg-slate-50 dark:hover:bg-slate-800/30"
+                          ? "bg-sky-50/80 hover:bg-sky-100/70 dark:bg-blue-950/20 dark:hover:bg-blue-900/30"
+                          : "border-l-transparent hover:bg-slate-100/80 dark:hover:bg-slate-800/40"
                       )}
                       onClick={() => {
                         if (!notification.read) {
                           markRead(notification.id)
                         }
-                        if (notification.taskId) {
-                          router.push(`/dashboard/tasks/${notification.taskId}`)
-                        }
+
+                        const target = getNotificationRoute({
+                          type: notification.type,
+                          taskId: notification.taskId,
+                          projectId: notification.projectId
+                        })
+                        router.push(target)
                       }}
                     >
                       <div className="flex w-full items-start gap-3">
@@ -254,14 +283,29 @@ export default function Header() {
                                   : "font-semibold text-slate-700 dark:text-slate-300"
                               )}
                             >
-                              {notification.title}
+                              {notification.title || "Notification"}
                             </span>
                             {!notification.read && (
                               <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-blue-600 shadow-[0_0_6px_rgba(37,99,235,0.5)]" />
                             )}
+                            {notification.read && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-5 w-5 shrink-0 rounded-md text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  dismissNotification(notification.id)
+                                }}
+                              >
+                                <X className="h-3 w-3" />
+                                <span className="sr-only">Dismiss notification</span>
+                              </Button>
+                            )}
                           </div>
                           <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-                            {notification.body}
+                            {notification.body || "You have a new activity update."}
                           </p>
                           <div className="mt-1.5 flex items-center gap-2">
                             {notification.triggeredBy?.name && (
@@ -289,7 +333,12 @@ export default function Header() {
                   ))}
               </div>
               <DropdownMenuSeparator className="mx-2 opacity-50" />
-              <DropdownMenuItem className="justify-center rounded-2xl p-4 text-[10px] font-black tracking-[0.2em] text-blue-600 uppercase transition-all hover:bg-blue-50 dark:hover:bg-blue-900/20">
+              <DropdownMenuItem
+                className="justify-center rounded-2xl p-4 text-[10px] font-black tracking-[0.2em] text-blue-600 uppercase transition-all hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                onClick={() => {
+                  router.push("/notifications")
+                }}
+              >
                 View All Notifications
               </DropdownMenuItem>
             </DropdownMenuContent>

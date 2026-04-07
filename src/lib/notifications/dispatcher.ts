@@ -17,6 +17,7 @@ import {
   type CreateNotificationInput
 } from "@/lib/db/notification"
 import { sendTaskEmail } from "@/lib/email/send-task-email"
+import { getLocalizedNotificationRoute } from "@/lib/notifications/routing"
 import { emitToUser } from "@/lib/notifications/sse-emitter"
 
 export interface DispatchNotificationInput {
@@ -50,12 +51,21 @@ export interface DispatchNotificationInput {
 
 export async function dispatchNotification(input: DispatchNotificationInput): Promise<void> {
   try {
+    const normalizedTitle =
+      typeof input.title === "string" && input.title.trim().length > 0
+        ? input.title.trim()
+        : "Notification"
+    const normalizedBody =
+      typeof input.body === "string" && input.body.trim().length > 0
+        ? input.body.trim()
+        : "You have a new activity update."
+
     // 1. Persist in MongoDB
     const dbInput: CreateNotificationInput = {
       userId: input.recipientUserId,
       type: input.type,
-      title: input.title,
-      body: input.body,
+      title: normalizedTitle,
+      body: normalizedBody,
       taskId: input.taskId,
       projectId: input.projectId,
       triggeredBy: input.triggeredBy
@@ -67,7 +77,14 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
 
     // 3. Firebase push notification (only if user is NOT currently connected via SSE)
     //    We attempt FCM regardless – the browser will deduplicate if the tab is open
-    await sendFirebasePush(input.recipientUserId, input.title, input.body, input.taskId)
+    await sendFirebasePush(
+      input.recipientUserId,
+      normalizedTitle,
+      normalizedBody,
+      input.type,
+      input.taskId,
+      input.projectId
+    )
 
     // 4. Email notification (fire-and-forget)
     if (input.email?.recipientEmail) {
@@ -81,6 +98,7 @@ export async function dispatchNotification(input: DispatchNotificationInput): Pr
         taskPriority: input.email.taskPriority,
         taskDueDate: input.email.taskDueDate,
         projectName: input.email.projectName,
+        projectId: input.projectId,
         taskId: input.taskId || "",
         triggeredByName: input.triggeredBy.name,
         triggeredByAvatar: input.triggeredBy.avatar,
@@ -100,7 +118,9 @@ async function sendFirebasePush(
   userId: string,
   title: string,
   body: string,
-  taskId?: string
+  type: NotificationType,
+  taskId?: string,
+  projectId?: string
 ): Promise<void> {
   try {
     const tokens = await getUserFcmTokens(userId)
@@ -117,6 +137,7 @@ async function sendFirebasePush(
 
     const { getMessaging } = await import("firebase-admin/messaging")
     const messaging = getMessaging()
+    const link = getLocalizedNotificationRoute("en", { type, taskId, projectId })
     const results = await Promise.allSettled(
       tokens.map(async (token) =>
         messaging.send({
@@ -131,7 +152,7 @@ async function sendFirebasePush(
               data: { taskId }
             },
             fcmOptions: {
-              link: taskId ? `/dashboard/tasks/${taskId}` : "/dashboard"
+              link
             }
           }
         })

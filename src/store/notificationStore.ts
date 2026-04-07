@@ -23,11 +23,18 @@ export interface NotificationItem {
 }
 
 function toItem(doc: INotificationDoc): NotificationItem {
+  const title =
+    typeof doc.title === "string" && doc.title.trim().length > 0 ? doc.title : "Notification"
+  const body =
+    typeof doc.body === "string" && doc.body.trim().length > 0
+      ? doc.body
+      : "You have a new activity update."
+
   return {
     id: String(doc._id),
     type: doc.type,
-    title: doc.title,
-    body: doc.body,
+    title,
+    body,
     read: doc.read,
     taskId: doc.taskId as string | undefined,
     projectId: doc.projectId,
@@ -45,6 +52,8 @@ interface NotificationState {
   prependNotification: (doc: INotificationDoc) => void
   markRead: (id: string) => void
   markAllRead: () => void
+  clearAll: () => void
+  removeNotification: (id: string) => void
   setLoading: (v: boolean) => void
 }
 
@@ -53,14 +62,17 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   unreadCount: 0,
   loading: false,
 
-  setLoading: (v) =>{  set({ loading: v }); },
+  setLoading: (v) => {
+    set({ loading: v })
+  },
 
-  setNotifications: (docs, unread) =>{ 
+  setNotifications: (docs, unread) => {
     set({
       notifications: docs.map(toItem),
       unreadCount: unread,
       loading: false
-    }); },
+    })
+  },
 
   prependNotification: (doc) => {
     const item = toItem(doc)
@@ -70,18 +82,34 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     }))
   },
 
-  markRead: (id) =>{ 
+  markRead: (id) => {
     set((s) => ({
       notifications: s.notifications.map((n) => (n.id === id ? { ...n, read: true } : n)),
       unreadCount: Math.max(
         0,
         s.unreadCount - (s.notifications.find((n) => n.id === id && !n.read) ? 1 : 0)
       )
-    })); },
+    }))
+  },
 
-  markAllRead: () =>{ 
+  markAllRead: () => {
     set((s) => ({
       notifications: s.notifications.map((n) => ({ ...n, read: true })),
       unreadCount: 0
-    })); }
+    }))
+  },
+
+  clearAll: () => {
+    set({ notifications: [], unreadCount: 0 })
+  },
+
+  removeNotification: (id) => {
+    set((s) => {
+      const target = s.notifications.find((n) => n.id === id)
+      return {
+        notifications: s.notifications.filter((n) => n.id !== id),
+        unreadCount: Math.max(0, s.unreadCount - (target && !target.read ? 1 : 0))
+      }
+    })
+  }
 }))

@@ -133,7 +133,7 @@ export async function POST(
       const authorAvatar = (authorUser as any)?.avatar
       const projectTitle = (projectWithMembers as any)?.title || title
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
-      const projectUrl = `${appUrl}/en/projects/${projectId}`
+      const projectUrl = `${appUrl}/en/projects/${projectId}/announcements`
 
       for (const [userId, recipient] of recipients) {
         await dispatchNotification({

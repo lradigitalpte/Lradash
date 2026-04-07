@@ -12,7 +12,9 @@ import {
   getUserNotifications,
   countUnread,
   markNotificationRead,
-  markAllNotificationsRead
+  markAllNotificationsRead,
+  deleteNotification,
+  deleteAllNotifications
 } from "@/lib/db/notification"
 import { getUserByEmail } from "@/lib/db/user"
 
@@ -70,6 +72,27 @@ export async function PATCH(request: NextRequest) {
   if (body.notificationId) {
     const ok = await markNotificationRead(body.notificationId, userId)
     return NextResponse.json({ updated: ok ? 1 : 0 })
+  }
+
+  return NextResponse.json({ error: "Invalid request body" }, { status: 400 })
+}
+
+export async function DELETE(request: NextRequest) {
+  const userId = await resolveUserId(request)
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const body = await request.json().catch(() => ({}))
+
+  if (body.clearAll === true) {
+    const deleted = await deleteAllNotifications(userId)
+    return NextResponse.json({ deleted })
+  }
+
+  if (body.notificationId) {
+    const ok = await deleteNotification(body.notificationId, userId)
+    return NextResponse.json({ deleted: ok ? 1 : 0 })
   }
 
   return NextResponse.json({ error: "Invalid request body" }, { status: 400 })

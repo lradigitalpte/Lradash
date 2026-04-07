@@ -96,6 +96,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           : `${changedFields.length} fields were updated`
 
       const taskTitle = (updatedTask as any)?.title ?? taskId
+      const taskProjectId = getEntityId((updatedTask as any)?.project)
       const isCompleting = body.status === "DONE" || body.status === "COMPLETED"
       const nextAssigneeId = getEntityId(body.assigneeId ?? body.assignee)
       const isAssigning = !!nextAssigneeId
@@ -113,6 +114,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         title: `Task Updated: ${taskTitle}`,
         body: `${changeDesc} by ${user.name ?? userEmail}.`,
         taskId,
+        projectId: taskProjectId ?? undefined,
         triggeredBy: {
           userId: String(user._id),
           name: user.name ?? userEmail,
@@ -134,6 +136,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
               title: `Task Assigned: ${taskTitle}`,
               body: `${user.name ?? userEmail} assigned you to "${taskTitle}".`,
               taskId,
+              projectId: taskProjectId ?? undefined,
               triggeredBy: {
                 userId: String(user._id),
                 name: user.name ?? userEmail,
@@ -179,6 +182,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
               title: isCompleting ? `Task Completed: ${taskTitle}` : `Task Updated: ${taskTitle}`,
               body: creatorBody,
               taskId,
+              projectId: taskProjectId ?? undefined,
               triggeredBy: {
                 userId: String(user._id),
                 name: user.name ?? userEmail,

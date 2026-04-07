@@ -197,16 +197,23 @@ export function useNotifications() {
       if (!token) {
         return
       }
-      await fetch("/api/notifications", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ notificationId })
-      })
+      try {
+        const res = await fetch("/api/notifications", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ notificationId })
+        })
+        if (!res.ok) {
+          fetchNotifications()
+        }
+      } catch {
+        fetchNotifications()
+      }
     },
-    [token] // eslint-disable-line react-hooks/exhaustive-deps
+    [token, fetchNotifications] // eslint-disable-line react-hooks/exhaustive-deps
   )
 
   const markAllRead = useCallback(async () => {
@@ -214,21 +221,79 @@ export function useNotifications() {
     if (!token) {
       return
     }
-    await fetch("/api/notifications", {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({ markAllRead: true })
-    })
-  }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
+    try {
+      const res = await fetch("/api/notifications", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ markAllRead: true })
+      })
+      if (!res.ok) {
+        fetchNotifications()
+      }
+    } catch {
+      fetchNotifications()
+    }
+  }, [token, fetchNotifications]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const clearAll = useCallback(async () => {
+    store.clearAll()
+    if (!token) {
+      return
+    }
+
+    try {
+      const res = await fetch("/api/notifications", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ clearAll: true })
+      })
+      if (!res.ok) {
+        fetchNotifications()
+      }
+    } catch {
+      fetchNotifications()
+    }
+  }, [token, fetchNotifications]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const dismissNotification = useCallback(
+    async (notificationId: string) => {
+      store.removeNotification(notificationId)
+      if (!token) {
+        return
+      }
+
+      try {
+        const res = await fetch("/api/notifications", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ notificationId })
+        })
+        if (!res.ok) {
+          fetchNotifications()
+        }
+      } catch {
+        fetchNotifications()
+      }
+    },
+    [token, fetchNotifications] // eslint-disable-line react-hooks/exhaustive-deps
+  )
 
   return {
     notifications: store.notifications,
     unreadCount: store.unreadCount,
     loading: store.loading,
     markRead,
-    markAllRead
+    markAllRead,
+    clearAll,
+    dismissNotification
   }
 }

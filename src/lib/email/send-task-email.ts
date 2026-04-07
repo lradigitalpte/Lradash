@@ -19,6 +19,7 @@ import {
   type TaskEmailData
 } from "@/lib/email/templates"
 import { getTransporter, getFromAddress } from "@/lib/email/transporter"
+import { getLocalizedNotificationRoute } from "@/lib/notifications/routing"
 import { getAppUrl } from "@/lib/url/get-app-url"
 
 export interface SendTaskEmailInput {
@@ -31,6 +32,7 @@ export interface SendTaskEmailInput {
   taskPriority?: string
   taskDueDate?: string
   projectName?: string
+  projectId?: string
   taskId: string
   triggeredByName: string
   triggeredByAvatar?: string
@@ -47,7 +49,12 @@ export async function sendTaskEmail(input: SendTaskEmailInput): Promise<boolean>
   }
 
   const appUrl = getAppUrl()
-  const taskUrl = input.taskId ? `${appUrl}/dashboard/tasks/${input.taskId}` : appUrl
+  const taskRoute = getLocalizedNotificationRoute("en", {
+    type: input.type,
+    taskId: input.taskId,
+    projectId: input.projectId
+  })
+  const taskUrl = `${appUrl}${taskRoute}`
 
   const emailData: TaskEmailData = {
     taskTitle: input.taskTitle,
