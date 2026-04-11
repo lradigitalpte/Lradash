@@ -35,6 +35,7 @@ import { useParams } from "next/navigation"
 import { useEffect, useMemo, useState, useCallback, useRef } from "react"
 import { toast } from "sonner"
 
+import { ProjectMeetingsPanel } from "@/components/meetings/ProjectMeetingsPanel"
 import { CreateTaskDialog } from "@/components/tasks/CreateTaskDialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -582,6 +583,10 @@ export default function ProjectCalendarPage() {
 
       {/* Main Calendar Viewport */}
       <main className="flex flex-1 flex-col overflow-hidden p-6">
+        <div className="mb-6">
+          <ProjectMeetingsPanel projectId={projectId} />
+        </div>
+
         <div className="relative flex flex-1 flex-col overflow-hidden rounded-3xl border bg-white/50 shadow-2xl shadow-slate-200/50 backdrop-blur-md transition-all duration-500 dark:bg-slate-950/30 dark:shadow-none">
           {/* Week Headers */}
           <div className="grid grid-cols-7 border-b bg-slate-50/30 dark:bg-slate-900/10">

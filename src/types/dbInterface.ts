@@ -383,3 +383,71 @@ export interface Event {
   updatedAt: Date
   deletedAt?: Date
 }
+
+// ========== GOOGLE WORKSPACE TYPES ==========
+export interface GoogleWorkspaceAccount {
+  _id: string
+  organizationId: string
+  userId: string
+  email?: string
+  googleUserId?: string
+  scopes: string[]
+  accessToken: string
+  refreshToken: string
+  tokenExpiresAt?: Date
+  isActive: boolean
+  lastRefreshedAt?: Date
+  disconnectedAt?: Date
+  createdAt: Date
+  updatedAt: Date
+}
+
+export type MeetingAttendeeResponseStatus = "needsAction" | "declined" | "tentative" | "accepted"
+
+export interface MeetingAttendee {
+  email: string
+  name?: string
+  responseStatus?: MeetingAttendeeResponseStatus
+}
+
+export enum MeetingStatus {
+  SCHEDULED = "SCHEDULED",
+  CANCELLED = "CANCELLED",
+  COMPLETED = "COMPLETED"
+}
+
+export enum MeetingRecurrenceFrequency {
+  DAILY = "DAILY",
+  WEEKLY = "WEEKLY"
+}
+
+export interface MeetingRecurrence {
+  enabled: boolean
+  frequency: MeetingRecurrenceFrequency
+  interval: number
+  weekdays?: string[]
+  until?: Date
+}
+
+export interface Meeting {
+  _id: string
+  organizationId: string
+  projectId?: string | null
+  organizerUserId: string
+  googleAccountId: string
+  title: string
+  description?: string
+  startTime: Date
+  endTime: Date
+  timezone: string
+  status: MeetingStatus
+  calendarEventId: string
+  calendarHtmlLink?: string
+  meetUri?: string
+  meetCode?: string
+  recurrence?: MeetingRecurrence | null
+  attendees: MeetingAttendee[]
+  cancelledAt?: Date
+  createdAt: Date
+  updatedAt: Date
+}

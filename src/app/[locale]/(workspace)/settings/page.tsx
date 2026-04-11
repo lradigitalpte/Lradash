@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { z } from "zod"
 
+import { GoogleWorkspaceConnectionCard } from "@/components/integrations/GoogleWorkspaceConnectionCard"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -682,6 +683,8 @@ export default function SettingsPage() {
               />
             </CardContent>
           </Card>
+
+          <GoogleWorkspaceConnectionCard />
 
           {/* Action Button */}
           <div className="flex justify-end pt-4">
