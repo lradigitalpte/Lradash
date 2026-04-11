@@ -370,9 +370,6 @@ export default function KanbanBoardPage() {
               <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-black tracking-[0.2em] text-blue-600 uppercase dark:bg-blue-900/30 dark:text-blue-400">
                 Workflow Board
               </span>
-              <span className="rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-black tracking-[0.2em] text-emerald-600 uppercase dark:bg-emerald-900/30 dark:text-emerald-400">
-                Demo Mode
-              </span>
             </div>
             <h1 className="text-3xl font-black tracking-tighter text-slate-900 dark:text-white">
               {board.title}
@@ -416,7 +413,7 @@ export default function KanbanBoardPage() {
                   }}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
-                  Delete board
+                  Delete this board
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

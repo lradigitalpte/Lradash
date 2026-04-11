@@ -1,9 +1,9 @@
 "use client"
 
-import { LayoutGrid, Loader2, MoreHorizontal, Plus, Trash2 } from "lucide-react"
+import { Archive, LayoutGrid, Loader2, MoreHorizontal, Plus, RotateCcw, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import {
@@ -16,6 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from "@/components/ui/alert-dialog"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -30,12 +31,14 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { apiClient } from "@/lib/api/client"
+import { cn } from "@/lib/utils"
 
 interface Board {
   id: string
@@ -64,6 +67,10 @@ export default function ProjectBoardsPage() {
   const [projectTitle, setProjectTitle] = useState("Project")
   const [boardToDelete, setBoardToDelete] = useState<Board | null>(null)
   const [deletingBoardId, setDeletingBoardId] = useState<string | null>(null)
+  const [archivingBoardId, setArchivingBoardId] = useState<string | null>(null)
+
+  const activeBoards = useMemo(() => boards.filter((b) => !b.isArchived), [boards])
+  const archivedBoards = useMemo(() => boards.filter((b) => b.isArchived), [boards])
 
   useEffect(() => {
     if (projectId) {
@@ -109,6 +116,26 @@ export default function ProjectBoardsPage() {
       toast.error("Failed to load boards")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleArchiveToggle = async (board: Board, archived: boolean) => {
+    try {
+      setArchivingBoardId(board.id)
+      const response = await apiClient.patch(`/api/boards/${board.id}`, { isArchived: archived })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null)
+        throw new Error(data?.error || "Failed to update board")
+      }
+
+      toast.success(archived ? "Board archived" : "Board restored")
+      await loadBoards()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to update board"
+      toast.error(message)
+    } finally {
+      setArchivingBoardId(null)
     }
   }
 
@@ -195,7 +222,8 @@ export default function ProjectBoardsPage() {
                 Project Assets
               </span>
               <span className="rounded-xl bg-slate-100 px-3 py-1.5 text-[10px] font-black tracking-[0.25em] text-slate-500 uppercase dark:bg-slate-800 dark:text-slate-400">
-                {boards.length} Active Modules
+                {activeBoards.length} active
+                {archivedBoards.length > 0 ? ` · ${archivedBoards.length} archived` : ""}
               </span>
             </div>
             <h1 className="text-4xl font-black tracking-tighter text-slate-900 sm:text-5xl dark:text-white">
@@ -324,105 +352,188 @@ export default function ProjectBoardsPage() {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-10 md:grid-cols-2 lg:grid-cols-3">
-          {boards.map((board) => (
-            <Link
-              key={board.id}
-              href={`/${locale}/projects/${projectId}/boards/${board.id}`}
-              className="group block h-full"
-            >
-              <div className="relative h-full">
-                <div className="absolute -inset-1 rounded-3xl bg-gradient-to-r from-blue-600 to-indigo-600 opacity-0 blur transition duration-500 group-hover:opacity-[0.06]" />
-                <div className="relative flex h-full flex-col rounded-3xl border border-white/20 bg-white/60 p-10 shadow-xl shadow-slate-200/30 backdrop-blur-xl transition-all duration-300 group-hover:-translate-y-1 group-hover:bg-white group-hover:shadow-blue-500/5 hover:border-blue-500/20 dark:border-slate-800/50 dark:bg-slate-900/60 dark:shadow-none dark:group-hover:bg-slate-900">
-                  {board.canManage && (
-                    <div className="absolute top-6 right-6 z-10">
-                      <DropdownMenu modal={false}>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-9 w-9 rounded-xl bg-white/80 text-slate-500 opacity-70 shadow-sm backdrop-blur transition-opacity hover:opacity-100 dark:bg-slate-900/80 dark:text-slate-300"
-                            onClick={(event) => {
-                              event.preventDefault()
-                              event.stopPropagation()
-                            }}
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                          align="end"
-                          onClick={(event) => {
-                            event.preventDefault()
-                            event.stopPropagation()
-                          }}
-                        >
-                          <DropdownMenuItem
-                            className="text-red-600 focus:text-red-600"
-                            onSelect={(event) => {
-                              event.preventDefault()
-                              setBoardToDelete(board)
-                            }}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete board
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  )}
-                  <div className="mb-10 flex items-start justify-between border-b border-slate-100 pb-6 dark:border-slate-800/50">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 transition-all duration-300 group-hover:scale-105 group-hover:bg-blue-600 group-hover:text-white group-hover:shadow-md group-hover:shadow-blue-500/20 dark:bg-blue-900/30">
-                      <LayoutGrid className="h-7 w-7 stroke-[2] text-blue-600 group-hover:text-white dark:text-blue-400" />
-                    </div>
-                    <div className="flex -space-x-3">
-                      {[1, 2, 3].map((i) => (
+        <div className="space-y-14">
+          {activeBoards.length === 0 && archivedBoards.length > 0 && (
+            <p className="text-center text-sm font-medium text-muted-foreground">
+              All boards for this project are archived. Restore a board to use it in the main list,
+              or delete it permanently.
+            </p>
+          )}
+
+          {[
+            { key: "active", title: null as string | null, items: activeBoards },
+            { key: "archived", title: "Archived boards", items: archivedBoards }
+          ]
+            .filter((section) => section.items.length > 0)
+            .map((section) => (
+              <div key={section.key} className="space-y-6">
+                {section.title && (
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-lg font-black tracking-tight text-slate-900 dark:text-white">
+                      {section.title}
+                    </h2>
+                    <Badge variant="secondary" className="text-[10px] font-bold uppercase">
+                      {section.items.length}
+                    </Badge>
+                  </div>
+                )}
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {section.items.map((board) => (
+                    <div
+                      key={board.id}
+                      className={cn("group flex h-full flex-col", board.isArchived && "opacity-90")}
+                    >
+                      <div className="relative flex min-h-0 flex-1 flex-col">
+                        <div className="absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 opacity-0 blur transition duration-500 group-hover:opacity-[0.06]" />
                         <div
-                          key={i}
-                          className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-slate-100 shadow-sm dark:border-slate-800 dark:bg-slate-800"
+                          className={cn(
+                            "relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/20 bg-white/60 shadow-lg shadow-slate-200/25 backdrop-blur-xl transition-all duration-300 group-hover:-translate-y-0.5 group-hover:bg-white group-hover:shadow-md group-hover:shadow-blue-500/20 hover:border-blue-500/20 dark:border-slate-800/50 dark:bg-slate-900/60 dark:shadow-none dark:group-hover:bg-slate-900",
+                            board.isArchived &&
+                              "border-slate-300/80 bg-slate-50/90 dark:border-slate-700/80 dark:bg-slate-900/80"
+                          )}
                         >
-                          <span className="text-xs font-black text-slate-400">?</span>
+                          <Link
+                            href={`/${locale}/projects/${projectId}/boards/${board.id}`}
+                            className="flex min-h-0 flex-1 flex-col p-5"
+                          >
+                            <div className="mb-4 flex items-start justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-800/50">
+                              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 transition-all duration-300 group-hover:scale-105 group-hover:bg-blue-600 group-hover:text-white group-hover:shadow-md group-hover:shadow-blue-500/20 dark:bg-blue-900/30">
+                                <LayoutGrid className="h-5 w-5 stroke-[2] text-blue-600 group-hover:text-white dark:text-blue-400" />
+                              </div>
+                              <div className="flex min-w-0 flex-col items-end gap-1.5">
+                                {board.isArchived && (
+                                  <Badge
+                                    variant="outline"
+                                    className="border-amber-500/40 bg-amber-500/10 text-[9px] font-black tracking-widest text-amber-800 uppercase dark:text-amber-200"
+                                  >
+                                    Archived
+                                  </Badge>
+                                )}
+                                {board.canManage && (
+                                  <DropdownMenu modal={false}>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 shrink-0 rounded-lg bg-white/80 text-slate-500 opacity-80 shadow-sm backdrop-blur hover:opacity-100 dark:bg-slate-900/80 dark:text-slate-300"
+                                        onClick={(event) => {
+                                          event.preventDefault()
+                                          event.stopPropagation()
+                                        }}
+                                      >
+                                        <MoreHorizontal className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent
+                                      align="end"
+                                      onClick={(event) => {
+                                        event.preventDefault()
+                                        event.stopPropagation()
+                                      }}
+                                    >
+                                      {!board.isArchived ? (
+                                        <DropdownMenuItem
+                                          disabled={archivingBoardId === board.id}
+                                          onSelect={(event) => {
+                                            event.preventDefault()
+                                            void handleArchiveToggle(board, true)
+                                          }}
+                                        >
+                                          <Archive className="mr-2 h-4 w-4" />
+                                          Archive board
+                                        </DropdownMenuItem>
+                                      ) : (
+                                        <DropdownMenuItem
+                                          disabled={archivingBoardId === board.id}
+                                          onSelect={(event) => {
+                                            event.preventDefault()
+                                            void handleArchiveToggle(board, false)
+                                          }}
+                                        >
+                                          <RotateCcw className="mr-2 h-4 w-4" />
+                                          Restore board
+                                        </DropdownMenuItem>
+                                      )}
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem
+                                        className="text-red-600 focus:text-red-600"
+                                        onSelect={(event) => {
+                                          event.preventDefault()
+                                          setBoardToDelete(board)
+                                        }}
+                                      >
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        Delete permanently
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="min-h-0 flex-1 space-y-2">
+                              <h3 className="text-lg font-black tracking-tight text-slate-900 transition-colors group-hover:text-blue-600 dark:text-white">
+                                {board.title}
+                              </h3>
+                              <p className="line-clamp-2 text-sm leading-snug font-medium text-slate-500 dark:text-slate-400">
+                                {board.description ||
+                                  "No description yet. Add goals to keep the project on track."}
+                              </p>
+                            </div>
+
+                            <div className="mt-4 flex items-end justify-between gap-2 border-t border-slate-100 pt-4 text-xs dark:border-slate-800/50">
+                              <div className="min-w-0 space-y-0.5">
+                                <span className="text-[9px] font-black tracking-[0.15em] text-slate-400 uppercase">
+                                  Created by
+                                </span>
+                                <p className="truncate font-semibold text-slate-700 dark:text-slate-300">
+                                  {board.owner?.name || "Unassigned"}
+                                </p>
+                              </div>
+                              <div className="shrink-0 text-right">
+                                <span className="text-[9px] font-black tracking-[0.15em] text-slate-400 uppercase">
+                                  Created
+                                </span>
+                                <p className="font-semibold text-slate-700 dark:text-slate-300">
+                                  {new Date(board.createdAt).toLocaleDateString("en-US", {
+                                    month: "short",
+                                    day: "numeric"
+                                  })}
+                                </p>
+                              </div>
+                            </div>
+                          </Link>
+
+                          {board.canManage && (
+                            <div className="flex items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/80 px-4 py-2.5 dark:border-slate-800/50 dark:bg-slate-900/50">
+                              <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                                Linked to {projectTitle}
+                              </span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 shrink-0 px-2 text-xs font-semibold text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/40"
+                                disabled={!!deletingBoardId}
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  setBoardToDelete(board)
+                                }}
+                              >
+                                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                                Delete board
+                              </Button>
+                            </div>
+                          )}
                         </div>
-                      ))}
+                      </div>
                     </div>
-                  </div>
-
-                  <div className="flex-1 space-y-4">
-                    <h3 className="text-2xl font-black tracking-tight text-slate-900 transition-colors group-hover:text-blue-600 dark:text-white">
-                      {board.title}
-                    </h3>
-                    <p className="line-clamp-3 text-[14px] leading-relaxed font-medium text-slate-500 italic opacity-85 transition-opacity group-hover:opacity-100 dark:text-slate-400">
-                      {board.description ||
-                        "No description provided. Define goals to keep the project on track."}
-                    </p>
-                  </div>
-
-                  <div className="mt-10 flex items-center justify-between border-t border-slate-100 pt-8 transition-colors group-hover:border-blue-500/10 dark:border-slate-800/50">
-                    <div className="flex flex-col space-y-1">
-                      <span className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
-                        Created By
-                      </span>
-                      <span className="text-xs font-bold text-slate-700 group-hover:text-slate-900 dark:text-slate-300 dark:group-hover:text-white">
-                        {board.owner?.name || "Unassigned"}
-                      </span>
-                    </div>
-                    <div className="flex flex-col items-end space-y-1">
-                      <span className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
-                        Date
-                      </span>
-                      <span className="text-xs font-bold text-slate-700 group-hover:text-slate-900 dark:text-slate-300 dark:group-hover:text-white">
-                        {new Date(board.createdAt).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric"
-                        })}
-                      </span>
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
-            </Link>
-          ))}
+            ))}
         </div>
       )}
 
@@ -432,7 +543,7 @@ export default function ProjectBoardsPage() {
             <AlertDialogTitle>Delete board</AlertDialogTitle>
             <AlertDialogDescription>
               {boardToDelete
-                ? `Delete "${boardToDelete.title}" from this project? This also removes its lists and board tasks.`
+                ? `Permanently delete "${boardToDelete.title}"? This removes its lists, board tasks, and linked data. To hide the board without deleting, use Archive instead.`
                 : "Delete this board?"}
             </AlertDialogDescription>
           </AlertDialogHeader>

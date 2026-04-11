@@ -1,11 +1,11 @@
 {
   "metadata": {
-    "title": "Next Projektmanager",
-    "description": "Next.js-Vorlage für Anfänger"
+    "title": "LRADASH",
+    "description": "Work Management für Teams — Projekte, Aufgaben und Termine an einem Ort."
   },
   "login": {
-    "title": "Next Projektmanager",
-    "description": "Next.js-Vorlage für Anfänger",
+    "title": "LRADASH",
+    "description": "Melden Sie sich in Ihrem Workspace an.",
     "formHint": "Melden Sie sich bei Ihrem Konto an",
     "emailLabel": "Email",
     "emailPlaceholder": "Geben Sie Ihre E-Mail-Adresse ein...",
@@ -36,7 +36,7 @@
     "signIn": "Anmelden"
   },
   "sidebar": {
-    "title": "Next Projektmanager",
+    "title": "LRADASH",
     "overview": "Überblick",
     "myBoards": "Meine Boards",
     "teamBoards": "Team-Boards",

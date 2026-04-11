@@ -2,7 +2,7 @@ import mongoose from "mongoose"
 import { NextRequest, NextResponse } from "next/server"
 
 import { verifyAccessToken } from "@/lib/auth/tokens"
-import { toIdString } from "@/lib/board-access"
+import { canManageBoard, toIdString } from "@/lib/board-access"
 import { connectToDatabase } from "@/lib/db/connect"
 import { BoardModel } from "@/models/board.model"
 import { ProjectModel } from "@/models/project.model"
@@ -69,8 +69,6 @@ export async function GET(
       )
     }
 
-    const projectOwnerId = toIdString((project as any).owner)
-
     const boards = await BoardModel.find({
       projectId: projectId,
       organizationId,
@@ -79,24 +77,25 @@ export async function GET(
       .populate("owner", "name email")
       .lean()
 
-    return NextResponse.json(
-      boards.map((b) => ({
+    const uid = decoded.userId.toString()
+    const boardsPayload = await Promise.all(
+      boards.map(async (b) => ({
         id: b._id.toString(),
         title: b.title,
         description: b.description,
         projectId: b.projectId?.toString(),
         owner: b.owner,
-        canManage:
-          toIdString(b.owner) === decoded.userId.toString() || projectOwnerId === decoded.userId,
+        canManage: await canManageBoard(b, uid),
         isArchived: b.isArchived,
         createdAt: b.createdAt,
         updatedAt: b.updatedAt
-      })),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json" }
-      }
+      }))
     )
+
+    return NextResponse.json(boardsPayload, {
+      status: 200,
+      headers: { "Content-Type": "application/json" }
+    })
   } catch (error) {
     console.error("Get boards error:", error)
     return NextResponse.json(

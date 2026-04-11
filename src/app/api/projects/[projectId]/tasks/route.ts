@@ -6,6 +6,7 @@ import { verifyAccessToken } from "@/lib/auth/tokens"
 import { connectToDatabase } from "@/lib/db/connect"
 import { getNotificationEmail } from "@/lib/email/get-notification-email"
 import { dispatchNotification } from "@/lib/notifications/dispatcher"
+import { parseRecordedCreatedAt } from "@/lib/tasks/recorded-created-at"
 import { ProjectModel } from "@/models/project.model"
 import { TaskModel } from "@/models/task.model"
 import { UserModel } from "@/models/user.model"
@@ -56,8 +57,16 @@ export async function POST(
       )
     }
 
-    // Create task
-    const task = new TaskModel({
+    const recorded = parseRecordedCreatedAt(body.recordedCreatedAt)
+    if (recorded.error) {
+      return NextResponse.json(
+        { error: recorded.error },
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      )
+    }
+
+    const now = new Date()
+    const taskPayload: Record<string, unknown> = {
       title: body.title,
       description: body.description,
       status: body.status || "TODO",
@@ -69,8 +78,14 @@ export async function POST(
       creator: decoded.userId,
       lastModifier: decoded.userId,
       assignee: body.assigneeId || undefined
-    })
+    }
 
+    if (recorded.date) {
+      taskPayload.createdAt = recorded.date
+      taskPayload.updatedAt = now
+    }
+
+    const task = new TaskModel(taskPayload)
     await task.save()
 
     // Populate related fields

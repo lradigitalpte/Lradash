@@ -126,7 +126,12 @@ async function convertProjectToPlainObject(projectDoc: ProjectBase): Promise<Pro
       description: task.description || "",
       status: task.status,
       project: task.project?.toString() || "",
-      board: task.board,
+      board:
+        task.board != null &&
+        typeof (task as any).board === "object" &&
+        (task as any).board?.toString
+          ? (task as any).board.toString()
+          : String((task as any).board ?? ""),
       organizationId: task.organizationId?.toString() || "",
       priority: task.priority || "MEDIUM",
       isArchived: task.isArchived || false,

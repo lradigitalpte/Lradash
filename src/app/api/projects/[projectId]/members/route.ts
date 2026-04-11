@@ -1,3 +1,4 @@
+import mongoose from "mongoose"
 import { NextRequest, NextResponse } from "next/server"
 
 import { requireOrganizationAccess } from "@/lib/auth/organization-access"
@@ -191,5 +192,88 @@ export async function POST(
   } catch (error: any) {
     console.error("Add member error:", error)
     return NextResponse.json({ error: error.message || "Failed to add member" }, { status: 500 })
+  }
+}
+
+/**
+ * Remove a user from the project members list (does not remove org membership or change project owner).
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string }> }
+) {
+  try {
+    const access = await requireOrganizationAccess(request)
+    if ("error" in access) {
+      return access.error
+    }
+
+    if (access.orgRole === UserRole.CLIENT) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    await connectToDatabase()
+
+    const { projectId } = await params
+    const body = await request.json().catch(() => ({}))
+    const targetUserId = typeof body.userId === "string" ? body.userId.trim() : ""
+
+    if (!targetUserId || !mongoose.Types.ObjectId.isValid(targetUserId)) {
+      return NextResponse.json({ error: "Valid userId is required" }, { status: 400 })
+    }
+
+    const project = await ProjectModel.findOne({
+      _id: projectId,
+      organizationId: access.org._id,
+      deletedAt: null
+    } as any)
+      .select("owner members")
+      .lean()
+
+    if (!project) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 })
+    }
+
+    const ownerId = (project as any).owner?.toString()
+    const isProjectOwner = ownerId === access.user._id
+    const canManageMembers =
+      access.orgRole === UserRole.OWNER || access.orgRole === UserRole.ADMIN || isProjectOwner
+
+    if (!canManageMembers && access.user._id !== targetUserId) {
+      return NextResponse.json(
+        {
+          error:
+            "Forbidden: only org admins, project owner, or the member themself can remove access"
+        },
+        { status: 403 }
+      )
+    }
+
+    if (ownerId === targetUserId) {
+      return NextResponse.json(
+        { error: "Cannot remove the project owner. Transfer ownership first." },
+        { status: 400 }
+      )
+    }
+
+    const memberIds = ((project as any).members || []).map((m: unknown) =>
+      (m as { toString: () => string }).toString()
+    )
+    if (!memberIds.includes(targetUserId)) {
+      return NextResponse.json(
+        { error: "This user is not listed as a project member" },
+        { status: 400 }
+      )
+    }
+
+    await ProjectModel.updateOne(
+      { _id: projectId, organizationId: access.org._id, deletedAt: null } as any,
+      { $pull: { members: new mongoose.Types.ObjectId(targetUserId) } }
+    )
+
+    return NextResponse.json({ success: true })
+  } catch (error: unknown) {
+    console.error("Remove project member error:", error)
+    return NextResponse.json({ error: "Failed to remove member" }, { status: 500 })
   }
 }

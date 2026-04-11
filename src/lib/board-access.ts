@@ -2,8 +2,16 @@ import mongoose from "mongoose"
 
 import { ProjectModel } from "@/models/project.model"
 
-export const toIdString = (value: unknown): string | null => {
-  if (!value) {
+const MAX_ID_DEPTH = 24
+
+const is24Hex = (s: string) => /^[a-fA-F0-9]{24}$/.test(s)
+
+/**
+ * Normalize Mongo/ObjectId-like values to a string id.
+ * Handles ObjectId before `_id` recursion so we never spin on cycles (e.g. a._id ↔ b._id).
+ */
+export const toIdString = (value: unknown, depth = 0, seen?: WeakSet<object>): string | null => {
+  if (value === null || value === undefined) {
     return null
   }
 
@@ -11,26 +19,66 @@ export const toIdString = (value: unknown): string | null => {
     return value
   }
 
-  if (typeof value === "object") {
-    const record = value as {
-      _id?: unknown
-      id?: unknown
-      toString?: () => string
-    }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value)
+  }
 
-    if (record._id) {
-      return toIdString(record._id)
-    }
+  if (typeof value !== "object") {
+    return null
+  }
 
-    if (record.id) {
-      return toIdString(record.id)
-    }
+  if (depth > MAX_ID_DEPTH) {
+    return null
+  }
 
-    if (typeof record.toString === "function") {
-      const stringValue = record.toString()
-      if (stringValue && stringValue !== "[object Object]") {
-        return stringValue
+  // BSON / Mongoose ObjectId — before visited/_id unwrap (avoids cycles & stack overflow)
+  if (value instanceof mongoose.Types.ObjectId) {
+    return value.toHexString()
+  }
+
+  const maybeHex = value as { toHexString?: () => string }
+  if (typeof maybeHex.toHexString === "function") {
+    try {
+      const hex = maybeHex.toHexString()
+      if (typeof hex === "string" && is24Hex(hex)) {
+        return hex
       }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const obj = value
+  const visited = seen ?? new WeakSet<object>()
+  if (visited.has(obj)) {
+    return null
+  }
+  visited.add(obj)
+
+  const record = value as {
+    _id?: unknown
+    id?: unknown
+    toString?: () => string
+  }
+
+  if (record._id !== undefined && record._id !== value) {
+    const nested = toIdString(record._id, depth + 1, visited)
+    if (nested) {
+      return nested
+    }
+  }
+
+  if (record.id !== undefined && record.id !== value) {
+    const nested = toIdString(record.id, depth + 1, visited)
+    if (nested) {
+      return nested
+    }
+  }
+
+  if (typeof record.toString === "function") {
+    const stringValue = record.toString()
+    if (stringValue && stringValue !== "[object Object]") {
+      return stringValue
     }
   }
 

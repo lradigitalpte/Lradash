@@ -80,20 +80,24 @@ export default function RootWrapper({ children }: { children: React.ReactNode })
         <>{children}</>
       ) : isClientPortal ? (
         // Client portal: dedicated sidebar with no admin nav — rendered from URL, never flashes
-        <SidebarProvider>
+        <SidebarProvider defaultOpen={false} className="min-h-svh">
           <ClientSidebar user={clientUser} />
-          <SidebarInset>
+          <SidebarInset className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
             <Header />
-            {children}
+            <div className="custom-scrollbar min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+              {children}
+            </div>
           </SidebarInset>
         </SidebarProvider>
       ) : (
         // All other workspace pages: full app sidebar
-        <SidebarProvider>
+        <SidebarProvider defaultOpen={false} className="min-h-svh">
           <AppSidebar />
-          <SidebarInset>
+          <SidebarInset className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
             <Header />
-            {children}
+            <div className="custom-scrollbar min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+              {children}
+            </div>
           </SidebarInset>
         </SidebarProvider>
       )}

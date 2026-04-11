@@ -1,11 +1,11 @@
 {
   "metadata": {
-    "title": "Next Project Manager",
-    "description": "Next.js template for beginner"
+    "title": "LRADASH",
+    "description": "Work management for teams — projects, tasks, and schedules in one place."
   },
   "login": {
-    "title": "Next Project Manager",
-    "description": "Next.js template for beginner",
+    "title": "LRADASH",
+    "description": "Sign in to your workspace.",
     "formHint": "Sign in to your account",
     "emailLabel": "Email",
     "emailPlaceholder": "Enter your email...",
@@ -36,7 +36,7 @@
     "signIn": "Sign In"
   },
   "sidebar": {
-    "title": "Next Project Manager",
+    "title": "LRADASH",
     "overview": "Overview",
     "myBoards": "My Boards",
     "teamBoards": "Team Boards",

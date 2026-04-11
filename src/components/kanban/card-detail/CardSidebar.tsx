@@ -83,11 +83,7 @@ export function CardSidebar({
   }
 
   const handleDeleteCard = () => {
-    if (onDelete) {
-      onDelete()
-    } else {
-      toast.error("Card deleted!")
-    }
+    onDelete?.()
   }
 
   const SidebarButton = ({
@@ -222,7 +218,7 @@ export function CardSidebar({
           <SidebarButton icon={Archive} label="Archive" onClick={handleArchiveCard} />
           <SidebarButton
             icon={Trash2}
-            label="Delete"
+            label="Delete card"
             className="border-rose-100 text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:border-rose-900/30 dark:hover:bg-rose-900/10"
             onClick={handleDeleteCard}
           />

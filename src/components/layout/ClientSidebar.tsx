@@ -4,6 +4,13 @@ import { Eye, Settings } from "lucide-react"
 
 import { Icons } from "@/components/layout/Icons"
 import {
+  PROJECT_SIDEBAR_BRAND_SUBTITLE,
+  PROJECT_SIDEBAR_BRAND_TITLE,
+  PROJECT_SIDEBAR_NAV_ITEM,
+  PROJECT_SIDEBAR_SECTION_LABEL,
+  PROJECT_SIDEBAR_SHELL
+} from "@/components/layout/sidebar-nav-styles"
+import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -12,7 +19,8 @@ import {
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
-  SidebarMenuItem
+  SidebarMenuItem,
+  SidebarRail
 } from "@/components/ui/sidebar"
 import { Link, usePathname } from "@/i18n/navigation"
 import { cn } from "@/lib/utils"
@@ -49,92 +57,71 @@ export default function ClientSidebar({ user }: ClientSidebarProps) {
     : "C"
 
   return (
-    <Sidebar className="border-r border-slate-200/60 bg-slate-50/50 backdrop-blur-2xl dark:border-slate-800/60 dark:bg-slate-950/50">
-      {/* ── Header ── */}
-      <SidebarHeader className="mb-4 bg-linear-to-r from-slate-900 to-blue-950 px-3 py-3 shadow-xl">
-        <div className="flex items-center gap-3">
-          <Icons.projectLogo className="h-20 w-20" />
-          <div className="flex flex-col">
-            <span className="text-[10px] font-black tracking-widest text-blue-300 uppercase">
-              Client Portal
-            </span>
-          </div>
-        </div>
+    <Sidebar collapsible="icon" className={cn(PROJECT_SIDEBAR_SHELL, "text-slate-100")}>
+      <SidebarHeader className="shrink-0 border-b border-slate-800/90 bg-slate-950 px-2.5 py-3">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              size="lg"
+              tooltip="Client portal"
+              className="h-auto min-h-[3rem] rounded-xl border border-slate-800/90 bg-slate-900/50 px-2.5 py-2.5 hover:bg-slate-900"
+            >
+              <Link href="/client" className="gap-3">
+                <Icons.logoMark className="size-9 shrink-0" />
+                <span className="flex min-w-0 flex-col items-start gap-1 text-left group-data-[collapsible=icon]:hidden">
+                  <span className={PROJECT_SIDEBAR_BRAND_TITLE}>Client portal</span>
+                  <span className={PROJECT_SIDEBAR_BRAND_SUBTITLE}>Account</span>
+                </span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
 
-      {/* ── Navigation ── */}
-      <SidebarContent className="px-4">
-        <div className="flex-1 overflow-y-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <SidebarGroup className="py-2">
-            <SidebarGroupLabel className="mb-4 px-4 text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
-              Main Menu
-            </SidebarGroupLabel>
-
-            <SidebarMenu className="space-y-1">
-              {navItems.map((item) => {
-                const active = isActive(item.href)
-                return (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={active}
-                      className={cn(
-                        "group/item relative h-12 overflow-hidden rounded-[1.25rem] px-4 transition-all duration-300",
-                        active
-                          ? "border border-slate-100 bg-white text-blue-600 shadow-xl shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none"
-                          : "text-slate-500 hover:bg-white/80 hover:text-slate-900 dark:hover:bg-slate-900/50 dark:hover:text-white"
-                      )}
+      <SidebarContent className="gap-3 bg-slate-950 px-2.5 py-4">
+        <SidebarGroup className="gap-1 p-0">
+          <SidebarGroupLabel className={PROJECT_SIDEBAR_SECTION_LABEL}>
+            Navigation
+          </SidebarGroupLabel>
+          <SidebarMenu className="gap-2">
+            {navItems.map((item) => {
+              const active = isActive(item.href)
+              return (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={active}
+                    tooltip={item.title}
+                    className={PROJECT_SIDEBAR_NAV_ITEM}
+                  >
+                    <Link
+                      href={item.href}
+                      className="flex w-full items-center gap-2 group-data-[collapsible=icon]:justify-center"
                     >
-                      <Link href={item.href} className="flex items-center gap-4">
-                        <div
-                          className={cn(
-                            "flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-500 group-hover/item:scale-110",
-                            active
-                              ? "rotate-3 bg-blue-600 text-white shadow-lg shadow-blue-500/30"
-                              : "bg-slate-100 text-slate-400 group-hover/item:bg-white group-hover/item:text-blue-500 dark:bg-slate-800 dark:group-hover/item:bg-slate-700"
-                          )}
-                        >
-                          <item.icon className="h-5 w-5 stroke-[2.5]" />
-                        </div>
-                        <span className="mt-0.5 text-[11px] leading-none font-black tracking-widest uppercase">
-                          {item.title}
-                        </span>
-                        {active && (
-                          <div className="absolute top-0 right-0 bottom-0 w-1 rounded-full bg-blue-600" />
-                        )}
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
-              })}
-            </SidebarMenu>
-          </SidebarGroup>
-        </div>
+                      <item.icon className="shrink-0" />
+                      <span className="group-data-[collapsible=icon]:hidden">{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )
+            })}
+          </SidebarMenu>
+        </SidebarGroup>
       </SidebarContent>
 
-      {/* ── Footer – user identity ── */}
-      <SidebarFooter className="p-6">
-        <div className="group relative">
-          <div className="absolute -inset-1 rounded-[2rem] bg-linear-to-r from-slate-200 to-slate-100 opacity-25 blur transition duration-1000 group-hover:opacity-100 dark:from-slate-800 dark:to-slate-900" />
-          <div className="relative flex items-center gap-3 rounded-[1.75rem] border border-slate-100 bg-white/60 px-5 py-3 shadow-2xl shadow-slate-200/50 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/60 dark:shadow-none">
-            {/* avatar */}
-            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-blue-600 text-[11px] font-black text-white shadow-lg shadow-blue-500/30">
-              {initials}
-            </div>
-            {/* name / email */}
-            <div className="flex min-w-0 flex-col">
-              <span className="truncate text-[11px] leading-none font-black tracking-widest uppercase">
-                {user?.name ?? "Client"}
-              </span>
-              {user?.email && (
-                <span className="mt-1 truncate text-[9px] font-bold tracking-tighter text-slate-400">
-                  {user.email}
-                </span>
-              )}
-            </div>
+      <SidebarFooter className="shrink-0 border-t border-slate-800/90 bg-slate-950 px-2.5 py-3">
+        <div className="flex items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-900/60 px-2.5 py-2.5 text-xs text-slate-200 group-data-[collapsible=icon]:hidden">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-blue-600 text-[11px] font-semibold text-white">
+            {initials}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-medium">{user?.name ?? "Client"}</p>
+            {user?.email && <p className="truncate text-[11px] text-slate-500">{user.email}</p>}
           </div>
         </div>
       </SidebarFooter>
+      <SidebarRail />
     </Sidebar>
   )
 }

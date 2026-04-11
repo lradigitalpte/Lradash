@@ -38,7 +38,13 @@ export function useBoards() {
       const userTeamBoards: Board[] = []
 
       boardsFromDB.forEach((board) => {
-        const isOwner = board.owner && typeof board.owner !== "string" && board.owner.id === userId
+        const ownerId =
+          board.owner && typeof board.owner === "object" && "id" in board.owner
+            ? String((board.owner as { id: string }).id)
+            : typeof board.owner === "string"
+              ? board.owner
+              : ""
+        const isOwner = Boolean(userId && ownerId && ownerId === String(userId))
         const isPrivate = board.isPrivate // Default to private=true
 
         if (isOwner) {

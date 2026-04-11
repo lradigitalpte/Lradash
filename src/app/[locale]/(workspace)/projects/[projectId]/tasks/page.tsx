@@ -4,7 +4,6 @@ import {
   Plus,
   Search,
   Filter as FilterIcon,
-  MoreHorizontal,
   Clock,
   CheckCircle2,
   Circle,
@@ -46,7 +45,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
@@ -61,6 +59,14 @@ import {
 import { apiClient } from "@/lib/api/client"
 import { cn, isOverdue } from "@/lib/utils"
 
+/** Last 6 hex chars of Mongo id — stable, scannable reference */
+function taskShortId(taskId: string | undefined): string {
+  if (!taskId || taskId.length < 6) {
+    return "—"
+  }
+  return taskId.slice(-6).toUpperCase()
+}
+
 export default function TasksPage() {
   const params = useParams()
   const projectId = (params?.projectId || params?.boardId) as string
@@ -73,7 +79,7 @@ export default function TasksPage() {
   const [filterPriority, setFilterPriority] = useState<string>("ALL")
   const [filterDueDate, setFilterDueDate] = useState<string>("ALL")
   const [showCompleted, setShowCompleted] = useState(true)
-  const [sortBy, setSortBy] = useState<string>("DUE_DATE_ASC")
+  const [sortBy, setSortBy] = useState<string>("CREATED_DESC")
   const [pageSize, setPageSize] = useState(10)
   const [myTasksOnly, setMyTasksOnly] = useState(false)
   const [currentUser, setCurrentUser] = useState<any>(null)
@@ -264,6 +270,14 @@ export default function TasksPage() {
       LOW: 3
     }
     list.sort((a, b) => {
+      if (sortBy === "CREATED_DESC" || sortBy === "CREATED_ASC") {
+        const aT = a.createdAt ? new Date(a.createdAt).getTime() : 0
+        const bT = b.createdAt ? new Date(b.createdAt).getTime() : 0
+        if (aT !== bT) {
+          return sortBy === "CREATED_DESC" ? bT - aT : aT - bT
+        }
+        return String(b._id || "").localeCompare(String(a._id || ""))
+      }
       if (sortBy === "DUE_DATE_ASC") {
         const aD = a.dueDate ? new Date(a.dueDate).getTime() : Infinity
         const bD = b.dueDate ? new Date(b.dueDate).getTime() : Infinity
@@ -620,19 +634,25 @@ export default function TasksPage() {
                   className="h-10 gap-2 rounded-xl border-slate-100 bg-white px-4 text-xs font-bold dark:bg-slate-900"
                 >
                   Sort:{" "}
-                  {sortBy === "DUE_DATE_ASC"
-                    ? "Due (soonest)"
-                    : sortBy === "DUE_DATE_DESC"
-                      ? "Due (latest)"
-                      : sortBy === "PRIORITY"
-                        ? "Priority"
-                        : sortBy === "TITLE"
-                          ? "Title"
-                          : "Status"}
+                  {sortBy === "CREATED_DESC"
+                    ? "Newest first"
+                    : sortBy === "CREATED_ASC"
+                      ? "Oldest first"
+                      : sortBy === "DUE_DATE_ASC"
+                        ? "Due (soonest)"
+                        : sortBy === "DUE_DATE_DESC"
+                          ? "Due (latest)"
+                          : sortBy === "PRIORITY"
+                            ? "Priority"
+                            : sortBy === "TITLE"
+                              ? "Title"
+                              : "Status"}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-52 rounded-2xl p-2">
                 {[
+                  { value: "CREATED_DESC", label: "Created (newest first)" },
+                  { value: "CREATED_ASC", label: "Created (oldest first)" },
                   { value: "DUE_DATE_ASC", label: "Due date (soonest first)" },
                   { value: "DUE_DATE_DESC", label: "Due date (latest first)" },
                   { value: "PRIORITY", label: "Priority" },
@@ -679,16 +699,19 @@ export default function TasksPage() {
       </div>
 
       {/* 5. Tasks Table */}
-      <Card className="overflow-hidden rounded-3xl border border-slate-100/60 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
-        <Table>
-          <TableHeader className="h-10 bg-slate-50/50 dark:bg-slate-900/50">
+      <Card className="overflow-x-auto rounded-3xl border border-slate-100/60 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
+        <Table className="min-w-[800px]">
+          <TableHeader className="sticky top-0 z-10 h-11 bg-slate-50/95 backdrop-blur-sm dark:bg-slate-900/95">
             <TableRow className="border-b border-slate-100 dark:border-slate-800">
               <TableHead className="w-14 pl-6" />
-              <TableHead className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
-                Task Name
+              <TableHead
+                className="w-[88px] text-[10px] font-black tracking-widest text-slate-400 uppercase"
+                title="Short task ID (last 6 characters)"
+              >
+                ID
               </TableHead>
-              <TableHead className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
-                Labels
+              <TableHead className="min-w-[200px] text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                Task Name
               </TableHead>
               <TableHead className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
                 Status
@@ -702,7 +725,9 @@ export default function TasksPage() {
               <TableHead className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
                 Due Date
               </TableHead>
-              <TableHead className="w-14 pr-6" />
+              <TableHead className="min-w-[200px] pr-6 text-right text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                Actions
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -735,14 +760,22 @@ export default function TasksPage() {
               pagedTasks.map((task) => (
                 <TableRow
                   key={task._id}
-                  className="group h-12 border-b border-slate-50 transition-colors hover:bg-slate-50/50 dark:border-slate-800/50 dark:hover:bg-slate-800/30"
+                  className="group border-b border-slate-50 transition-colors hover:bg-slate-50/50 dark:border-slate-800/50 dark:hover:bg-slate-800/30"
                 >
-                  <TableCell className="pl-6">
+                  <TableCell className="py-3 pl-6 align-middle">
                     <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-100 bg-white shadow-sm transition-transform group-hover:scale-110 dark:border-slate-700 dark:bg-slate-800">
                       {getStatusIcon(task.status)}
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="py-3 align-middle">
+                    <span
+                      className="inline-flex min-w-[4.5rem] font-mono text-xs font-bold tracking-tight text-slate-600 tabular-nums dark:text-slate-300"
+                      title={task._id ? `Task id: ${task._id}` : undefined}
+                    >
+                      #{taskShortId(task._id)}
+                    </span>
+                  </TableCell>
+                  <TableCell className="py-3 align-middle">
                     <div className="flex flex-col">
                       <span className="text-base font-black text-slate-900 transition-colors group-hover:text-blue-600 dark:text-white">
                         {task.title}
@@ -768,30 +801,6 @@ export default function TasksPage() {
                           </Badge>
                         )}
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1.5">
-                      {(task.labels || []).length > 0 ? (
-                        (task.labels || []).map(
-                          (label: { name: string; color: string }, idx: number) => (
-                            <span
-                              key={idx}
-                              className="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold tracking-tight"
-                              style={{
-                                backgroundColor: `${label.color}20`,
-                                color: label.color,
-                                borderLeft: `3px solid ${label.color}`
-                              }}
-                              title={label.name}
-                            >
-                              {label.name}
-                            </span>
-                          )
-                        )
-                      ) : (
-                        <span className="text-[10px] font-medium text-slate-300 italic">—</span>
-                      )}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -908,85 +917,90 @@ export default function TasksPage() {
                       </div>
                     )}
                   </TableCell>
-                  <TableCell className="pr-6">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
+                  <TableCell className="pr-4 align-middle">
+                    <div className="flex flex-wrap items-center justify-end gap-0.5">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        title="View details"
+                        aria-label="View details"
+                        onClick={() => {
+                          handleViewDetails(task)
+                        }}
+                        className="h-9 w-9 shrink-0 rounded-lg text-slate-600 hover:bg-blue-50 hover:text-blue-600 dark:text-slate-300 dark:hover:bg-blue-950/40 dark:hover:text-blue-400"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Completion timeline"
+                        aria-label="Completion timeline"
+                        className="h-9 w-9 shrink-0 rounded-lg text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 dark:text-slate-300 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-400"
+                        asChild
+                      >
+                        <Link
+                          href={`/${locale}/projects/${projectId}/tasks/${task._id}/completion`}
+                        >
+                          <ClipboardCheck className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        title="Edit task"
+                        aria-label="Edit task"
+                        onClick={() => {
+                          handleEdit(task)
+                        }}
+                        className="h-9 w-9 shrink-0 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        title="Change assignee"
+                        aria-label="Change assignee"
+                        onClick={() => {
+                          handleChangeOwner(task)
+                        }}
+                        className="h-9 w-9 shrink-0 rounded-lg text-slate-600 hover:bg-violet-50 hover:text-violet-600 dark:text-slate-300 dark:hover:bg-violet-950/40 dark:hover:text-violet-400"
+                      >
+                        <UserPlus className="h-4 w-4" />
+                      </Button>
+                      {!task.project && (
                         <Button
+                          type="button"
                           variant="ghost"
                           size="icon"
-                          className="h-10 w-10 rounded-xl transition-colors hover:bg-white dark:hover:bg-slate-800"
+                          title="Convert to board task"
+                          aria-label="Convert to board task"
+                          onClick={() => {
+                            handleConvertToBoard(task)
+                          }}
+                          className="h-9 w-9 shrink-0 rounded-lg text-slate-600 hover:bg-green-50 hover:text-green-600 dark:text-slate-300 dark:hover:bg-green-950/40 dark:hover:text-green-400"
                         >
-                          <MoreHorizontal className="h-5 w-5 text-slate-400" />
+                          <RefreshCw className="h-4 w-4" />
                         </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        className="w-56 rounded-2xl border-slate-100 p-2 shadow-2xl"
+                      )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        title="Delete task"
+                        aria-label="Delete task"
+                        onClick={() => {
+                          handleDelete(task._id)
+                        }}
+                        className="h-9 w-9 shrink-0 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:text-rose-400 dark:hover:bg-rose-950/50"
                       >
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.preventDefault()
-                            handleViewDetails(task)
-                          }}
-                          className="group gap-3 rounded-xl py-3 font-bold hover:bg-blue-50"
-                        >
-                          <Eye className="h-4 w-4 text-blue-500 group-hover:scale-110" />
-                          View Details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link
-                            href={`/${locale}/projects/${projectId}/tasks/${task._id}/completion`}
-                            className="group flex cursor-pointer items-center gap-3 rounded-xl px-2 py-3 font-bold hover:bg-emerald-50"
-                          >
-                            <ClipboardCheck className="h-4 w-4 text-emerald-500 group-hover:scale-110" />
-                            Completion Timeline
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.preventDefault()
-                            handleEdit(task)
-                          }}
-                          className="group gap-3 rounded-xl py-3 font-bold hover:bg-blue-50"
-                        >
-                          <Edit className="h-4 w-4 text-blue-500 group-hover:scale-110" />
-                          Edit Task
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.preventDefault()
-                            handleChangeOwner(task)
-                          }}
-                          className="group gap-3 rounded-xl py-3 font-bold hover:bg-purple-50"
-                        >
-                          <UserPlus className="h-4 w-4 text-purple-500 group-hover:scale-110" />
-                          Change Assignee
-                        </DropdownMenuItem>
-                        {!task.project && (
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.preventDefault()
-                              handleConvertToBoard(task)
-                            }}
-                            className="group gap-3 rounded-xl py-3 font-bold hover:bg-green-50"
-                          >
-                            <RefreshCw className="h-4 w-4 text-green-500 group-hover:scale-110" />
-                            Convert to Board Task
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuSeparator className="my-2" />
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.preventDefault()
-                            handleDelete(task._id)
-                          }}
-                          className="gap-3 rounded-xl bg-rose-50/50 py-3 font-bold text-rose-600 hover:bg-rose-50"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Delete Task
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

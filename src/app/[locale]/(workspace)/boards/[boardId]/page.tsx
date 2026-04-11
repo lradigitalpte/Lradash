@@ -18,7 +18,6 @@ import {
   ChevronRight,
   Shield,
   Briefcase,
-  Share2,
   Info,
   ArrowRight
 } from "lucide-react"
@@ -35,7 +34,7 @@ import { cn } from "@/lib/utils"
 
 export default function BoardDashboardPage() {
   const params = useParams()
-  const boardId = params?.boardId as string
+  const boardId = Array.isArray(params?.boardId) ? params.boardId[0] : (params?.boardId!)
   const locale = params?.locale as string
   const [board, setBoard] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -154,13 +153,6 @@ export default function BoardDashboardPage() {
         </div>
 
         <div className="flex shrink-0 items-center gap-3">
-          <Button
-            variant="outline"
-            className="h-14 gap-2 rounded-2xl border-slate-200 bg-white px-6 font-bold transition-all hover:scale-105 dark:bg-slate-900"
-          >
-            <Share2 className="h-4 w-4" />
-            Collaborate
-          </Button>
           <Link href={`/${locale}/boards/${boardId}/board`}>
             <Button className="group h-14 gap-2 rounded-2xl bg-indigo-600 px-8 font-black text-white shadow-2xl shadow-indigo-500/30 transition-all hover:scale-105 hover:bg-indigo-700">
               <Plus className="h-5 w-5 transition-transform group-hover:rotate-90" />

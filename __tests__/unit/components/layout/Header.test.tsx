@@ -3,18 +3,30 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import Header from "@/components/layout/Header"
 import { SidebarProvider } from "@/components/ui/sidebar"
-import { usePathname } from "@/i18n/navigation"
 import { authClient } from "@/lib/auth/client"
 
 import { render, screen } from "../../test-utils"
 
-// Mock the Breadcrumbs component to avoid testing its internals
 vi.mock("@/components/layout/Breadcrumbs", () => ({
   Breadcrumbs: () => <div data-testid="breadcrumbs">Breadcrumbs</div>
 }))
 
 vi.mock("@/i18n/navigation", () => ({
-  usePathname: vi.fn()
+  usePathname: vi.fn(() => "/dashboard"),
+  useRouter: vi.fn(() => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn()
+  })),
+  Link: ({
+    children,
+    href,
+    ...props
+  }: React.PropsWithChildren<{ href: string } & React.AnchorHTMLAttributes<HTMLAnchorElement>>) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
+  )
 }))
 
 vi.mock("next/navigation", async () => {
@@ -52,9 +64,16 @@ vi.mock("@/components/layout/ThemeToggle", () => ({
   default: () => <div data-testid="theme-toggle">ThemeToggle</div>
 }))
 
-vi.mock("@/components/layout/LanguageSwitcher", () => ({
-  __esModule: true,
-  default: () => <div data-testid="language-switcher">LanguageSwitcher</div>
+vi.mock("@/hooks/useNotifications", () => ({
+  useNotifications: () => ({
+    notifications: [],
+    unreadCount: 0,
+    loading: false,
+    markRead: vi.fn(),
+    markAllRead: vi.fn(),
+    clearAll: vi.fn(),
+    dismissNotification: vi.fn()
+  })
 }))
 
 describe("Header Component", () => {
@@ -75,7 +94,7 @@ describe("Header Component", () => {
     } as any)
   })
 
-  it("should render all child components correctly", () => {
+  it("should render breadcrumbs, calendar link, theme, and user nav", () => {
     render(
       <SidebarProvider>
         <Header />
@@ -85,6 +104,8 @@ describe("Header Component", () => {
     expect(screen.getByTestId("breadcrumbs")).toBeInTheDocument()
     expect(screen.getByTestId("user-nav")).toBeInTheDocument()
     expect(screen.getByTestId("theme-toggle")).toBeInTheDocument()
-    expect(screen.getByTestId("language-switcher")).toBeInTheDocument()
+
+    const calendar = screen.getByRole("link", { name: "Calendar" })
+    expect(calendar).toHaveAttribute("href", "/calendar")
   })
 })

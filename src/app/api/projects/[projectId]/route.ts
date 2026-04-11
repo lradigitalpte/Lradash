@@ -3,8 +3,50 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireOrganizationAccess } from "@/lib/auth/organization-access"
 import { connectToDatabase } from "@/lib/db/connect"
 import { getTasksByProjectId } from "@/lib/db/task"
+import { OrganizationModel } from "@/models/organization.model"
 import { ProjectModel } from "@/models/project.model"
 import { UserRole } from "@/types/dbInterface"
+
+function buildOrganizationRoleMap(org: { owner?: unknown; members?: unknown[] } | null) {
+  const map = new Map<string, UserRole>()
+  if (!org) {
+    return map
+  }
+  for (const entry of (org.members || []) as Array<{ userId?: unknown; role?: UserRole }>) {
+    const uid =
+      entry.userId && typeof (entry.userId as { toString?: () => string }).toString === "function"
+        ? (entry.userId as { toString: () => string }).toString()
+        : String(entry.userId)
+    if (uid && uid !== "undefined") {
+      map.set(uid, (entry.role!) || UserRole.MEMBER)
+    }
+  }
+  const orgOwnerId =
+    org.owner && typeof (org.owner as { toString?: () => string }).toString === "function"
+      ? (org.owner as { toString: () => string }).toString()
+      : org.owner
+        ? String(org.owner)
+        : null
+  if (orgOwnerId && !map.has(orgOwnerId)) {
+    map.set(orgOwnerId, UserRole.OWNER)
+  }
+  return map
+}
+
+function enrichPersonWithOrgRole<T extends { _id?: unknown }>(
+  person: T | null | undefined,
+  roleMap: Map<string, UserRole>
+): T & { organizationRole: UserRole } {
+  if (!person || person._id == null) {
+    return person as T & { organizationRole: UserRole }
+  }
+  const id =
+    typeof (person._id as { toString?: () => string }).toString === "function"
+      ? (person._id as { toString: () => string }).toString()
+      : String(person._id)
+  const organizationRole = roleMap.get(id) ?? UserRole.MEMBER
+  return { ...person, organizationRole }
+}
 
 export async function GET(
   request: NextRequest,
@@ -41,16 +83,42 @@ export async function GET(
       )
     }
 
+    const orgDoc = await OrganizationModel.findById(project.organizationId)
+      .select("owner members.userId members.role")
+      .lean()
+
+    const orgRoleMap = buildOrganizationRoleMap(orgDoc as { owner?: unknown; members?: unknown[] })
+
+    const ownerEnriched = enrichPersonWithOrgRole(project.owner as any, orgRoleMap)
+    const membersEnriched = ((project.members || []) as any[]).map((m) =>
+      enrichPersonWithOrgRole(m, orgRoleMap)
+    )
+
     // Fetch tasks for the project
     const tasks = await getTasksByProjectId(projectId)
+
+    const ownerIdRaw = (project as any).owner
+    const ownerIdStr =
+      ownerIdRaw && typeof ownerIdRaw === "object" && (ownerIdRaw as { _id?: unknown })._id
+        ? String((ownerIdRaw as { _id: unknown })._id)
+        : ownerIdRaw
+          ? String(ownerIdRaw)
+          : null
+
+    const canManageMembers =
+      access.orgRole === UserRole.OWNER ||
+      access.orgRole === UserRole.ADMIN ||
+      (ownerIdStr != null && ownerIdStr === access.user._id.toString())
 
     return NextResponse.json(
       {
         _id: project._id.toString(),
         title: project.title,
         description: project.description,
-        owner: project.owner,
+        owner: ownerEnriched,
         organizationId: project.organizationId.toString(),
+        canManageMembers,
+        currentUserId: access.user._id.toString(),
         isArchived: project.isArchived,
         status: (project as any).status || "ACTIVE",
         priority: (project as any).priority || "MEDIUM",
@@ -65,7 +133,7 @@ export async function GET(
           overdueAlerts: true
         },
         dueDate: (project as any).dueDate || null,
-        members: project.members,
+        members: membersEnriched,
         tasks: tasks,
         createdAt: project.createdAt,
         updatedAt: project.updatedAt

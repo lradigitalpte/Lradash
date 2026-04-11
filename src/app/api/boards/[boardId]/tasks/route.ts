@@ -1,8 +1,10 @@
+import mongoose from "mongoose"
 import { NextRequest, NextResponse } from "next/server"
 
 import { verifyAccessToken } from "@/lib/auth/tokens"
 import { canAccessBoard } from "@/lib/board-access"
 import { connectToDatabase } from "@/lib/db/connect"
+import { parseRecordedCreatedAt } from "@/lib/tasks/recorded-created-at"
 import { BoardModel } from "@/models/board.model"
 import { TaskModel } from "@/models/task.model"
 import { UserModel } from "@/models/user.model"
@@ -24,10 +26,17 @@ export async function GET(
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    const { boardId } = await params
+    const { boardId: rawBoardId } = await params
+    const boardId = Array.isArray(rawBoardId) ? rawBoardId[0] : rawBoardId
     await connectToDatabase()
 
-    const board = await BoardModel.findOne({ _id: boardId, deletedAt: null }).lean()
+    if (!boardId || !mongoose.Types.ObjectId.isValid(boardId)) {
+      return NextResponse.json({ error: "Invalid board id" }, { status: 400 })
+    }
+
+    const boardObjectId = new mongoose.Types.ObjectId(boardId)
+
+    const board = await BoardModel.findOne({ _id: boardObjectId, deletedAt: null }).lean()
     if (!board) {
       return NextResponse.json({ error: "Board not found" }, { status: 404 })
     }
@@ -38,7 +47,7 @@ export async function GET(
     }
 
     const tasks = await TaskModel.find({
-      board: boardId,
+      board: boardObjectId,
       deletedAt: null
     })
       .populate([
@@ -72,11 +81,18 @@ export async function POST(
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    const { boardId } = await params
+    const { boardId: rawBoardId } = await params
+    const boardId = Array.isArray(rawBoardId) ? rawBoardId[0] : rawBoardId
     const body = await request.json()
     await connectToDatabase()
 
-    const board = await BoardModel.findOne({ _id: boardId, deletedAt: null }).lean()
+    if (!boardId || !mongoose.Types.ObjectId.isValid(boardId)) {
+      return NextResponse.json({ error: "Invalid board id" }, { status: 400 })
+    }
+
+    const boardObjectId = new mongoose.Types.ObjectId(boardId)
+
+    const board = await BoardModel.findOne({ _id: boardObjectId, deletedAt: null }).lean()
     if (!board) {
       return NextResponse.json({ error: "Board not found" }, { status: 404 })
     }
@@ -113,20 +129,32 @@ export async function POST(
       workPackageId = (wp as any)._id?.toString?.()
     }
 
-    const task = await TaskModel.create({
+    const recorded = parseRecordedCreatedAt(body.recordedCreatedAt)
+    if (recorded.error) {
+      return NextResponse.json({ error: recorded.error }, { status: 400 })
+    }
+
+    const now = new Date()
+    const createPayload: Record<string, unknown> = {
       title: body.title ?? "New task",
       description: body.description ?? "",
       status: body.status ?? "TODO",
       priority: body.priority ?? "MEDIUM",
       dueDate: body.dueDate ? new Date(body.dueDate) : undefined,
-      board: boardId,
+      board: boardObjectId,
       project: undefined,
       organizationId: orgId,
       creator: decoded.userId,
       lastModifier: decoded.userId,
       assignee: body.assigneeId || undefined,
       ...(workPackageId && { workPackage: workPackageId })
-    } as any)
+    }
+    if (recorded.date) {
+      createPayload.createdAt = recorded.date
+      createPayload.updatedAt = now
+    }
+
+    const task = await TaskModel.create(createPayload as any)
 
     await task.populate([
       { path: "assignee", select: "name avatar email" },

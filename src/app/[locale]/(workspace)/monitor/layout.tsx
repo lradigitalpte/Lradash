@@ -5,14 +5,14 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 
 export default function MonitorLayout({ children }: { children: React.ReactNode }) {
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={false} className="min-h-svh">
       <MonitorPool />
       <MonitorSidebar />
-      <SidebarInset>
+      <SidebarInset className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
         <Header />
-        <main className="flex-1 overflow-y-auto bg-slate-50/50 p-6 dark:bg-slate-950/50">
-          <div className="mx-auto max-w-7xl space-y-8">{children}</div>
-        </main>
+        <div className="custom-scrollbar min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-6">
+          <div className="mx-auto w-full max-w-7xl space-y-8">{children}</div>
+        </div>
       </SidebarInset>
     </SidebarProvider>
   )

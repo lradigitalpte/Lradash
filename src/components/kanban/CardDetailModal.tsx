@@ -3,6 +3,16 @@
 import { useState, useEffect, useRef } from "react"
 import { toast } from "sonner"
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import {
@@ -66,6 +76,8 @@ export function CardDetailModal({
   const [status, setStatus] = useState(card.status || "TODO")
   const [saving, setSaving] = useState(false)
   const [attaching, setAttaching] = useState(false)
+  const [confirmDeleteCard, setConfirmDeleteCard] = useState(false)
+  const [deletingCard, setDeletingCard] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Sync state with prop if card changes (e.g. from background refresh)
@@ -226,6 +238,32 @@ export function CardDetailModal({
     updateTask({ status: newStatus })
   }
 
+  const handleConfirmDeleteCard = async () => {
+    setDeletingCard(true)
+    try {
+      const accessToken = localStorage.getItem("accessToken")
+      const response = await fetch(`/api/tasks/${card._id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      })
+      if (!response.ok) {
+        const data = await response.json().catch(() => null)
+        throw new Error(data?.error || "Failed to delete card")
+      }
+      toast.success("Card deleted")
+      setConfirmDeleteCard(false)
+      onUpdate()
+      onClose()
+    } catch (error) {
+      console.error("Delete task error:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to delete card")
+    } finally {
+      setDeletingCard(false)
+    }
+  }
+
   return (
     <Dialog open={true} onOpenChange={onClose}>
       <DialogContent
@@ -330,6 +368,9 @@ export function CardDetailModal({
                       fileInputRef.current?.click()
                     }
                   }}
+                  onDelete={() => {
+                    setConfirmDeleteCard(true)
+                  }}
                 />
               </div>
             </div>
@@ -352,6 +393,32 @@ export function CardDetailModal({
           background: rgba(51, 65, 85, 0.4);
         }
       `}</style>
+
+      <AlertDialog open={confirmDeleteCard} onOpenChange={setConfirmDeleteCard}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this card?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes only this card (task) from the board. Lists and the board itself are not
+              deleted. To remove the whole board, use Settings → Delete this board on the workflow
+              page.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingCard}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={deletingCard}
+              onClick={(e) => {
+                e.preventDefault()
+                void handleConfirmDeleteCard()
+              }}
+            >
+              {deletingCard ? "Deleting…" : "Delete card"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   )
 }

@@ -1,3 +1,4 @@
+import { fireEvent } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
 import AppSidebar from "@/components/layout/AppSidebar"
@@ -57,19 +58,6 @@ describe("AppSidebar Component", () => {
       updatedAt: new Date()
     }
   ]
-  const teamTestBoards: Board[] = [
-    {
-      _id: "3",
-      title: "Team Board 1",
-      description: "",
-      owner: { id: "user1", name: "Test User" },
-      members: [],
-      projects: [],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }
-  ]
-
   it("should render project name correctly", () => {
     vi.mocked(usePathname).mockReturnValue("/boards")
     vi.mocked(useBoards).mockReturnValue({
@@ -84,7 +72,7 @@ describe("AppSidebar Component", () => {
     expect(screen.getByText("title")).toBeInTheDocument()
   })
 
-  it("should highlight overview link when on boards page", () => {
+  it("should highlight Boards link when on boards page", () => {
     vi.mocked(usePathname).mockReturnValue("/boards")
     vi.mocked(useBoards).mockReturnValue({
       myBoards: [],
@@ -95,11 +83,11 @@ describe("AppSidebar Component", () => {
 
     renderWithProvider(<AppSidebar />)
 
-    const overviewLink = screen.getByRole("link", { name: "overview" })
-    expect(overviewLink).toHaveAttribute("data-active", "true")
+    const boardsLink = screen.getByRole("link", { name: "Boards" })
+    expect(boardsLink).toHaveAttribute("data-active", "true")
   })
 
-  it("should render loading state correctly", () => {
+  it("should render loading state in my boards when expanded", () => {
     vi.mocked(usePathname).mockReturnValue("/boards")
     vi.mocked(useBoards).mockReturnValue({
       myBoards: [],
@@ -108,10 +96,10 @@ describe("AppSidebar Component", () => {
       fetchBoards: async () => {}
     })
 
-    renderWithProvider(<AppSidebar />)
+    const { container } = renderWithProvider(<AppSidebar />)
 
-    const loadingElements = screen.getAllByText("loading")
-    expect(loadingElements).toHaveLength(2)
+    fireEvent.click(screen.getByRole("button", { name: /myBoards/i }))
+    expect(container.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0)
   })
 
   it("should render my boards correctly", () => {
@@ -125,22 +113,9 @@ describe("AppSidebar Component", () => {
 
     renderWithProvider(<AppSidebar />)
 
+    fireEvent.click(screen.getByRole("button", { name: /myBoards/i }))
     expect(screen.getByText("Board 1")).toBeInTheDocument()
     expect(screen.getByText("Board 2")).toBeInTheDocument()
-  })
-
-  it("should render team boards correctly", () => {
-    vi.mocked(usePathname).mockReturnValue("/boards")
-    vi.mocked(useBoards).mockReturnValue({
-      myBoards: [],
-      teamBoards: teamTestBoards,
-      loading: false,
-      fetchBoards: async () => {}
-    })
-
-    renderWithProvider(<AppSidebar />)
-
-    expect(screen.getByText("Team Board 1")).toBeInTheDocument()
   })
 
   it("should highlight active board link", () => {
@@ -154,6 +129,7 @@ describe("AppSidebar Component", () => {
 
     renderWithProvider(<AppSidebar />)
 
+    fireEvent.click(screen.getByRole("button", { name: /myBoards/i }))
     const boardLink = screen.getByRole("link", { name: "Board 1" })
     expect(boardLink).toHaveAttribute("data-active", "true")
   })

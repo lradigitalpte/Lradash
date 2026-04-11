@@ -6,10 +6,15 @@ import { ROUTES } from "@/constants/routes"
 import { useBreadcrumbs } from "@/hooks/useBreadcrumbs"
 import { fetchBoardsFromDb } from "@/lib/db/board"
 import { useTaskStore } from "@/lib/store"
+import { usePathname } from "@/i18n/navigation"
 
 // Mock dependencies
 vi.mock("next/navigation", () => ({
   useParams: vi.fn()
+}))
+
+vi.mock("@/i18n/navigation", () => ({
+  usePathname: vi.fn()
 }))
 
 vi.mock("next-intl", () => ({
@@ -43,6 +48,7 @@ describe("useBreadcrumbs Hook", () => {
     vi.mocked(fetchBoardsFromDb).mockResolvedValue([])
     vi.mocked(useParams).mockReturnValue({ boardId: mockBoardId })
     vi.mocked(useTaskStore).mockReturnValue(mockUserEmail)
+    vi.mocked(usePathname).mockReturnValue("/boards")
   })
 
   it("should initialize with root breadcrumb", () => {
@@ -50,7 +56,7 @@ describe("useBreadcrumbs Hook", () => {
 
     expect(result.current.items).toEqual([
       {
-        title: "overview",
+        title: "Boards",
         link: ROUTES.BOARDS.ROOT,
         isRoot: true
       }
@@ -69,7 +75,7 @@ describe("useBreadcrumbs Hook", () => {
 
     expect(result.current.items).toEqual([
       {
-        title: "overview",
+        title: "Boards",
         link: ROUTES.BOARDS.ROOT,
         isRoot: true
       },

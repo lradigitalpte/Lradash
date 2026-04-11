@@ -34,12 +34,22 @@ export async function GET(
       )
     }
 
-    const { boardId } = await params
+    const { boardId: rawBoardId } = await params
+    const boardId = Array.isArray(rawBoardId) ? rawBoardId[0] : rawBoardId
 
     await connectToDatabase()
 
+    if (!boardId || !mongoose.Types.ObjectId.isValid(boardId)) {
+      return NextResponse.json(
+        { error: "Invalid board id" },
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      )
+    }
+
+    const boardObjectId = new mongoose.Types.ObjectId(boardId)
+
     const board = await BoardModel.findOne({
-      _id: boardId,
+      _id: boardObjectId,
       deletedAt: null
     }).lean()
 
@@ -59,10 +69,18 @@ export async function GET(
       )
     }
 
-    // Fetch lists for this board
+    const boardOrgId = (board as any).organizationId
+    const orgForLists =
+      boardOrgId != null
+        ? boardOrgId
+        : decoded.organizationId != null
+          ? decoded.organizationId
+          : undefined
+
+    // Fetch lists for this board (prefer board.organizationId so lists match when JWT omits org)
     const lists = await ListModel.find({
-      boardId: boardId,
-      organizationId: decoded.organizationId,
+      boardId: boardObjectId,
+      ...(orgForLists != null ? { organizationId: orgForLists } : {}),
       deletedAt: null
     })
       .sort({ position: 1 })
@@ -138,14 +156,19 @@ export async function PATCH(
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    const { boardId } = await params
+    const { boardId: rawBoardId } = await params
+    const boardId = Array.isArray(rawBoardId) ? rawBoardId[0] : rawBoardId
     const body = await request.json()
     const { projectId: newProjectId } = body
 
     await connectToDatabase()
 
+    if (!boardId || !mongoose.Types.ObjectId.isValid(boardId)) {
+      return NextResponse.json({ error: "Invalid board id" }, { status: 400 })
+    }
+
     const board = await BoardModel.findOne({
-      _id: boardId,
+      _id: new mongoose.Types.ObjectId(boardId),
       deletedAt: null
     }).lean()
 
@@ -197,6 +220,10 @@ export async function PATCH(
       updates.description = body.description
     }
 
+    if (body.hasOwnProperty("isArchived")) {
+      updates.isArchived = Boolean(body.isArchived)
+    }
+
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: "No valid fields to update" }, { status: 400 })
     }
@@ -211,7 +238,8 @@ export async function PATCH(
       _id: updated?._id?.toString(),
       title: updated?.title,
       description: updated?.description,
-      projectId: (updated as any)?.projectId?.toString() ?? null
+      projectId: (updated as any)?.projectId?.toString() ?? null,
+      isArchived: Boolean((updated as any)?.isArchived)
     })
   } catch (error) {
     console.error("Patch board error:", error)
@@ -235,10 +263,18 @@ export async function DELETE(
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    const { boardId } = await params
+    const { boardId: rawBoardId } = await params
+    const boardId = Array.isArray(rawBoardId) ? rawBoardId[0] : rawBoardId
     await connectToDatabase()
 
-    const board = await BoardModel.findOne({ _id: boardId, deletedAt: null }).lean()
+    if (!boardId || !mongoose.Types.ObjectId.isValid(boardId)) {
+      return NextResponse.json({ error: "Invalid board id" }, { status: 400 })
+    }
+
+    const board = await BoardModel.findOne({
+      _id: new mongoose.Types.ObjectId(boardId),
+      deletedAt: null
+    }).lean()
     if (!board) {
       return NextResponse.json({ error: "Board not found" }, { status: 404 })
     }

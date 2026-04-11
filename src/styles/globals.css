@@ -95,56 +95,58 @@
 
 @layer base {
   :root {
-    --background: 180 35% 99%;
-    --foreground: 180 45% 8%;
-    --muted: 180 25% 92%;
-    --muted-foreground: 180 45% 25%;
-    --popover: 180 35% 99%;
-    --popover-foreground: 180 45% 8%;
-    --card: 180 35% 99%;
-    --card-foreground: 180 45% 8%;
-    --border: 180 20% 92%;
-    --input: 180 20% 92%;
-    --primary: 180 75% 35%;
-    --primary-foreground: 180 10% 98%;
-    --secondary: 180 20% 92%;
-    --secondary-foreground: 180 45% 25%;
-    --accent: 180 75% 35%;
-    --accent-foreground: 180 10% 98%;
+    /* Light: softer canvas; cards use true white for contrast (see second :root block below) */
+    --background: 220 14% 92%;
+    --foreground: 222 28% 12%;
+    --muted: 220 12% 88%;
+    --muted-foreground: 220 12% 38%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 28% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 28% 12%;
+    --border: 220 10% 84%;
+    --input: 220 10% 90%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 220 12% 90%;
+    --secondary-foreground: 222 22% 28%;
+    --accent: 221 83% 53%;
+    --accent-foreground: 210 40% 98%;
     --destructive: 0 85% 45%;
     --destructive-foreground: 0 10% 98%;
-    --ring: 180 75% 35%;
+    --ring: 221 83% 53%;
     --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 220 14% 91%;
+    --sidebar-foreground: 222 20% 22%;
+    --sidebar-primary: 222 47% 28%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 220 11% 87%;
+    --sidebar-accent-foreground: 222 28% 14%;
+    --sidebar-border: 220 10% 82%;
+    --sidebar-ring: 217 70% 45%;
   }
 
   .dark {
-    --background: 180 35% 6%;
-    --foreground: 180 20% 99%;
-    --muted: 180 30% 12%;
-    --muted-foreground: 180 25% 80%;
-    --popover: 180 35% 6%;
-    --popover-foreground: 180 20% 99%;
-    --card: 180 35% 6%;
-    --card-foreground: 180 20% 99%;
-    --border: 180 20% 92%;
-    --input: 180 20% 92%;
-    --primary: 180 75% 45%;
-    --primary-foreground: 180 10% 98%;
-    --secondary: 180 20% 16%;
-    --secondary-foreground: 180 20% 80%;
-    --accent: 180 75% 45%;
-    --accent-foreground: 180 10% 98%;
+    /* Neutral slate surfaces + blue accent (no teal cast) */
+    --background: 222 24% 8%;
+    --foreground: 210 40% 98%;
+    --muted: 217 33% 12%;
+    --muted-foreground: 215 20% 65%;
+    --popover: 222 24% 10%;
+    --popover-foreground: 210 40% 98%;
+    --card: 222 24% 10%;
+    --card-foreground: 210 40% 98%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 217 33% 14%;
+    --secondary-foreground: 210 40% 90%;
+    --accent: 217 91% 60%;
+    --accent-foreground: 210 40% 98%;
     --destructive: 0 85% 60%;
     --destructive-foreground: 0 10% 98%;
-    --ring: 180 75% 45%;
+    --ring: 217 91% 60%;
     --radius: 0.5rem;
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
@@ -177,56 +179,57 @@
 
 @layer base {
   :root {
-    --background: 180 35% 100%;
-    --foreground: 180 45% 5%;
-    --muted: 180 25% 95%;
-    --muted-foreground: 180 45% 25%;
-    --popover: 180 35% 98%;
-    --popover-foreground: 180 45% 10%;
-    --card: 180 35% 98%;
-    --card-foreground: 180 45% 10%;
-    --border: 180 20% 92%;
-    --input: 180 20% 92%;
-    --primary: 180 75% 35%;
-    --primary-foreground: 180 10% 98%;
-    --secondary: 180 20% 92%;
-    --secondary-foreground: 180 45% 30%;
-    --accent: 180 75% 35%;
-    --accent-foreground: 180 10% 98%;
+    /* Page canvas: cool gray; cards/popovers: white so UI layers read clearly */
+    --background: 220 14% 92%;
+    --foreground: 222 28% 12%;
+    --muted: 220 12% 88%;
+    --muted-foreground: 220 12% 38%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 28% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 28% 12%;
+    --border: 220 10% 84%;
+    --input: 220 10% 90%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 220 12% 90%;
+    --secondary-foreground: 222 22% 28%;
+    --accent: 221 83% 53%;
+    --accent-foreground: 210 40% 98%;
     --destructive: 0 85% 45%;
     --destructive-foreground: 0 10% 98%;
-    --ring: 180 75% 35%;
+    --ring: 221 83% 53%;
     --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 220 14% 91%;
+    --sidebar-foreground: 222 20% 22%;
+    --sidebar-primary: 222 47% 28%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 220 11% 87%;
+    --sidebar-accent-foreground: 222 28% 14%;
+    --sidebar-border: 220 10% 82%;
+    --sidebar-ring: 217 70% 45%;
   }
 
   .dark {
-    --background: 180 35% 5%;
-    --foreground: 180 20% 100%;
-    --muted: 180 30% 12%;
-    --muted-foreground: 180 25% 85%;
-    --popover: 180 35% 8%;
-    --popover-foreground: 180 20% 98%;
-    --card: 180 35% 8%;
-    --card-foreground: 180 20% 98%;
-    --border: 180 20% 18%;
-    --input: 180 20% 18%;
-    --primary: 180 75% 45%;
-    --primary-foreground: 180 10% 98%;
-    --secondary: 180 20% 18%;
-    --secondary-foreground: 180 20% 70%;
-    --accent: 180 75% 45%;
-    --accent-foreground: 180 10% 98%;
+    --background: 222 24% 8%;
+    --foreground: 210 40% 98%;
+    --muted: 217 33% 12%;
+    --muted-foreground: 215 20% 65%;
+    --popover: 222 24% 10%;
+    --popover-foreground: 210 40% 98%;
+    --card: 222 24% 10%;
+    --card-foreground: 210 40% 98%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 217 33% 14%;
+    --secondary-foreground: 210 40% 90%;
+    --accent: 217 91% 60%;
+    --accent-foreground: 210 40% 98%;
     --destructive: 0 85% 60%;
     --destructive-foreground: 0 10% 98%;
-    --ring: 180 75% 45%;
+    --ring: 217 91% 60%;
     --radius: 0.5rem;
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
@@ -286,14 +289,14 @@
 */
 
 :root {
-  --sidebar: hsl(0 0% 98%);
-  --sidebar-foreground: hsl(240 5.3% 26.1%);
-  --sidebar-primary: hsl(240 5.9% 10%);
-  --sidebar-primary-foreground: hsl(0 0% 98%);
-  --sidebar-accent: hsl(240 4.8% 95.9%);
-  --sidebar-accent-foreground: hsl(240 5.9% 10%);
-  --sidebar-border: hsl(220 13% 91%);
-  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+  --sidebar: hsl(220 14% 91%);
+  --sidebar-foreground: hsl(222 20% 22%);
+  --sidebar-primary: hsl(222 47% 28%);
+  --sidebar-primary-foreground: hsl(210 40% 98%);
+  --sidebar-accent: hsl(220 11% 87%);
+  --sidebar-accent-foreground: hsl(222 28% 14%);
+  --sidebar-border: hsl(220 10% 82%);
+  --sidebar-ring: hsl(217 70% 45%);
 }
 
 /*
@@ -334,8 +337,55 @@
   * {
     @apply border-border outline-ring/50;
   }
+
+  /*
+    Page canvas texture — applied to body and main column.
+    SidebarInset uses a solid bg that covers body, so the pattern is repeated on [data-slot="sidebar-inset"].
+  */
+  :root {
+    --canvas-texture:
+      radial-gradient(circle at 1px 1px, hsl(220 14% 26% / 0.17) 1.25px, transparent 0),
+      radial-gradient(circle at 1px 1px, hsl(220 14% 26% / 0.08) 1.25px, transparent 0),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23a)' opacity='0.12'/%3E%3C/svg%3E");
+    --canvas-texture-size: 26px 26px, 26px 26px, 240px 240px;
+  }
+
+  .dark {
+    --canvas-texture:
+      radial-gradient(circle at 1px 1px, hsl(180 10% 82% / 0.11) 1.25px, transparent 0),
+      radial-gradient(circle at 1px 1px, hsl(180 10% 82% / 0.055) 1.25px, transparent 0),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23a)' opacity='0.09'/%3E%3C/svg%3E");
+    --canvas-texture-size: 24px 24px, 24px 24px, 220px 220px;
+  }
+
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    background-color: hsl(var(--background));
+    background-image: var(--canvas-texture);
+    background-size: var(--canvas-texture-size);
+    background-position:
+      0 0,
+      13px 13px,
+      0 0;
+    background-attachment: fixed;
+  }
+
+  [data-slot="sidebar-inset"] {
+    background-color: hsl(var(--background));
+    background-image: var(--canvas-texture);
+    background-size: var(--canvas-texture-size);
+    background-position:
+      0 0,
+      13px 13px,
+      0 0;
+    background-attachment: fixed;
+  }
+
+  /* Project workspace: follow theme bg in light & dark (no canvas texture clash / no “white band” in dark) */
+  [data-slot="sidebar-inset"][data-project-workspace] {
+    background-color: hsl(var(--background));
+    background-image: none;
+    background-attachment: scroll;
   }
 }
 
@@ -368,4 +418,16 @@
 
 .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(51, 65, 85, 0.6);
+}
+
+/* App sidebar nav: hide native scrollbar (still scrolls with wheel / touch / keyboard) */
+[data-slot="sidebar-content"] {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+[data-slot="sidebar-content"]::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }

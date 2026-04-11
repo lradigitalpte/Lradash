@@ -18,8 +18,7 @@ interface StatCardProps {
 }
 
 const variantStyles = {
-  default:
-    "bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border-white/20 dark:border-slate-800/50 shadow-xl shadow-slate-200/40 dark:shadow-none",
+  default: "bg-card/90 dark:bg-card/80 border-border/80 shadow-sm backdrop-blur-sm",
   primary:
     "bg-blue-50/50 dark:bg-blue-900/10 backdrop-blur-md border-blue-200/30 dark:border-blue-500/20 shadow-xl shadow-blue-500/10",
   success:
@@ -48,26 +47,16 @@ export function StatCard({
   variant = "default"
 }: StatCardProps) {
   return (
-    <div
-      className={cn(
-        "group rounded-3xl border p-8 transition-all duration-500 hover:-translate-y-1.5",
-        variantStyles[variant],
-        className
-      )}
-    >
+    <div className={cn("group rounded-xl border p-5", variantStyles[variant], className)}>
       <div className="flex items-start justify-between gap-4">
-        <div className="space-y-3">
-          <p className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase transition-colors group-hover:text-slate-500">
+        <div className="space-y-1.5">
+          <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
             {title}
           </p>
-          <p className="origin-left text-4xl font-black tracking-tighter text-slate-900 tabular-nums transition-transform duration-500 group-hover:scale-105 dark:text-white">
+          <p className="text-2xl font-semibold tracking-tight text-foreground tabular-nums dark:text-white">
             {value}
           </p>
-          {subtitle && (
-            <p className="text-xs leading-relaxed font-semibold text-slate-500/70 italic dark:text-slate-400/70">
-              {subtitle}
-            </p>
-          )}
+          {subtitle && <p className="text-xs leading-snug text-muted-foreground">{subtitle}</p>}
           {trend && (
             <div className="flex items-center gap-2 pt-1">
               <span
@@ -88,13 +77,8 @@ export function StatCard({
           )}
         </div>
         {Icon && (
-          <div
-            className={cn(
-              "rounded-2xl p-4 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-12",
-              iconVariantStyles[variant]
-            )}
-          >
-            <Icon className="h-6 w-6 stroke-[2.5]" />
+          <div className={cn("rounded-lg p-2.5", iconVariantStyles[variant])}>
+            <Icon className="size-5" />
           </div>
         )}
       </div>

@@ -23,7 +23,7 @@ export function Breadcrumbs() {
           <BreadcrumbItem>
             <BreadcrumbLink
               href={items[0].link}
-              className="text-[10px] font-black tracking-[0.2em] text-slate-500 uppercase transition-colors hover:text-blue-600"
+              className="text-xs font-medium text-muted-foreground hover:text-foreground"
             >
               {items[0].title}
             </BreadcrumbLink>
@@ -42,7 +42,7 @@ export function Breadcrumbs() {
             <BreadcrumbItem className="md:hidden">
               <BreadcrumbLink
                 href={items[items.length - 1].link}
-                className="text-[10px] font-black tracking-[0.2em] text-blue-600 uppercase"
+                className="text-xs font-medium text-foreground"
               >
                 {items[items.length - 1].title}
               </BreadcrumbLink>
@@ -61,8 +61,8 @@ export function Breadcrumbs() {
                       <span
                         className={
                           isLast
-                            ? "text-[10px] font-black tracking-[0.3em] text-blue-600 uppercase"
-                            : "text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase transition-colors hover:text-slate-600 dark:hover:text-slate-200"
+                            ? "text-xs font-medium text-foreground"
+                            : "text-xs font-medium text-muted-foreground hover:text-foreground"
                         }
                       >
                         {item.title}

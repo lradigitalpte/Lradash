@@ -1,5 +1,6 @@
 "use client"
 
+import type { Board } from "@/types/dbInterface"
 import {
   BarChart3,
   Calendar,
@@ -27,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useBoards } from "@/hooks/useBoards"
+import { apiClient } from "@/lib/api/client"
 import { useTaskStore } from "@/lib/store"
 
 export default function BoardProjectsPage() {
@@ -37,24 +39,100 @@ export default function BoardProjectsPage() {
   const myBoards = useTaskStore((state) => state.myBoards)
   const teamBoards = useTaskStore((state) => state.teamBoards)
   const fetchProjects = useTaskStore((state) => state.fetchProjects)
+  const { fetchBoards, loading: boardsLoading } = useBoards()
   const [viewMode, setViewMode] = useState<"grid" | "team" | "timeline">("grid")
   const [statusFilter, setStatusFilter] = useState<"all" | "on_track" | "at_risk" | "off_track">(
     "all"
   )
+  const [apiBoard, setApiBoard] = useState<Pick<Board, "_id" | "title" | "description"> | null>(
+    null
+  )
+  const [resolvingBoard, setResolvingBoard] = useState(false)
 
   const boards = useMemo(() => {
     return [...myBoards, ...teamBoards]
   }, [myBoards, teamBoards])
 
   const board = useMemo(() => {
-    return boards.find((b) => b._id === boardId)
-  }, [boards, boardId])
+    const fromStore = boards.find((b) => String(b._id) === String(boardId))
+    if (fromStore) {
+      return fromStore
+    }
+    if (apiBoard && String(apiBoard._id) === String(boardId)) {
+      return {
+        _id: apiBoard._id,
+        title: apiBoard.title,
+        description: apiBoard.description || "",
+        organizationId: "",
+        owner: { id: "", name: "" },
+        members: [],
+        projects: [],
+        listIds: [],
+        isPrivate: true,
+        isArchived: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      } as Board
+    }
+    return null
+  }, [boards, boardId, apiBoard])
 
   useEffect(() => {
     if (boardId) {
       fetchProjects(boardId)
     }
   }, [boardId, fetchProjects])
+
+  useEffect(() => {
+    if (!boardId || boardsLoading) {
+      return
+    }
+    const inStore = boards.some((b) => String(b._id) === String(boardId))
+    if (inStore) {
+      setApiBoard(null)
+      setResolvingBoard(false)
+      return
+    }
+
+    let cancelled = false
+    setResolvingBoard(true)
+    ;(async () => {
+      try {
+        const res = await apiClient.get(`/api/boards/${boardId}`)
+        if (cancelled) {
+          return
+        }
+        if (res.ok) {
+          const data = await res.json()
+          setApiBoard({
+            _id: data._id,
+            title: data.title,
+            description: data.description
+          })
+        } else {
+          setApiBoard(null)
+        }
+      } catch {
+        if (!cancelled) {
+          setApiBoard(null)
+        }
+      } finally {
+        if (!cancelled) {
+          setResolvingBoard(false)
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [boardId, boardsLoading, boards])
+
+  useEffect(() => {
+    if (boardId) {
+      fetchBoards()
+    }
+  }, [boardId, fetchBoards])
 
   // Use real projects from database (filter out archived)
   const displayProjects = (projects || []).filter((p) => !p.isArchived)
@@ -65,13 +143,23 @@ export default function BoardProjectsPage() {
   // Get archived projects as "attention-needed" for now
   const attentionNeeded = (projects || []).filter((p) => p.isArchived)
 
+  if (boardId && !board && (boardsLoading || resolvingBoard)) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <p className="text-sm text-muted-foreground">Loading board…</p>
+      </div>
+    )
+  }
+
   if (!board) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Card>
           <CardHeader>
             <CardTitle>Board not found</CardTitle>
-            <CardDescription>The board you're looking for doesn't exist</CardDescription>
+            <CardDescription>
+              The board you&apos;re looking for doesn&apos;t exist or you don&apos;t have access.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Button

@@ -1,30 +1,39 @@
 "use client"
 
 import {
-  Activity,
-  Globe,
-  Mail,
-  ShieldCheck,
-  CreditCard,
   ChevronLeft,
+  CreditCard,
+  DollarSign,
+  Globe,
   LayoutDashboard,
-  Plus,
-  DollarSign
+  Mail,
+  ShieldCheck
 } from "lucide-react"
-import { usePathname } from "next/navigation"
+import { useTranslations } from "next-intl"
 
+import { Icons } from "@/components/layout/Icons"
+import {
+  PROJECT_SIDEBAR_BRAND_SUBTITLE,
+  PROJECT_SIDEBAR_BRAND_TITLE,
+  PROJECT_SIDEBAR_FOOTER_CTA,
+  PROJECT_SIDEBAR_NAV_ITEM,
+  PROJECT_SIDEBAR_SECTION_LABEL,
+  PROJECT_SIDEBAR_SHELL
+} from "@/components/layout/sidebar-nav-styles"
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarGroup,
-  SidebarGroupLabel
+  SidebarRail
 } from "@/components/ui/sidebar"
 import { useAdminAccess } from "@/hooks/useAdmin"
-import { Link } from "@/i18n/navigation"
+import { Link, usePathname } from "@/i18n/navigation"
 import { cn } from "@/lib/utils"
 
 const ALL_NAV_ITEMS = [
@@ -43,50 +52,47 @@ const ALL_NAV_ITEMS = [
 ]
 
 export default function MonitorSidebar() {
+  const t = useTranslations("sidebar")
   const pathname = usePathname()
   const isAdmin = useAdminAccess()
   const navItems = ALL_NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin === true)
 
   const isActive = (href: string) => {
     if (href === "/monitor") {
-      return pathname === "/monitor" || pathname === "/en/monitor"
+      return pathname === "/monitor"
     }
-    return pathname.includes(href)
+    return pathname === href || pathname.startsWith(`${href}/`)
   }
 
   return (
-    <Sidebar className="border-r border-slate-200/60 bg-slate-50/50 backdrop-blur-2xl dark:border-slate-800/60 dark:bg-slate-950/50">
-      <SidebarHeader className="bg-gradient-to-r from-red-600 to-rose-700 px-6 py-8 shadow-xl">
-        <div className="flex flex-col gap-4">
-          <Link
-            href="/dashboard"
-            className="group flex w-fit items-center gap-2 text-[10px] font-black tracking-widest text-white/70 uppercase transition-colors hover:text-white"
-          >
-            <ChevronLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
-            Back to App
-          </Link>
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 shadow-inner backdrop-blur-md">
-              <Activity className="h-6 w-6 text-white" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-sm font-black tracking-widest text-white uppercase">
-                Monitor
-              </span>
-              <span className="text-[10px] font-medium text-white/60 italic">
-                System Infrastructure
-              </span>
-            </div>
-          </div>
-        </div>
+    <Sidebar collapsible="icon" className={cn(PROJECT_SIDEBAR_SHELL, "text-slate-100")}>
+      <SidebarHeader className="shrink-0 border-b border-slate-800/90 bg-slate-950 px-2.5 py-3">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              size="lg"
+              tooltip={t("title")}
+              className="h-auto min-h-[3rem] rounded-xl border border-slate-800/90 bg-slate-900/50 px-2.5 py-2.5 hover:bg-slate-900"
+            >
+              <Link href="/dashboard" className="gap-3">
+                <Icons.logoMark className="size-9 shrink-0" />
+                <span className="flex min-w-0 flex-col items-start gap-1 text-left group-data-[collapsible=icon]:hidden">
+                  <span className={PROJECT_SIDEBAR_BRAND_TITLE}>{t("title")}</span>
+                  <span className={PROJECT_SIDEBAR_BRAND_SUBTITLE}>Monitor</span>
+                </span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
 
-      <SidebarContent className="px-4 py-6">
-        <SidebarGroup>
-          <SidebarGroupLabel className="mb-4 px-4 text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
+      <SidebarContent className="gap-3 bg-slate-950 px-2.5 py-4">
+        <SidebarGroup className="gap-1 p-0">
+          <SidebarGroupLabel className={PROJECT_SIDEBAR_SECTION_LABEL}>
             Monitoring
           </SidebarGroupLabel>
-          <SidebarMenu className="space-y-2">
+          <SidebarMenu className="gap-2">
             {navItems.map((item) => {
               const active = isActive(item.href)
               return (
@@ -94,30 +100,17 @@ export default function MonitorSidebar() {
                   <SidebarMenuButton
                     asChild
                     isActive={active}
-                    className={cn(
-                      "group/item relative h-14 overflow-hidden rounded-2xl px-4 transition-all duration-300",
-                      active
-                        ? "border border-red-100 bg-white text-red-600 shadow-lg shadow-red-100/50 dark:border-red-900/30 dark:bg-slate-900 dark:shadow-none"
-                        : "text-slate-500 hover:bg-white/80 hover:text-slate-900 dark:hover:bg-slate-900/50 dark:hover:text-white"
-                    )}
+                    tooltip={item.title}
+                    className={PROJECT_SIDEBAR_NAV_ITEM}
                   >
-                    <Link href={item.href} className="flex items-center gap-4">
-                      <div
-                        className={cn(
-                          "flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-500 group-hover/item:scale-110",
-                          active
-                            ? "rotate-3 bg-red-600 text-white shadow-lg shadow-red-500/30"
-                            : "bg-slate-100 text-slate-400 group-hover/item:bg-white group-hover/item:text-red-500 dark:bg-slate-800 dark:group-hover/item:bg-slate-700"
-                        )}
-                      >
-                        <item.icon className="h-5 w-5 stroke-[2.5]" />
-                      </div>
-                      <span className="text-[11px] font-black tracking-widest uppercase">
+                    <Link
+                      href={item.href}
+                      className="flex w-full items-center gap-2 group-data-[collapsible=icon]:justify-center"
+                    >
+                      <item.icon className="shrink-0" />
+                      <span className="leading-snug group-data-[collapsible=icon]:hidden">
                         {item.title}
                       </span>
-                      {active && (
-                        <div className="absolute top-0 right-0 bottom-0 w-1 rounded-full bg-red-600" />
-                      )}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -125,16 +118,26 @@ export default function MonitorSidebar() {
             })}
           </SidebarMenu>
         </SidebarGroup>
-
-        <div className="mt-auto px-4 py-6">
-          <button className="group flex w-full items-center gap-3 rounded-[1.25rem] bg-slate-900 p-4 font-black text-white transition-all hover:bg-red-600 dark:bg-white dark:text-slate-900">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20">
-              <Plus className="h-4 w-4" />
-            </div>
-            <span className="text-[10px] tracking-widest uppercase">Quick Add</span>
-          </button>
-        </div>
       </SidebarContent>
+
+      <SidebarFooter className="shrink-0 border-t border-slate-800/90 bg-slate-950 px-2.5 py-3">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="Back to App" className={PROJECT_SIDEBAR_FOOTER_CTA}>
+              <Link
+                href="/dashboard"
+                className="flex w-full items-center gap-3 group-data-[collapsible=icon]:justify-center"
+              >
+                <ChevronLeft className="shrink-0" />
+                <span className="leading-snug group-data-[collapsible=icon]:hidden">
+                  Back to App
+                </span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
+      <SidebarRail />
     </Sidebar>
   )
 }

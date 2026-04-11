@@ -109,7 +109,17 @@ async function convertTaskToPlainObject(taskDoc: TaskBase): Promise<TaskType> {
     priority: (taskDoc.priority as TaskPriority) || TaskPriority.MEDIUM,
     isArchived: taskDoc.isArchived || false,
     checklist: (taskDoc as any).checklist || [],
-    labels: (taskDoc as any).labels || [],
+    labels: Array.isArray((taskDoc as any).labels)
+      ? ((taskDoc as any).labels as any[]).map((label) => ({
+          name: typeof label?.name === "string" ? label.name : String(label?.name ?? ""),
+          color: typeof label?.color === "string" ? label.color : String(label?.color ?? ""),
+          ...(label?._id != null
+            ? { _id: getObjectIdString(label._id) }
+            : label?.id != null
+              ? { id: String(label.id) }
+              : {})
+        }))
+      : [],
     activities: (taskDoc as any).activities
       ? await Promise.all(
           ((taskDoc as any).activities as any[]).map(async (a: any) => {

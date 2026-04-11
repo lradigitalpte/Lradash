@@ -1,6 +1,15 @@
 "use client"
 
-import { format } from "date-fns"
+import {
+  addDays,
+  endOfDay,
+  endOfMonth,
+  format,
+  isSameDay,
+  startOfDay,
+  startOfMonth,
+  startOfWeek
+} from "date-fns"
 import {
   ChevronLeft,
   ChevronRight,
@@ -22,6 +31,7 @@ import { toast } from "sonner"
 import { CreateEventModal } from "@/components/calendar/CreateEventModal"
 import { EventHoverCard } from "@/components/calendar/EventHoverCard"
 import { StatusBadge, UserAvatar, StatCard, AvatarGroup } from "@/components/common"
+import { OrganizationMeetingsPanel } from "@/components/meetings/OrganizationMeetingsPanel"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -33,7 +43,9 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useMeetings } from "@/hooks/useMeetings"
 import { apiClient } from "@/lib/api/client"
+import { getMeetingOccurrencesBetween } from "@/lib/meetings/recurrence"
 import { useTaskStore } from "@/lib/store"
 import { cn, formatDate, getDaysUntil, isOverdue } from "@/lib/utils"
 
@@ -44,6 +56,7 @@ interface CalendarItem {
   title: string
   isTask?: boolean
   isEvent?: boolean
+  isMeeting?: boolean
   startTime?: string
   endTime?: string
   type?: string
@@ -53,17 +66,67 @@ interface CalendarItem {
 export default function CalendarPage() {
   const projects = useTaskStore((state) => state.projects)
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [viewType, setViewType] = useState<ViewType>("month")
+  const [viewType, setViewType] = useState<ViewType>("week")
   const [events, setEvents] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState<any | null>(null)
 
+  const { meetings, refresh: refreshMeetings } = useMeetings({ includePastWindowHours: 24 * 180 })
+
+  const mergedSchedule = useMemo(() => {
+    const rangeStart = startOfMonth(currentDate)
+    const rangeEnd = endOfMonth(currentDate)
+    const occs = getMeetingOccurrencesBetween(meetings, rangeStart, rangeEnd)
+    const meetingItems = occs.map((occ) => ({
+      _id: occ.occurrenceKey,
+      id: occ.occurrenceKey,
+      startTime: occ.occurrenceStart.toISOString(),
+      endTime: occ.occurrenceEnd.toISOString(),
+      title: occ.title,
+      description: occ.description,
+      type: "sync",
+      isMeeting: true,
+      meetUri: occ.meetUri,
+      calendarHtmlLink: occ.calendarHtmlLink
+    }))
+
+    const eventsInRange = events.filter((e) => {
+      const s = new Date(e.startTime)
+      return s >= rangeStart && s <= rangeEnd
+    })
+
+    const eventItems = eventsInRange.map((e) => ({ ...e, isMeeting: false }))
+
+    return [...eventItems, ...meetingItems].sort(
+      (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+    )
+  }, [events, meetings, currentDate])
+
+  const monthOccurrences = useMemo(() => {
+    return getMeetingOccurrencesBetween(
+      meetings,
+      startOfMonth(currentDate),
+      endOfMonth(currentDate)
+    )
+  }, [meetings, currentDate])
+
   const openEditModal = (eventOrItem: any) => {
+    if (eventOrItem?.isMeeting) {
+      return
+    }
+
     const id = eventOrItem._id || eventOrItem.id
     const fullEvent = id
-      ? events.find((e: any) => (e._id || e.id) === id) || eventOrItem
+      ? mergedSchedule.find((e: any) => (e._id || e.id) === id) ||
+        events.find((e: any) => (e._id || e.id) === id) ||
+        eventOrItem
       : eventOrItem
+
+    if (fullEvent?.isMeeting) {
+      return
+    }
+
     setEditingEvent(fullEvent)
     setIsModalOpen(true)
   }
@@ -83,6 +146,7 @@ export default function CalendarPage() {
         const data = await response.json()
         setEvents(data)
       }
+      await refreshMeetings()
     } catch (error) {
       console.error("Failed to fetch events:", error)
       toast.error("Failed to sync calendar data")
@@ -136,6 +200,24 @@ export default function CalendarPage() {
       return eDate === dateStr
     })
 
+    const meetingForDay = monthOccurrences
+      .filter((m) => isSameDay(m.occurrenceStart, d))
+      .map((m) => ({
+        ...m,
+        isMeeting: true,
+        isEvent: true,
+        type: "sync",
+        id: m.occurrenceKey,
+        _id: m.occurrenceKey,
+        title: m.title,
+        startTime: format(m.occurrenceStart, "HH:mm"),
+        endTime: format(m.occurrenceEnd, "HH:mm"),
+        startAt: m.occurrenceStart.toISOString(),
+        endAt: m.occurrenceEnd.toISOString(),
+        meetUri: m.meetUri,
+        calendarHtmlLink: m.calendarHtmlLink
+      }))
+
     return [
       ...tasks.map((t) => ({ ...t, isTask: true, id: t._id })),
       ...orgEvents.map((e) => ({
@@ -144,7 +226,8 @@ export default function CalendarPage() {
         id: e._id,
         startTime: format(new Date(e.startTime), "HH:mm"),
         endTime: format(new Date(e.endTime), "HH:mm")
-      }))
+      })),
+      ...meetingForDay
     ]
   }
 
@@ -156,11 +239,60 @@ export default function CalendarPage() {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))
   }
 
+  const handleCalendarStep = (direction: -1 | 1) => {
+    if (viewType === "week") {
+      setCurrentDate(addDays(currentDate, direction * 7))
+      return
+    }
+    if (viewType === "day") {
+      setCurrentDate(addDays(currentDate, direction))
+      return
+    }
+    if (direction < 0) {
+      handlePrevMonth()
+    } else {
+      handleNextMonth()
+    }
+  }
+
   const handleToday = () => {
     setCurrentDate(new Date())
   }
 
+  const calendarHeader = useMemo(() => {
+    if (viewType === "week") {
+      const ws = startOfWeek(currentDate, { weekStartsOn: 0 })
+      const we = addDays(ws, 6)
+      return {
+        title: `${format(ws, "MMM d")} – ${format(we, "MMM d, yyyy")}`,
+        subtitle: "Weekly overview"
+      }
+    }
+    if (viewType === "day") {
+      return {
+        title: format(currentDate, "EEEE, MMMM d, yyyy"),
+        subtitle: "Daily timeline"
+      }
+    }
+    if (viewType === "agenda") {
+      return {
+        title: format(currentDate, "MMMM yyyy"),
+        subtitle: "Monthly agenda"
+      }
+    }
+    return {
+      title: format(currentDate, "MMMM yyyy"),
+      subtitle: "Monthly overview"
+    }
+  }, [viewType, currentDate])
+
   const handleDeleteEvent = async (id: string) => {
+    const maybeMeeting = mergedSchedule.find((x: any) => (x._id || x.id) === id && x.isMeeting)
+    if (maybeMeeting) {
+      toast.message("Manage Google Meet meetings from General Meetings above.")
+      return
+    }
+
     try {
       const response = await apiClient.delete(`/api/events/${id}`)
       if (response.ok) {
@@ -172,26 +304,62 @@ export default function CalendarPage() {
     }
   }
 
-  // Calculate dynamic stats
-  const todayEvents = events.filter((e) => {
-    const d = new Date(e.startTime)
+  // Calculate dynamic stats (org events + workspace Google meetings for today)
+  const todayEvents = useMemo(() => {
     const now = new Date()
-    return (
-      d.getDate() === now.getDate() &&
-      d.getMonth() === now.getMonth() &&
-      d.getFullYear() === now.getFullYear()
+    const dayStart = startOfDay(now)
+    const dayEnd = endOfDay(now)
+    const fromApi = events.filter((e) => isSameDay(new Date(e.startTime), now))
+    const fromMeetings = getMeetingOccurrencesBetween(meetings, dayStart, dayEnd)
+    return [...fromApi, ...fromMeetings]
+  }, [events, meetings])
+
+  const dayViewEvents = useMemo(() => {
+    return mergedSchedule.filter((e) => isSameDay(new Date(e.startTime), currentDate))
+  }, [mergedSchedule, currentDate])
+
+  const weekSchedule = useMemo(() => {
+    const ws = startOfWeek(currentDate, { weekStartsOn: 0 })
+    const we = endOfDay(addDays(ws, 6))
+    const occs = getMeetingOccurrencesBetween(meetings, ws, we)
+    const meetingItems = occs.map((occ) => ({
+      _id: occ.occurrenceKey,
+      id: occ.occurrenceKey,
+      startTime: occ.occurrenceStart.toISOString(),
+      endTime: occ.occurrenceEnd.toISOString(),
+      title: occ.title,
+      description: occ.description,
+      type: "sync",
+      isMeeting: true,
+      meetUri: occ.meetUri,
+      calendarHtmlLink: occ.calendarHtmlLink
+    }))
+
+    const eventsInWeek = events.filter((e) => {
+      const s = new Date(e.startTime)
+      return s >= ws && s <= we
+    })
+
+    return [...eventsInWeek.map((e) => ({ ...e, isMeeting: false })), ...meetingItems].sort(
+      (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
     )
-  })
+  }, [events, meetings, currentDate])
 
   const focusedHours = todayEvents
-    .filter((e) => e.type === "blocked")
-    .reduce((acc, e) => {
+    .filter((e: any) => e.type === "blocked" && e.startTime && e.endTime)
+    .reduce((acc, e: any) => {
       const start = new Date(e.startTime)
       const end = new Date(e.endTime)
       return acc + (end.getTime() - start.getTime()) / (1000 * 60 * 60)
     }, 0)
 
-  const meetingLoad = todayEvents.filter((e) => e.type === "sync" || e.type === "meeting").length
+  const meetingLoad = todayEvents.filter((e: any) => {
+    if (e.occurrenceStart) {
+      return true
+    }
+
+    return e.type === "sync" || e.type === "meeting"
+  }).length
 
   return (
     <div className="relative min-h-screen w-full overflow-x-hidden overflow-y-auto pb-8">
@@ -289,6 +457,8 @@ export default function CalendarPage() {
           />
         </div>
 
+        <OrganizationMeetingsPanel onMeetingsChanged={refreshMeetings} />
+
         {/* Primary Schedule Interface - full width calendar, no sidebar */}
         <div className="w-full max-w-[1600px] overflow-hidden">
           <div className="space-y-4 sm:space-y-6">
@@ -297,23 +467,23 @@ export default function CalendarPage() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={handlePrevMonth}
+                  onClick={() =>{  handleCalendarStep(-1); }}
                   className="h-10 w-10 rounded-2xl border border-transparent shadow-sm hover:border-slate-100 hover:bg-white sm:h-12 sm:w-12 dark:hover:bg-slate-800"
                 >
                   <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
                 </Button>
                 <div className="min-w-[160px] text-center sm:min-w-[240px]">
-                  <h2 className="text-lg font-black tracking-tight text-slate-900 uppercase sm:text-2xl dark:text-white">
-                    {currentDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                  <h2 className="text-base font-black tracking-tight text-slate-900 uppercase sm:text-xl md:text-2xl dark:text-white">
+                    {calendarHeader.title}
                   </h2>
                   <p className="text-[8px] font-black tracking-[0.2em] text-blue-600 uppercase sm:text-[10px]">
-                    Monthly Overview
+                    {calendarHeader.subtitle}
                   </p>
                 </div>
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={handleNextMonth}
+                  onClick={() =>{  handleCalendarStep(1); }}
                   className="h-10 w-10 rounded-2xl border border-transparent shadow-sm hover:border-slate-100 hover:bg-white sm:h-12 sm:w-12 dark:hover:bg-slate-800"
                 >
                   <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -337,16 +507,16 @@ export default function CalendarPage() {
               >
                 <TabsList className="h-10 rounded-2xl bg-slate-100/50 p-1 sm:h-12 dark:bg-slate-950/50">
                   <TabsTrigger
-                    value="day"
-                    className="rounded-xl px-3 text-[8px] font-black tracking-widest uppercase data-[state=active]:bg-white data-[state=active]:text-blue-600 sm:px-6 sm:text-[10px] dark:data-[state=active]:bg-slate-800"
-                  >
-                    Day
-                  </TabsTrigger>
-                  <TabsTrigger
                     value="week"
                     className="rounded-xl px-3 text-[8px] font-black tracking-widest uppercase data-[state=active]:bg-white data-[state=active]:text-blue-600 sm:px-6 sm:text-[10px] dark:data-[state=active]:bg-slate-800"
                   >
                     Week
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="day"
+                    className="rounded-xl px-3 text-[8px] font-black tracking-widest uppercase data-[state=active]:bg-white data-[state=active]:text-blue-600 sm:px-6 sm:text-[10px] dark:data-[state=active]:bg-slate-800"
+                  >
+                    Day
                   </TabsTrigger>
                   <TabsTrigger
                     value="month"
@@ -370,7 +540,7 @@ export default function CalendarPage() {
               {viewType === "day" && (
                 <DayView
                   currentDate={currentDate}
-                  events={events}
+                  events={dayViewEvents}
                   onDeleteEvent={handleDeleteEvent}
                   onEditEvent={openEditModal}
                 />
@@ -385,10 +555,17 @@ export default function CalendarPage() {
                   onEditEvent={openEditModal}
                 />
               )}
-              {viewType === "week" && <WeekView events={events} />}
+              {viewType === "week" && (
+                <WeekView
+                  currentDate={currentDate}
+                  events={weekSchedule}
+                  onDeleteEvent={handleDeleteEvent}
+                  onEditEvent={openEditModal}
+                />
+              )}
               {viewType === "agenda" && (
                 <AgendaView
-                  events={events}
+                  events={mergedSchedule}
                   onDeleteEvent={handleDeleteEvent}
                   onEditEvent={openEditModal}
                 />
@@ -457,15 +634,17 @@ function DayView({ currentDate, events = [], onDeleteEvent, onEditEvent }: any) 
                       <EventHoverCard
                         key={event._id || event.id}
                         event={event}
-                        onDelete={onDeleteEvent}
-                        onEdit={onEditEvent}
+                        onDelete={event.isMeeting ? undefined : onDeleteEvent}
+                        onEdit={event.isMeeting ? undefined : onEditEvent}
                       >
                         <div
                           className={cn(
                             "group/item relative cursor-help rounded-2xl border-l-4 p-2 transition-all sm:p-4",
-                            event.type === "blocked"
-                              ? "border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-900/20 dark:text-amber-100"
-                              : "border-blue-500 bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100"
+                            event.isMeeting
+                              ? "border-violet-500 bg-violet-50 text-violet-900 dark:bg-violet-900/20 dark:text-violet-100"
+                              : event.type === "blocked"
+                                ? "border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-900/20 dark:text-amber-100"
+                                : "border-blue-500 bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100"
                           )}
                         >
                           <div className="flex items-center justify-between">
@@ -478,7 +657,13 @@ function DayView({ currentDate, events = [], onDeleteEvent, onEditEvent }: any) 
                                 <Coffee className="h-2 w-2 fill-amber-500/20 text-amber-500 sm:h-3 sm:w-3" />
                               )}
                               <span
-                                className={`h-1.5 w-1.5 rounded-full ${event.type === "blocked" ? "bg-amber-500" : "bg-blue-500"}`}
+                                className={`h-1.5 w-1.5 rounded-full ${
+                                  event.isMeeting
+                                    ? "bg-violet-500"
+                                    : event.type === "blocked"
+                                      ? "bg-amber-500"
+                                      : "bg-blue-500"
+                                }`}
                               />
                             </div>
                           </div>
@@ -572,17 +757,21 @@ function MonthView({
                     <EventHoverCard
                       key={idx}
                       event={item}
-                      onDelete={onDeleteEvent}
-                      onEdit={item.isEvent ? () => onEditEvent?.(item) : undefined}
+                      onDelete={item.isMeeting ? undefined : onDeleteEvent}
+                      onEdit={
+                        item.isEvent && !item.isMeeting ? () => onEditEvent?.(item) : undefined
+                      }
                     >
                       <div
                         className={cn(
                           "h-0.5 w-full cursor-help rounded-full transition-all group-hover/day:flex group-hover/day:h-1.5 group-hover/day:items-center group-hover/day:px-1 sm:group-hover/day:h-2 sm:group-hover/day:px-1.5 lg:group-hover/day:h-3 lg:group-hover/day:px-2",
-                          item.isEvent
-                            ? item.type === "blocked"
-                              ? "bg-amber-500"
-                              : "bg-emerald-500"
-                            : "bg-blue-600"
+                          item.isMeeting
+                            ? "bg-violet-500"
+                            : item.isEvent
+                              ? item.type === "blocked"
+                                ? "bg-amber-500"
+                                : "bg-emerald-500"
+                              : "bg-blue-600"
                         )}
                       >
                         <span className="hidden truncate text-[7px] font-black tracking-tighter text-white uppercase group-hover/day:block sm:text-[8px] lg:text-[9px]">
@@ -609,113 +798,137 @@ function MonthView({
   )
 }
 
-function WeekView({ events = [] }: any) {
+function WeekView({
+  currentDate,
+  events = [],
+  onDeleteEvent,
+  onEditEvent
+}: {
+  currentDate: Date
+  events?: any[]
+  onDeleteEvent?: (id: string) => void
+  onEditEvent?: (event: any) => void
+}) {
   const today = new Date()
-  const daysOfWeek = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(today)
-    d.setDate(d.getDate() + i - today.getDay())
-    return d
-  })
+  const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 })
+  const daysOfWeek = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
 
   const getEventsForDay = (day: Date) => {
-    return (events || []).filter((e: any) => {
+    const list = (events || []).filter((e: any) => {
       const eDate = new Date(e.startTime)
-      return (
-        eDate.getDate() === day.getDate() &&
-        eDate.getMonth() === day.getMonth() &&
-        eDate.getFullYear() === day.getFullYear()
-      )
+      return isSameDay(eDate, day)
     })
+    return list.sort(
+      (a: any, b: any) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+    )
   }
+
+  const eventEnded = (e: any) => new Date(e.endTime).getTime() < Date.now()
 
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
   return (
-    <Card className="rounded-[2.5rem] border-none bg-white/60 p-4 shadow-2xl shadow-slate-200/50 backdrop-blur-xl sm:p-8 dark:bg-slate-900/60">
-      <div className="space-y-6">
+    <Card className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white/80 p-3 shadow-lg shadow-slate-200/40 backdrop-blur-xl sm:rounded-3xl sm:p-6 dark:border-slate-800/60 dark:bg-slate-900/70 dark:shadow-none">
+      <div className="space-y-4 sm:space-y-5">
         <div>
-          <h3 className="text-2xl font-black tracking-tight text-slate-900 uppercase dark:text-white">
-            Seven-Day Forecast
+          <h3 className="text-lg font-black tracking-tight text-slate-900 uppercase sm:text-xl dark:text-white">
+            Week at a glance
           </h3>
-          <p className="mt-2 text-sm font-medium text-slate-500 dark:text-slate-400">
-            Team presence for the upcoming week •{" "}
-            <span className="font-bold">{events?.length || 0}</span> scheduled events
+          <p className="mt-1 text-xs font-medium text-slate-500 sm:text-sm dark:text-slate-400">
+            Hover an event for details (Google-style). Past meetings are tagged — Join is disabled
+            after they end.
           </p>
         </div>
 
-        <div className="grid grid-cols-7 gap-2 sm:gap-4">
-          {daysOfWeek.map((day, idx) => {
-            const dayEvents = getEventsForDay(day)
-            const isToday =
-              day.getDate() === today.getDate() &&
-              day.getMonth() === today.getMonth() &&
-              day.getFullYear() === today.getFullYear()
+        <div className="-mx-1 overflow-x-auto pb-1">
+          <div className="grid min-w-[640px] grid-cols-7 gap-1.5 sm:min-w-0 sm:gap-3">
+            {daysOfWeek.map((day, idx) => {
+              const dayEvents = getEventsForDay(day)
+              const isToday =
+                day.getDate() === today.getDate() &&
+                day.getMonth() === today.getMonth() &&
+                day.getFullYear() === today.getFullYear()
 
-            return (
-              <div
-                key={idx}
-                className={cn(
-                  "relative min-h-[120px] rounded-2xl p-3 transition-all sm:min-h-[160px] sm:p-4",
-                  isToday
-                    ? "z-10 bg-blue-50 ring-2 ring-blue-500 dark:bg-blue-900/20"
-                    : "bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/50 dark:hover:bg-slate-800"
-                )}
-              >
-                <div className="flex flex-col items-center gap-2">
-                  <span className="text-[10px] font-black tracking-[0.1em] text-slate-400 uppercase">
-                    {dayNames[idx]}
-                  </span>
-                  <span
-                    className={cn(
-                      "text-xl font-black sm:text-2xl",
-                      isToday ? "text-blue-600" : "text-slate-900 dark:text-white"
-                    )}
-                  >
-                    {day.getDate()}
-                  </span>
-                  {isToday && <div className="h-1 w-1 animate-pulse rounded-full bg-blue-600" />}
-                </div>
-
-                <div className="mt-3 space-y-1">
-                  {dayEvents.length > 0 ? (
-                    <>
-                      {dayEvents.slice(0, 2).map((event: any, eidx: number) => (
-                        <div
-                          key={eidx}
-                          className={cn(
-                            "hidden truncate rounded px-1.5 py-0.5 text-[8px] font-bold sm:block",
-                            event?.type === "blocked"
-                              ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30"
-                              : "bg-blue-100 text-blue-700 dark:bg-blue-900/30"
-                          )}
-                          title={event?.title}
-                        >
-                          {event?.title}
-                        </div>
-                      ))}
-                      {dayEvents.length > 2 && (
-                        <span className="hidden text-center text-[7px] font-black text-slate-400 sm:block">
-                          +{dayEvents.length - 2}
-                        </span>
-                      )}
-                      <div className="flex justify-center sm:hidden">
-                        <span
-                          className={cn(
-                            "h-2 w-2 rounded-full",
-                            event?.type === "blocked" ? "bg-amber-500" : "bg-blue-500"
-                          )}
-                        />
-                      </div>
-                    </>
-                  ) : (
-                    <div className="pt-2 text-center">
-                      <span className="text-[8px] font-black text-slate-300 uppercase">—</span>
-                    </div>
+              return (
+                <div
+                  key={idx}
+                  className={cn(
+                    "flex min-h-[200px] flex-col rounded-xl border p-2 transition-colors sm:min-h-[260px] sm:p-3",
+                    isToday
+                      ? "border-blue-400/50 bg-blue-50/80 ring-1 ring-blue-500/30 dark:border-blue-700/50 dark:bg-blue-950/25"
+                      : "border-slate-200/80 bg-slate-50/50 dark:border-slate-700/60 dark:bg-slate-950/40"
                   )}
+                >
+                  <div className="mb-2 flex flex-col items-center border-b border-slate-200/60 pb-2 dark:border-slate-700/60">
+                    <span className="text-[9px] font-black tracking-widest text-slate-400 uppercase">
+                      {dayNames[idx]}
+                    </span>
+                    <span
+                      className={cn(
+                        "text-lg font-black sm:text-xl",
+                        isToday
+                          ? "text-blue-600 dark:text-blue-400"
+                          : "text-slate-900 dark:text-white"
+                      )}
+                    >
+                      {day.getDate()}
+                    </span>
+                  </div>
+
+                  <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-0.5 [scrollbar-width:thin]">
+                    {dayEvents.length === 0 ? (
+                      <div className="flex flex-1 items-center justify-center py-4 text-center text-[10px] font-semibold text-slate-300 dark:text-slate-600">
+                        —
+                      </div>
+                    ) : (
+                      dayEvents.map((event: any) => {
+                        const past = eventEnded(event)
+                        return (
+                          <EventHoverCard
+                            key={event._id || event.id}
+                            event={event}
+                            onDelete={event.isMeeting ? undefined : onDeleteEvent}
+                            onEdit={event.isMeeting ? undefined : onEditEvent}
+                          >
+                            <button
+                              type="button"
+                              className={cn(
+                                "w-full rounded-lg border px-2 py-1.5 text-left transition-all",
+                                "focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none",
+                                "hover:shadow-md hover:brightness-[1.02] dark:hover:brightness-110",
+                                past && "opacity-70",
+                                event.isMeeting
+                                  ? past
+                                    ? "border-violet-300/50 bg-violet-50/50 dark:border-violet-800/40 dark:bg-violet-950/30"
+                                    : "border-violet-200 bg-violet-100/90 dark:border-violet-800/50 dark:bg-violet-900/35"
+                                  : event.type === "blocked"
+                                    ? "border-amber-200 bg-amber-50 dark:border-amber-800/50 dark:bg-amber-950/30"
+                                    : "border-blue-200 bg-blue-50 dark:border-blue-900/40 dark:bg-blue-950/25"
+                              )}
+                            >
+                              <div className="flex items-start justify-between gap-1">
+                                <span className="text-[9px] font-bold text-slate-500 tabular-nums dark:text-slate-400">
+                                  {format(new Date(event.startTime), "h:mm a")}
+                                </span>
+                                {past && (
+                                  <span className="shrink-0 rounded bg-amber-100 px-1 py-px text-[7px] font-black text-amber-900 uppercase dark:bg-amber-950/80 dark:text-amber-100">
+                                    Past
+                                  </span>
+                                )}
+                              </div>
+                              <p className="mt-0.5 line-clamp-2 text-[10px] leading-tight font-bold text-slate-900 dark:text-slate-100">
+                                {event.title}
+                              </p>
+                            </button>
+                          </EventHoverCard>
+                        )
+                      })
+                    )}
+                  </div>
                 </div>
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
         </div>
       </div>
     </Card>
@@ -754,9 +967,19 @@ function AgendaView({ events = [], onDeleteEvent, onEditEvent }: any) {
                       {format(new Date(event.endTime), "HH:mm")}
                     </span>
                     <span
-                      className={`rounded-full px-2 py-0.5 text-[7px] font-black tracking-widest uppercase sm:text-[8px] ${event.type === "sync" ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"}`}
+                      className={`rounded-full px-2 py-0.5 text-[7px] font-black tracking-widest uppercase sm:text-[8px] ${
+                        event.isMeeting
+                          ? "bg-violet-100 text-violet-700"
+                          : event.type === "sync"
+                            ? "bg-emerald-100 text-emerald-600"
+                            : "bg-amber-100 text-amber-600"
+                      }`}
                     >
-                      {event.type === "sync" ? "Meeting" : "Blocked"}
+                      {event.isMeeting
+                        ? "Google Meet"
+                        : event.type === "sync"
+                          ? "Meeting"
+                          : "Blocked"}
                     </span>
                   </div>
                   <h4 className="text-sm font-black tracking-tight uppercase sm:text-lg dark:text-white">
@@ -764,23 +987,27 @@ function AgendaView({ events = [], onDeleteEvent, onEditEvent }: any) {
                   </h4>
                 </div>
                 <div className="flex items-center gap-1 self-end sm:self-auto">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => onEditEvent?.(event)}
-                    className="text-slate-300 opacity-0 transition-all group-hover:opacity-100 hover:text-blue-600 sm:opacity-70"
-                    title="Edit"
-                  >
-                    <Edit3 className="h-4 w-4 sm:h-5 sm:w-5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => onDeleteEvent(event._id || event.id)}
-                    className="text-slate-300 opacity-0 transition-all group-hover:opacity-100 hover:text-rose-600 sm:self-auto"
-                  >
-                    <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
-                  </Button>
+                  {!event.isMeeting && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onEditEvent?.(event)}
+                        className="text-slate-300 opacity-0 transition-all group-hover:opacity-100 hover:text-blue-600 sm:opacity-70"
+                        title="Edit"
+                      >
+                        <Edit3 className="h-4 w-4 sm:h-5 sm:w-5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onDeleteEvent(event._id || event.id)}
+                        className="text-slate-300 opacity-0 transition-all group-hover:opacity-100 hover:text-rose-600 sm:self-auto"
+                      >
+                        <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             ))

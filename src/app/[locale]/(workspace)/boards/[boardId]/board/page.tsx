@@ -18,7 +18,6 @@ import {
   ChevronRight,
   Shield,
   Briefcase,
-  Share2,
   Info,
   ArrowRight,
   GripVertical,
@@ -175,13 +174,6 @@ export default function BoardSubboardsPage() {
         </div>
 
         <div className="flex shrink-0 items-center gap-3">
-          <Button
-            variant="outline"
-            className="h-14 gap-2 rounded-2xl border-slate-200 bg-white px-6 font-bold transition-all hover:scale-105 dark:bg-slate-900"
-          >
-            <Share2 className="h-4 w-4" />
-            Collaborate
-          </Button>
           <Dialog open={listDialogOpen} onOpenChange={setListDialogOpen}>
             <DialogTrigger asChild>
               <Button className="group h-14 gap-2 rounded-2xl bg-indigo-600 px-8 font-black text-white shadow-2xl shadow-indigo-500/30 transition-all hover:scale-105 hover:bg-indigo-700">
