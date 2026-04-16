@@ -71,6 +71,10 @@ export async function GET(
       if (!m || !m._id) {
         continue
       }
+      // Filter out CLIENT and VIEWER roles (if they exist in the member object)
+      if (m.role === UserRole.CLIENT || m.role === "VIEWER") {
+        continue
+      }
       const id = m._id.toString()
       if (!allIds.has(id)) {
         allIds.add(id)

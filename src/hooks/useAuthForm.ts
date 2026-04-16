@@ -49,7 +49,7 @@ export default function useAuthForm() {
       await setUserInfo(data.email)
 
       // Redirect immediately
-      window.location.href = result.user?.isClient ? "/en/client" : "/en/boards"
+      window.location.href = result.user?.isClient ? "/en/client" : "/en/dashboard"
     } catch (error) {
       setIsLoading(false)
       const message = error instanceof Error ? error.message : "Login failed"

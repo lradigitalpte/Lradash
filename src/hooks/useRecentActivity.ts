@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react"
 
 import { apiClient } from "@/lib/api/client"
+import { ActivityItem, Task } from "@/types/dbInterface"
 
-type ActivityType = "created" | "updated" | "completed" | "assigned"
+type ActivityType = "created" | "updated" | "completed" | "assigned" | "commented"
 
 interface Activity {
   id: string
@@ -21,45 +22,25 @@ export function useRecentActivity(limit: number = 10): Activity[] {
   useEffect(() => {
     const fetchActivities = async () => {
       try {
-        // Fetch all tasks to generate activity log
         const response = await apiClient.get("/api/tasks")
         if (response.ok) {
-          const tasks = await response.json()
-          const activitiesFromTasks: Activity[] = []
+          const tasks = (await response.json()) as Task[]
+          const activitiesFromTasks = tasks.flatMap((task) =>
+            (task.activities || []).map((activity: ActivityItem) => ({
+              id:
+                activity._id ||
+                `${task._id}-${activity.type}-${new Date(activity.createdAt).getTime()}`,
+              type: activity.type === "comment" ? "commented" : inferActivityType(activity.text),
+              user: {
+                name: activity.user?.name || "System",
+                image: activity.user?.image || activity.user?.avatar
+              },
+              target: task.title,
+              description: activity.text,
+              timestamp: activity.createdAt
+            }))
+          )
 
-          // Convert tasks to activities (created and completed)
-          tasks.forEach((task: any) => {
-            // Task created activity
-            if (task.creator) {
-              activitiesFromTasks.push({
-                id: `${task._id}-created`,
-                type: "created",
-                user: {
-                  name: typeof task.creator === "object" ? task.creator.name : "Unknown",
-                  image: typeof task.creator === "object" ? task.creator.avatar : undefined
-                },
-                target: task.title,
-                timestamp: task.createdAt || new Date()
-              })
-            }
-
-            // Task completed activity
-            if (task.status === "DONE" && task.lastModifier) {
-              activitiesFromTasks.push({
-                id: `${task._id}-completed`,
-                type: "completed",
-                user: {
-                  name: typeof task.lastModifier === "object" ? task.lastModifier.name : "Unknown",
-                  image:
-                    typeof task.lastModifier === "object" ? task.lastModifier.avatar : undefined
-                },
-                target: task.title,
-                timestamp: task.updatedAt || new Date()
-              })
-            }
-          })
-
-          // Sort by timestamp descending and limit
           const sorted = activitiesFromTasks
             .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
             .slice(0, limit)
@@ -75,4 +56,24 @@ export function useRecentActivity(limit: number = 10): Activity[] {
   }, [limit])
 
   return activities
+}
+
+function inferActivityType(text?: string): ActivityType {
+  const normalizedText = text?.toLowerCase() || ""
+
+  if (normalizedText.includes("assign")) {
+    return "assigned"
+  }
+  if (normalizedText.includes("complete")) {
+    return "completed"
+  }
+  if (
+    normalizedText.includes("create") ||
+    normalizedText.includes("added") ||
+    normalizedText.includes("new task")
+  ) {
+    return "created"
+  }
+
+  return "updated"
 }

@@ -40,7 +40,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { apiClient } from "@/lib/api/client"
 import { uploadFileToS3 } from "@/lib/upload"
-import { cn, formatDate, isOverdue } from "@/lib/utils"
+import { cn, isOverdue } from "@/lib/utils"
 import { Task } from "@/types/dbInterface"
 
 import { CardActivity } from "../kanban/card-detail/CardActivity"
@@ -95,69 +95,104 @@ export function TaskDetailModal({
     }
   }, [task])
 
-  useEffect(() => {
-    if (!open || !task?._id || !onTaskUpdated) {
-      return
-    }
-
-    let cancelled = false
-
-    const refreshLatestTask = async () => {
-      try {
-        const response = await apiClient.get(`/api/tasks/${task._id}`)
-        if (!response.ok) {
-          return
-        }
-        const latestTask = await response.json()
-        if (!cancelled) {
-          onTaskUpdated(latestTask)
-        }
-      } catch {
-        // best-effort refresh only
-      }
-    }
-
-    refreshLatestTask()
-
-    return () => {
-      cancelled = true
-    }
-  }, [open, task?._id, onTaskUpdated])
-
   if (!task) {
     return null
   }
 
   const taskOverdue = task.dueDate && isOverdue(task.dueDate) && status !== "DONE"
+  const assignedUsers =
+    Array.isArray((task as any).assignees) && (task as any).assignees.length > 0
+      ? (task as any).assignees
+      : task.assignee
+        ? [task.assignee]
+        : []
+  const createdAtLabel = new Date(task.createdAt).toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  })
+  const createdAtDateOnlyLabel = new Date(task.createdAt).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric"
+  })
+  const loggedAtDate = (() => {
+    const taskId = task._id?.toString?.() ?? ""
+    if (taskId.length >= 8) {
+      const ts = Number.parseInt(taskId.slice(0, 8), 16)
+      if (!Number.isNaN(ts) && ts > 0) {
+        return new Date(ts * 1000)
+      }
+    }
+    return new Date(task.updatedAt)
+  })()
+  const updatedAtLabel = new Date(task.updatedAt).toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  })
+  const loggedAtLabel = loggedAtDate.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  })
 
-  const handleUpdateTitle = (newTitle: string) => {
+  const patchTask = async (
+    payload: Record<string, unknown>,
+    successMessage?: string
+  ): Promise<Task | null> => {
+    try {
+      const response = await apiClient.patch(`/api/tasks/${task._id}`, payload)
+      if (!response.ok) {
+        toast.error("Failed to update task")
+        return null
+      }
+      const updatedTask = await response.json()
+      onTaskUpdated?.(updatedTask)
+      if (successMessage) {
+        toast.success(successMessage)
+      }
+      return updatedTask
+    } catch {
+      toast.error("Failed to update task")
+      return null
+    }
+  }
+
+  const handleUpdateTitle = async (newTitle: string) => {
     setEditedTitle(newTitle)
-    onSave?.({ ...task, title: newTitle } as Task)
+    await patchTask({ title: newTitle }, "Title updated")
   }
 
-  const handleUpdateDescription = (newDescription: string) => {
+  const handleUpdateDescription = async (newDescription: string) => {
     setEditedDescription(newDescription)
-    onSave?.({ ...task, description: newDescription } as Task)
+    await patchTask({ description: newDescription }, "Description updated")
   }
 
-  const handleToggleChecklistItem = (index: number) => {
+  const handleToggleChecklistItem = async (index: number) => {
     const newChecklist = [...checklist]
     newChecklist[index].completed = !newChecklist[index].completed
     setChecklist(newChecklist)
-    onSave?.({ ...task, checklist: newChecklist } as Task)
+    await patchTask({ checklist: newChecklist })
   }
 
-  const handleAddChecklistItem = (text: string) => {
+  const handleAddChecklistItem = async (text: string) => {
     const newItem = { text, completed: false }
     const newChecklist = [...checklist, newItem]
     setChecklist(newChecklist)
-    onSave?.({ ...task, checklist: newChecklist } as Task)
+    await patchTask({ checklist: newChecklist }, "Checklist updated")
   }
 
-  const handleDeleteChecklistItem = (index: number) => {
+  const handleDeleteChecklistItem = async (index: number) => {
     const newChecklist = checklist.filter((_, i) => i !== index)
     setChecklist(newChecklist)
-    onSave?.({ ...task, checklist: newChecklist } as Task)
+    await patchTask({ checklist: newChecklist })
   }
 
   const handleStatusChange = async (newStatus: string) => {
@@ -184,13 +219,13 @@ export function TaskDetailModal({
   const handleAddLabel = (label: { name: string; color: string }) => {
     const newLabels = [...labels, label]
     setLabels(newLabels)
-    onSave?.({ ...task, labels: newLabels } as any)
+    patchTask({ labels: newLabels }, "Label added")
   }
 
   const handleRemoveLabel = (index: number) => {
     const newLabels = labels.filter((_, i) => i !== index)
     setLabels(newLabels)
-    onSave?.({ ...task, labels: newLabels } as any)
+    patchTask({ labels: newLabels }, "Label removed")
   }
 
   const handleDueDateChange = async (date: string | null) => {
@@ -241,7 +276,36 @@ export function TaskDetailModal({
   }
 
   const handleChangeCover = (color: string) => {
-    onSave?.({ ...task, coverColor: color } as any)
+    patchTask({ coverColor: color }, "Cover updated")
+  }
+
+  const handleAssignMember = async (member: any) => {
+    const existingIds = assignedUsers
+      .map((u: any) => String(u.id || u._id))
+      .filter((id: string) => Boolean(id))
+    const memberId = String(member?.id || member?._id || "")
+    if (!memberId) {
+      return
+    }
+    if (existingIds.includes(memberId)) {
+      toast.info("User already assigned")
+      return
+    }
+    const assigneeIds = [...existingIds, memberId]
+    await patchTask(
+      { assigneeIds, assigneeId: assigneeIds[0] },
+      `Assigned to ${member?.name || "member"}`
+    )
+  }
+
+  const handleRemoveAssignee = async (memberId: string) => {
+    const assigneeIds = assignedUsers
+      .map((u: any) => String(u.id || u._id))
+      .filter((id: string) => Boolean(id) && id !== memberId)
+    await patchTask(
+      { assigneeIds, assigneeId: assigneeIds.length > 0 ? assigneeIds[0] : undefined },
+      "Assignee updated"
+    )
   }
 
   const handleAttachFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -391,6 +455,23 @@ export function TaskDetailModal({
               <span className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase italic">
                 #{task._id.toString().slice(-6)}
               </span>
+            </div>
+
+            <div className="mb-5 flex flex-wrap items-center gap-2 text-[10px] font-black tracking-widest text-slate-400 uppercase">
+              {!task.isBackdated ? (
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 dark:border-slate-700 dark:bg-slate-800">
+                  Created {createdAtLabel}
+                </span>
+              ) : (
+                <>
+                  <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-amber-700 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-300">
+                    Backdated to {createdAtDateOnlyLabel}
+                  </span>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 dark:border-slate-700 dark:bg-slate-800">
+                    Logged at {loggedAtLabel}
+                  </span>
+                </>
+              )}
             </div>
 
             <CardHeader
@@ -575,40 +656,55 @@ export function TaskDetailModal({
                   <h3 className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
                     Assigned To
                   </h3>
-                  {task.assignee ? (
-                    <div className="group flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-xs font-bold text-white shadow-lg">
-                        {task.assignee?.name?.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-bold text-slate-900 dark:text-white">
-                          {task.assignee?.name}
-                        </p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100"
-                        onClick={() => {
-                          onSave?.({ ...task, assignee: null } as any)
-                          toast.success("Task unassigned")
-                        }}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-3 dark:border-slate-700 dark:bg-slate-900/30">
-                      <MemberPicker
-                        projectId={projectId}
-                        onSelect={(member) => {
-                          onSave?.({ ...task, assignee: member } as any)
-                          toast.success(`Task assigned to ${member?.name}`)
-                        }}
-                        className="w-full"
-                      />
-                    </div>
-                  )}
+                  <div className="space-y-2">
+                    {assignedUsers.length > 0 ? (
+                      assignedUsers.map((assignee: any) => {
+                        const memberId = String(assignee?.id || assignee?._id || "")
+                        return (
+                          <div key={memberId} className="group flex items-center gap-3">
+                            <UserAvatar
+                              name={assignee?.name || "User"}
+                              image={assignee?.avatar}
+                              size="sm"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-bold text-slate-900 dark:text-white">
+                                {assignee?.name}
+                              </p>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100"
+                              onClick={() => {
+                                if (memberId) {
+                                  handleRemoveAssignee(memberId)
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        )
+                      })
+                    ) : (
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                        No assignees yet
+                      </p>
+                    )}
+                  </div>
+                  <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/50 p-3 dark:border-slate-700 dark:bg-slate-900/30">
+                    <MemberPicker
+                      projectId={projectId}
+                      onSelect={handleAssignMember}
+                      currentAssigneeId={
+                        assignedUsers[0]
+                          ? String(assignedUsers[0].id || assignedUsers[0]._id)
+                          : undefined
+                      }
+                      className="w-full"
+                    />
+                  </div>
                 </div>
 
                 {/* Completion Timeline link — only for project tasks */}

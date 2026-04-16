@@ -448,4 +448,4 @@ export function buildGoogleCallbackRedirectUrl(
   return baseUrl.toString()
 }
 
-export { GOOGLE_WORKSPACE_SCOPES, normalizeReturnTo }
+export { normalizeReturnTo }

@@ -218,6 +218,8 @@ export interface Task {
   project?: string
   workPackage?: string // Optional: reference to WorkPackage
   assignee?: UserInfo
+  assignees?: UserInfo[]
+  isBackdated?: boolean
   creator: UserInfo
   lastModifier: UserInfo
   priority: TaskPriority

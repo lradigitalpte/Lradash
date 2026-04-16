@@ -1,12 +1,20 @@
 "use client"
 
 import { format } from "date-fns"
-import { Plus, Calendar as CalendarIcon, Package, User } from "lucide-react"
+import {
+  Plus,
+  Calendar as CalendarIcon,
+  Package,
+  User,
+  Users as UsersIcon,
+  Check
+} from "lucide-react"
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -64,7 +72,8 @@ export function CreateTaskDialog({
     /** When set, task `createdAt` is stored as this date (past work you forgot to log). */
     recordedCreatedAt: undefined as Date | undefined,
     workPackageId: workPackageId || "none",
-    assigneeId: "none"
+    assigneeId: "none",
+    assigneeIds: [] as string[]
   })
 
   useEffect(() => {
@@ -231,7 +240,8 @@ export function CreateTaskDialog({
           dueDate: formData.dueDate?.toISOString(),
           recordedCreatedAt: formData.recordedCreatedAt?.toISOString(),
           workPackageId: formData.workPackageId === "none" ? undefined : formData.workPackageId,
-          assigneeId: formData.assigneeId === "none" ? undefined : formData.assigneeId
+          assigneeId: formData.assigneeId === "none" ? undefined : formData.assigneeId,
+          assigneeIds: formData.assigneeIds
         })
         if (!response.ok) {
           throw new Error("Failed to create task")
@@ -246,7 +256,8 @@ export function CreateTaskDialog({
           dueDate: undefined,
           recordedCreatedAt: undefined,
           workPackageId: workPackageId || "none",
-          assigneeId: "none"
+          assigneeId: "none",
+          assigneeIds: []
         })
         onTaskCreated?.()
       }
@@ -429,38 +440,52 @@ export function CreateTaskDialog({
               )}
 
               {!isBoardTask && (
-                <>
-                  <div className="space-y-1">
-                    <Label
-                      htmlFor="assignee"
-                      className="flex items-center gap-2 text-[10px] font-black tracking-widest text-slate-400 uppercase"
-                    >
-                      <User className="h-3.5 w-3.5" />
-                      Assign To
-                    </Label>
-                    <Select
-                      value={formData.assigneeId}
-                      onValueChange={(value) => {
-                        setFormData({ ...formData, assigneeId: value })
-                      }}
-                    >
-                      <SelectTrigger
-                        id="assignee"
-                        className="h-11 rounded-xl border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900"
-                      >
-                        <SelectValue placeholder="Select a team member" />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl">
-                        <SelectItem value="none">Unassigned</SelectItem>
-                        {members.map((member) => (
-                          <SelectItem key={member._id || member.id} value={member._id || member.id}>
-                            {member.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                    <UsersIcon className="h-3.5 w-3.5" />
+                    Assign To
+                  </Label>
+                  <div className="grid grid-cols-1 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900">
+                    {members.length === 0 ? (
+                      <p className="text-xs text-slate-500">No members found</p>
+                    ) : (
+                      members.map((member) => {
+                        const memberId = member._id || member.id
+                        const isSelected = formData.assigneeIds.includes(memberId)
+                        return (
+                          <div
+                            key={memberId}
+                            className="flex items-center space-x-3 rounded-lg p-1 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
+                          >
+                            <Checkbox
+                              id={`member-${memberId}`}
+                              checked={isSelected}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    assigneeIds: [...prev.assigneeIds, memberId]
+                                  }))
+                                } else {
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    assigneeIds: prev.assigneeIds.filter((id) => id !== memberId)
+                                  }))
+                                }
+                              }}
+                            />
+                            <Label
+                              htmlFor={`member-${memberId}`}
+                              className="flex flex-1 cursor-pointer items-center text-sm font-medium"
+                            >
+                              {member.name}
+                            </Label>
+                          </div>
+                        )
+                      })
+                    )}
                   </div>
-                </>
+                </div>
               )}
 
               <div className="grid grid-cols-2 gap-4">

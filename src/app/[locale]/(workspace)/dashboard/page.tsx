@@ -35,20 +35,11 @@ import { cn, formatDate } from "@/lib/utils"
 
 export default function DashboardPage() {
   const userId = useTaskStore((state) => state.userId)
-  const fetchProjects = useTaskStore((state) => state.fetchProjects)
   const { myBoards, teamBoards } = useBoards()
   const taskStats = useTaskStats(userId)
   const projectStats = useProjectStats()
   const recentActivity = useRecentActivity(5)
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([])
-
-  // Fetch projects on mount
-  useEffect(() => {
-    if (myBoards && myBoards.length > 0) {
-      const boardToLoad = myBoards[0]
-      fetchProjects(boardToLoad._id)
-    }
-  }, [myBoards, fetchProjects])
 
   // Fetch calendar events
   useEffect(() => {
@@ -81,6 +72,14 @@ export default function DashboardPage() {
   }, [])
 
   const allBoards = [...(myBoards || []), ...(teamBoards || [])]
+  const teamMembers = Array.from(
+    new Map(
+      allBoards
+        .flatMap((board) => board.members || [])
+        .filter((member) => member?.id)
+        .map((member) => [member.id, member])
+    ).values()
+  )
 
   return (
     <div className="relative min-h-full pb-12">
@@ -210,11 +209,11 @@ export default function DashboardPage() {
                 {(() => {
                   // Filter projects to only show those where current user is a member
                   const userProjectsWithProgress = projectStats.projectsWithProgress.filter(
-                    ({ project }) => {
-                      const isMember =
-                        project.members && project.members.some((m) => m.id === userId)
-                      return isMember
-                    }
+                    ({ project }) =>
+                      project.members &&
+                      project.members.some(
+                        (member) => String(member.id ?? "") === String(userId ?? "")
+                      )
                   )
 
                   return userProjectsWithProgress.length === 0 ? (
@@ -310,7 +309,7 @@ export default function DashboardPage() {
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                               <FolderKanban className="size-3.5" />
-                              {board.projects?.length || 0} projects
+                              {board.projectId ? 1 : 0} projects
                             </div>
                             {board.members && board.members.length > 0 && (
                               <AvatarGroup
@@ -448,9 +447,9 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="space-y-3">
-                  {allBoards.length > 0 && allBoards[0].members ? (
-                    allBoards[0].members.slice(0, 5).map((member, index) => (
-                      <div key={index} className="flex items-center gap-3">
+                  {teamMembers.length > 0 ? (
+                    teamMembers.slice(0, 5).map((member) => (
+                      <div key={member.id} className="flex items-center gap-3">
                         <UserAvatar name={member.name} image={member.image} size="sm" />
                         <span className="text-sm font-medium text-foreground">{member.name}</span>
                       </div>

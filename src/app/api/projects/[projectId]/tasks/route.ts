@@ -77,7 +77,9 @@ export async function POST(
       organizationId: project.organizationId,
       creator: decoded.userId,
       lastModifier: decoded.userId,
-      assignee: body.assigneeId || undefined
+      assignee: body.assigneeId || undefined,
+      assignees: body.assigneeIds || [],
+      isBackdated: Boolean(recorded.date)
     }
 
     if (recorded.date) {
@@ -88,13 +90,22 @@ export async function POST(
     const task = new TaskModel(taskPayload)
     await task.save()
 
-    // Populate related fields
-    await task.populate([
+    const savedTask = await TaskModel.findById(task._id)
+    if (!savedTask) {
+      throw new Error("Failed to retrieve saved task")
+    }
+
+    // Populate related fields (guarded for hot-reload stale model schemas)
+    const populatePaths: Array<{ path: string; select: string }> = [
       { path: "assignee", select: "name avatar email" },
       { path: "creator", select: "name avatar email" },
       { path: "lastModifier", select: "name avatar email" },
       { path: "workPackage", select: "title" }
-    ])
+    ]
+    if (savedTask.schema.path("assignees")) {
+      populatePaths.splice(1, 0, { path: "assignees", select: "name avatar email" })
+    }
+    await savedTask.populate(populatePaths)
 
     const projectName = (project as any).name || (project as any).title || ""
     const taskTitle = body.title
@@ -110,7 +121,7 @@ export async function POST(
           type: "task_created",
           title: `New Task: ${taskTitle}`,
           body: `${user.name ?? user.email} created and assigned you "${taskTitle}"${projectName ? ` in ${projectName}` : ""}.`,
-          taskId: String(task._id),
+          taskId: String(savedTask._id),
           projectId,
           triggeredBy: {
             userId: String(user._id),
@@ -131,7 +142,7 @@ export async function POST(
       }
     }
 
-    return NextResponse.json(task, {
+    return NextResponse.json(savedTask, {
       status: 201,
       headers: { "Content-Type": "application/json" }
     })
@@ -180,17 +191,20 @@ export async function GET(
     }
 
     // Fetch all non-deleted tasks for this project
-    const tasks = await TaskModel.find({
+    const tasksQuery = TaskModel.find({
       project: projectId,
       deletedAt: null
-    })
-      .populate([
-        { path: "assignee", select: "name avatar email" },
-        { path: "creator", select: "name avatar email" },
-        { path: "lastModifier", select: "name avatar email" },
-        { path: "workPackage", select: "title status priority" }
-      ])
-      .sort({ createdAt: -1 })
+    }).sort({ createdAt: -1 })
+    const queryPopulatePaths: Array<{ path: string; select: string }> = [
+      { path: "assignee", select: "name avatar email" },
+      { path: "creator", select: "name avatar email" },
+      { path: "lastModifier", select: "name avatar email" },
+      { path: "workPackage", select: "title status priority" }
+    ]
+    if (TaskModel.schema.path("assignees")) {
+      queryPopulatePaths.splice(1, 0, { path: "assignees", select: "name avatar email" })
+    }
+    const tasks = await tasksQuery.populate(queryPopulatePaths)
 
     return NextResponse.json(tasks, {
       status: 200,

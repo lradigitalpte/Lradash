@@ -18,7 +18,7 @@ function buildOrganizationRoleMap(org: { owner?: unknown; members?: unknown[] } 
         ? (entry.userId as { toString: () => string }).toString()
         : String(entry.userId)
     if (uid && uid !== "undefined") {
-      map.set(uid, (entry.role!) || UserRole.MEMBER)
+      map.set(uid, entry.role! || UserRole.MEMBER)
     }
   }
   const orgOwnerId =
@@ -90,9 +90,13 @@ export async function GET(
     const orgRoleMap = buildOrganizationRoleMap(orgDoc as { owner?: unknown; members?: unknown[] })
 
     const ownerEnriched = enrichPersonWithOrgRole(project.owner as any, orgRoleMap)
-    const membersEnriched = ((project.members || []) as any[]).map((m) =>
-      enrichPersonWithOrgRole(m, orgRoleMap)
-    )
+    const membersEnriched = ((project.members || []) as any[]).map((m) => {
+      const enriched = enrichPersonWithOrgRole(m, orgRoleMap)
+      return {
+        ...enriched,
+        role: enriched.organizationRole // Ensure role is set for filtering
+      }
+    })
 
     // Fetch tasks for the project
     const tasks = await getTasksByProjectId(projectId)

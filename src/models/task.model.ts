@@ -29,6 +29,8 @@ const taskSchema = new mongoose.Schema(
       required: false // Optional for personal tasks
     },
     assignee: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    assignees: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    isBackdated: { type: Boolean, default: false },
     creator: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -189,8 +191,15 @@ function getTaskModel(): Model<TaskType> {
   if (existingTaskModel) {
     const completionPath = existingTaskModel.schema.path("completionSubmissions")
     const hasReviewHistory = Boolean(completionPath?.schema?.path("reviewHistory"))
+    const hasAssignees = Boolean(existingTaskModel.schema.path("assignees"))
+    const hasBackdateFlag = Boolean(existingTaskModel.schema.path("isBackdated"))
 
-    if (!existingTaskModel.schema.path("deadlineReminder12hSentAt") || !hasReviewHistory) {
+    if (
+      !existingTaskModel.schema.path("deadlineReminder12hSentAt") ||
+      !hasReviewHistory ||
+      !hasAssignees ||
+      !hasBackdateFlag
+    ) {
       mongoose.deleteModel("Task")
       return mongoose.model<TaskType>("Task", taskSchema)
     }

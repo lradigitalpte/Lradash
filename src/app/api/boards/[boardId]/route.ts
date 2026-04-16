@@ -51,7 +51,7 @@ export async function GET(
     const board = await BoardModel.findOne({
       _id: boardObjectId,
       deletedAt: null
-    }).lean()
+    } as any).lean()
 
     if (!board) {
       return NextResponse.json(
@@ -82,7 +82,7 @@ export async function GET(
       boardId: boardObjectId,
       ...(orgForLists != null ? { organizationId: orgForLists } : {}),
       deletedAt: null
-    })
+    } as any)
       .sort({ position: 1 })
       .populate({
         path: "cardIds",
@@ -170,7 +170,7 @@ export async function PATCH(
     const board = await BoardModel.findOne({
       _id: new mongoose.Types.ObjectId(boardId),
       deletedAt: null
-    }).lean()
+    } as any).lean()
 
     if (!board) {
       return NextResponse.json({ error: "Board not found" }, { status: 404 })
@@ -274,7 +274,7 @@ export async function DELETE(
     const board = await BoardModel.findOne({
       _id: new mongoose.Types.ObjectId(boardId),
       deletedAt: null
-    }).lean()
+    } as any).lean()
     if (!board) {
       return NextResponse.json({ error: "Board not found" }, { status: 404 })
     }

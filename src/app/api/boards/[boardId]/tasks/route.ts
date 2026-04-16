@@ -36,7 +36,7 @@ export async function GET(
 
     const boardObjectId = new mongoose.Types.ObjectId(boardId)
 
-    const board = await BoardModel.findOne({ _id: boardObjectId, deletedAt: null }).lean()
+    const board = await BoardModel.findOne({ _id: boardObjectId, deletedAt: null } as any).lean()
     if (!board) {
       return NextResponse.json({ error: "Board not found" }, { status: 404 })
     }
@@ -49,7 +49,7 @@ export async function GET(
     const tasks = await TaskModel.find({
       board: boardObjectId,
       deletedAt: null
-    })
+    } as any)
       .populate([
         { path: "assignee", select: "name avatar email" },
         { path: "creator", select: "name avatar email" },
@@ -92,7 +92,7 @@ export async function POST(
 
     const boardObjectId = new mongoose.Types.ObjectId(boardId)
 
-    const board = await BoardModel.findOne({ _id: boardObjectId, deletedAt: null }).lean()
+    const board = await BoardModel.findOne({ _id: boardObjectId, deletedAt: null } as any).lean()
     if (!board) {
       return NextResponse.json({ error: "Board not found" }, { status: 404 })
     }

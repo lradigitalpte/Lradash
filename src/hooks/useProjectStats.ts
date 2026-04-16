@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 
 import { apiClient } from "@/lib/api/client"
 import { calculatePercentage } from "@/lib/utils"
-import { Project } from "@/types/dbInterface"
+import { Project, UserInfo } from "@/types/dbInterface"
 
 interface ProjectStats {
   totalProjects: number
@@ -18,6 +18,26 @@ interface ProjectStats {
     progress: number
     taskCount: number
   }>
+}
+
+interface ProjectApiResponse {
+  _id?: string
+  id?: string
+  title: string
+  description?: string
+  owner: Project["owner"]
+  members?: Array<
+    | Project["members"][number]
+    | { _id?: string; id?: string; name: string; email?: string; avatar?: string | null }
+  >
+  createdAt: string
+  updatedAt: string
+  taskStats?: {
+    total?: number
+    done?: number
+    inProgress?: number
+    todo?: number
+  }
 }
 
 export function useProjectStats(): ProjectStats {
@@ -37,45 +57,77 @@ export function useProjectStats(): ProjectStats {
         // Fetch all projects
         const projectsResponse = await apiClient.get("/api/projects")
         if (projectsResponse.ok) {
-          const projects = await projectsResponse.json()
+          const projects = (await projectsResponse.json()) as ProjectApiResponse[]
 
-          // Fetch all tasks
-          const tasksResponse = await apiClient.get("/api/tasks")
-          if (tasksResponse.ok) {
-            const allTasks = await tasksResponse.json()
+          let totalTasks = 0
+          let completedTasks = 0
+          let inProgressTasks = 0
+          let todoTasks = 0
 
-            let totalTasks = 0
-            let completedTasks = 0
-            let inProgressTasks = 0
-            let todoTasks = 0
+          const projectsWithProgress = projects.map((project) => {
+            const total = project.taskStats?.total ?? 0
+            const done = project.taskStats?.done ?? 0
+            const inProgress = project.taskStats?.inProgress ?? 0
+            const todo = project.taskStats?.todo ?? 0
 
-            const projectsWithProgress = projects.map((project: Project) => {
-              const tasks = allTasks.filter((task: any) => task.projectId === project._id)
-              const done = tasks.filter((t: any) => t.status === "DONE").length
-              const total = tasks.length
+            totalTasks += total
+            completedTasks += done
+            inProgressTasks += inProgress
+            todoTasks += todo
 
-              totalTasks += total
-              completedTasks += done
-              inProgressTasks += tasks.filter((t: any) => t.status === "IN_PROGRESS").length
-              todoTasks += tasks.filter((t: any) => t.status === "TODO").length
+            const normalizedProject: Project = {
+              _id: project._id ?? project.id ?? "",
+              title: project.title,
+              description: project.description ?? "",
+              organizationId: "",
+              owner: project.owner,
+              members: (project.members ?? []).reduce<UserInfo[]>((acc, member) => {
+                const memberId =
+                  "id" in member && member.id
+                    ? member.id
+                    : "_id" in member && member._id
+                      ? member._id
+                      : null
+                if (!memberId) {
+                  return acc
+                }
+                acc.push({
+                  id: memberId,
+                  name: member.name,
+                  email: "email" in member ? member.email : undefined,
+                  avatar: "avatar" in member ? (member.avatar ?? undefined) : undefined,
+                  image:
+                    "image" in member && member.image
+                      ? member.image
+                      : "avatar" in member
+                        ? (member.avatar ?? undefined)
+                        : undefined
+                })
+                return acc
+              }, []),
+              createdAt: project.createdAt,
+              updatedAt: project.updatedAt,
+              tasks: [],
+              board: "",
+              isArchived: false
+            }
 
-              return {
-                project,
-                progress: calculatePercentage(done, total),
-                taskCount: total
-              }
-            })
+            return {
+              project: normalizedProject,
+              progress: calculatePercentage(done, total),
+              taskCount: total
+            }
+          })
 
-            setStats({
-              totalProjects: projects.length,
-              totalTasks,
-              completedTasks,
-              inProgressTasks,
-              todoTasks,
-              overallProgress: calculatePercentage(completedTasks, totalTasks),
-              projectsWithProgress
-            })
-          }
+          setStats({
+            totalProjects: projects.length,
+            totalTasks,
+            completedTasks,
+            inProgressTasks,
+            todoTasks,
+            overallProgress: calculatePercentage(completedTasks, totalTasks),
+            projectsWithProgress
+          })
         }
       } catch (error) {
         console.error("Failed to fetch project stats:", error)

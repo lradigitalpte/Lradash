@@ -67,7 +67,7 @@ interface MeetingApiPayload {
   projectId?: string | null
   recurrence?: {
     enabled?: boolean
-    frequency?: string
+    frequency?: "DAILY" | "WEEKLY"
     interval?: number
     weekdays?: string[]
     until?: string | null
@@ -156,11 +156,14 @@ export function MeetingSchedulerDialog({
         const res = await apiClient.get(`/api/meetings/${editMeetingId}`)
         const data = (await res.json().catch(() => null)) as MeetingApiPayload | null
         if (!res.ok || cancelled || !data) {
-          throw new Error(
-            typeof (data as { error?: string })?.error === "string"
+          const errorMessage =
+            data &&
+            typeof data === "object" &&
+            "error" in data &&
+            typeof (data as { error?: unknown }).error === "string"
               ? (data as { error: string }).error
               : "Failed to load meeting"
-          )
+          throw new Error(errorMessage)
         }
 
         const start = new Date(data.startTime)
@@ -444,7 +447,9 @@ export function MeetingSchedulerDialog({
                         type="button"
                         size="sm"
                         variant={scheduleMode === "once" ? "default" : "outline"}
-                        onClick={() =>{  setScheduleMode("once"); }}
+                        onClick={() => {
+                          setScheduleMode("once")
+                        }}
                       >
                         {scheduleMode === "once" && <Check className="mr-1.5 h-3.5 w-3.5" />}
                         One-time
@@ -471,7 +476,9 @@ export function MeetingSchedulerDialog({
                         type="button"
                         size="sm"
                         variant={scheduleMode === "daily" ? "default" : "outline"}
-                        onClick={() =>{  setScheduleMode("daily"); }}
+                        onClick={() => {
+                          setScheduleMode("daily")
+                        }}
                       >
                         {scheduleMode === "daily" && <Check className="mr-1.5 h-3.5 w-3.5" />}
                         Daily recurring
@@ -501,7 +508,9 @@ export function MeetingSchedulerDialog({
                   <Input
                     id="meeting-title"
                     value={title}
-                    onChange={(e) =>{  setTitle(e.target.value); }}
+                    onChange={(e) => {
+                      setTitle(e.target.value)
+                    }}
                     placeholder="Weekly client sync"
                     required
                   />
@@ -522,7 +531,9 @@ export function MeetingSchedulerDialog({
                   <Textarea
                     id="meeting-description"
                     value={description}
-                    onChange={(e) =>{  setDescription(e.target.value); }}
+                    onChange={(e) => {
+                      setDescription(e.target.value)
+                    }}
                     placeholder="Agenda, goals, or call notes"
                     rows={2}
                     className="min-h-0 resize-y"
@@ -539,7 +550,9 @@ export function MeetingSchedulerDialog({
                       id="meeting-date"
                       type="date"
                       value={date}
-                      onChange={(e) =>{  setDate(e.target.value); }}
+                      onChange={(e) => {
+                        setDate(e.target.value)
+                      }}
                       required
                     />
                   </div>
@@ -548,7 +561,9 @@ export function MeetingSchedulerDialog({
                     <Input
                       id="meeting-timezone"
                       value={timezone}
-                      onChange={(e) =>{  setTimezone(e.target.value); }}
+                      onChange={(e) => {
+                        setTimezone(e.target.value)
+                      }}
                       placeholder="Europe/Berlin"
                       required
                     />
@@ -565,7 +580,9 @@ export function MeetingSchedulerDialog({
                       id="meeting-start"
                       type="time"
                       value={startTime}
-                      onChange={(e) =>{  setStartTime(e.target.value); }}
+                      onChange={(e) => {
+                        setStartTime(e.target.value)
+                      }}
                       required
                     />
                   </div>
@@ -575,7 +592,9 @@ export function MeetingSchedulerDialog({
                       id="meeting-end"
                       type="time"
                       value={endTime}
-                      onChange={(e) =>{  setEndTime(e.target.value); }}
+                      onChange={(e) => {
+                        setEndTime(e.target.value)
+                      }}
                       required
                     />
                   </div>
@@ -589,7 +608,9 @@ export function MeetingSchedulerDialog({
                         type="button"
                         size="sm"
                         variant={recurrenceEndMode === "never" ? "default" : "outline"}
-                        onClick={() =>{  setRecurrenceEndMode("never"); }}
+                        onClick={() => {
+                          setRecurrenceEndMode("never")
+                        }}
                       >
                         {recurrenceEndMode === "never" && <Check className="mr-1.5 h-3.5 w-3.5" />}
                         No end date
@@ -625,7 +646,9 @@ export function MeetingSchedulerDialog({
                           type="date"
                           value={recurrenceEndDate}
                           min={date}
-                          onChange={(e) =>{  setRecurrenceEndDate(e.target.value); }}
+                          onChange={(e) => {
+                            setRecurrenceEndDate(e.target.value)
+                          }}
                           required
                         />
                       </div>
@@ -669,7 +692,9 @@ export function MeetingSchedulerDialog({
                             >
                               <Checkbox
                                 checked={checked}
-                                onCheckedChange={() =>{  toggleEmail(p.email); }}
+                                onCheckedChange={() => {
+                                  toggleEmail(p.email)
+                                }}
                               />
                               <span className="min-w-0 flex-1 truncate text-sm font-medium">
                                 {p.name}
@@ -700,7 +725,9 @@ export function MeetingSchedulerDialog({
                   <Textarea
                     id="meeting-attendees-extra"
                     value={attendeesText}
-                    onChange={(e) =>{  setAttendeesText(e.target.value); }}
+                    onChange={(e) => {
+                      setAttendeesText(e.target.value)
+                    }}
                     placeholder="More emails (comma or line separated)"
                     rows={2}
                     className="resize-y text-sm"
@@ -716,7 +743,13 @@ export function MeetingSchedulerDialog({
 
           <div className="shrink-0 border-t border-slate-200 bg-white px-6 py-4 sm:px-8 dark:border-slate-800 dark:bg-slate-950">
             <div className="flex justify-end gap-3">
-              <Button type="button" variant="outline" onClick={() =>{  onOpenChange(false); }}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  onOpenChange(false)
+                }}
+              >
                 Cancel
               </Button>
               <Button type="submit" disabled={submitting || loadingMeeting}>

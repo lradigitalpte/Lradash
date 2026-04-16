@@ -71,7 +71,15 @@ export function CardSidebar({
   onArchive
 }: CardSidebarProps) {
   const handleCopyCard = () => {
-    toast.success("Card copied!")
+    const copyText = [card.title, card.description].filter(Boolean).join("\n\n")
+    navigator.clipboard
+      .writeText(copyText || card.title)
+      .then(() => {
+        toast.success("Card details copied")
+      })
+      .catch(() => {
+        toast.error("Failed to copy")
+      })
   }
 
   const handleArchiveCard = () => {

@@ -784,6 +784,14 @@ export default function TasksPage() {
                         <span className="text-[10px] font-black tracking-tighter text-slate-400 uppercase">
                           Task
                         </span>
+                        {task.isBackdated && (
+                          <Badge
+                            variant="outline"
+                            className="h-4 border-amber-200 bg-amber-50 px-1 text-[7px] font-black tracking-tighter text-amber-600 uppercase dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-400"
+                          >
+                            Backdated
+                          </Badge>
+                        )}
                         {task.description && (
                           <span className="max-w-50 truncate text-[10px] font-bold text-slate-300 italic">
                             {" "}
@@ -842,7 +850,19 @@ export default function TasksPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {task.assignee ? (
+                    {task.assignees && task.assignees.length > 0 ? (
+                      <div className="flex -space-x-2 overflow-hidden">
+                        {task.assignees.map((assignee: any) => (
+                          <UserAvatar
+                            key={assignee.id}
+                            name={assignee.name}
+                            image={assignee.avatar}
+                            size="sm"
+                            className="ring-2 ring-white dark:ring-slate-900"
+                          />
+                        ))}
+                      </div>
+                    ) : task.assignee ? (
                       <div className="flex items-center gap-2">
                         <UserAvatar
                           name={task.assignee.name}

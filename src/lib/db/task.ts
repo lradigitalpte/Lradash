@@ -61,10 +61,17 @@ async function convertTaskToPlainObject(taskDoc: TaskBase): Promise<TaskType> {
 
   const assigneeId = taskDoc.assignee ? getObjectIdString(taskDoc.assignee) : undefined
 
-  const [assigneeUser, creatorUser, modifierUser] = await Promise.all([
+  const assigneesIds = Array.isArray((taskDoc as any).assignees)
+    ? (taskDoc as any).assignees.map((id: any) => getObjectIdString(id))
+    : []
+
+  const [assigneeUser, creatorUser, modifierUser, assigneesUsers] = await Promise.all([
     assigneeId ? getUserById(assigneeId) : Promise.resolve(null),
     getUserById(creatorId),
-    getUserById(modifierId)
+    getUserById(modifierId),
+    assigneesIds.length > 0
+      ? Promise.all(assigneesIds.map(async (id: string) => getUserById(id)))
+      : Promise.resolve([])
   ])
 
   if (!creatorUser || !modifierUser) {
@@ -96,6 +103,14 @@ async function convertTaskToPlainObject(taskDoc: TaskBase): Promise<TaskType> {
             avatar: assigneeUser.avatar || undefined
           }
         : undefined,
+    assignees: assigneesUsers
+      .filter((u): u is any => !!u)
+      .map((u) => ({
+        id: u._id.toString(),
+        name: u.name,
+        avatar: u.avatar || undefined
+      })),
+    isBackdated: (taskDoc as any).isBackdated || false,
     creator: {
       id: creatorId,
       name: creatorUser.name,
@@ -162,16 +177,6 @@ export async function getTaskById(taskId: string): Promise<Task> {
     if (!task) {
       throw new Error(`Task with id ${taskId} not found`)
     }
-    console.log("🔍 Task found:", {
-      title: task.title,
-      activitiesCount: (task as any).activities?.length || 0,
-      activities: (task as any).activities?.map((a: any) => ({
-        type: a.type,
-        text: a.text,
-        userId: a.user,
-        createdAt: a.createdAt
-      }))
-    })
     return await convertTaskToPlainObject(task as any)
   } catch (error) {
     console.error("Error fetching task by id:", error)
@@ -309,6 +314,14 @@ export async function updateTaskInDb(
     if (updates.assignee && typeof updates.assignee === "string") {
       await ensureUserIsMember((task as any).project.toString(), updates.assignee)
     }
+    if (Array.isArray((updates as any).assignees)) {
+      for (const raw of (updates as any).assignees) {
+        const assigneeId = typeof raw === "string" ? raw : raw?.id ? raw.id : String(raw)
+        if (assigneeId) {
+          await ensureUserIsMember((task as any).project.toString(), assigneeId)
+        }
+      }
+    }
 
     const taskUpdates: any = {
       ...updates,
@@ -329,6 +342,17 @@ export async function updateTaskInDb(
         // If assignee comes as an object with id property, extract the id
         taskUpdates.assignee = new Types.ObjectId(taskUpdates.assignee.id)
       }
+    }
+    if (Array.isArray(taskUpdates.assignees)) {
+      taskUpdates.assignees = taskUpdates.assignees
+        .map((assignee: any) => {
+          const id =
+            typeof assignee === "string" ? assignee : assignee?.id ? assignee.id : String(assignee)
+          return Types.ObjectId.isValid(id) ? new Types.ObjectId(id) : null
+        })
+        .filter(Boolean)
+      // Keep backward compatibility for places still reading single assignee.
+      taskUpdates.assignee = taskUpdates.assignees[0] || undefined
     }
 
     // Handle activities array - always ensure it's set
@@ -383,6 +407,25 @@ export async function updateTaskInDb(
         createdAt: new Date()
       }
       updatedActivities.push(activityEntry)
+    }
+    if (Array.isArray((updates as any).assignees)) {
+      const names: string[] = []
+      for (const raw of (updates as any).assignees) {
+        const id = typeof raw === "string" ? raw : raw?.id ? raw.id : String(raw)
+        const u = await getUserById(id)
+        if (u?.name) {
+          names.push(u.name)
+        }
+      }
+      updatedActivities.push({
+        user: modifier._id,
+        type: "activity",
+        text:
+          names.length > 0
+            ? `Assigned to ${names.join(", ")} by ${modifier.name}`
+            : `Assignees cleared by ${modifier.name}`,
+        createdAt: new Date()
+      })
     }
 
     // Always set activities in taskUpdates
