@@ -4,10 +4,13 @@ import {
   Calendar,
   CheckCircle2,
   Download,
+  ChevronLeft,
+  ChevronRight,
   ExternalLink,
   FileBarChart,
   FileCode,
   FileText,
+  Eye,
   Filter,
   Link2,
   MoreVertical,
@@ -23,7 +26,7 @@ import { useParams } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
-import { StatCard, StatusBadge, UserAvatar } from "@/components/common"
+import { UserAvatar } from "@/components/common"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import {
@@ -35,6 +38,14 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import { Progress } from "@/components/ui/progress"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table"
 import { apiClient } from "@/lib/api/client"
 import { cn, formatDate } from "@/lib/utils"
 
@@ -98,6 +109,7 @@ export default function MinutesPage() {
 
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState<string>("all")
+  const [minutesPage, setMinutesPage] = useState(1)
 
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState>({
     show: false,
@@ -122,6 +134,10 @@ export default function MinutesPage() {
   useEffect(() => {
     fetchMinutes()
   }, [])
+
+  useEffect(() => {
+    setMinutesPage(1)
+  }, [searchTerm, filterType])
 
   const fetchMinutes = async () => {
     try {
@@ -351,6 +367,19 @@ export default function MinutesPage() {
     })
   }, [minutes, searchTerm, filterType])
 
+  const minutesPageSize = 10
+
+  const pagedMinutes = useMemo(() => {
+    const start = (minutesPage - 1) * minutesPageSize
+    return filteredMinutes.slice(start, start + minutesPageSize)
+  }, [filteredMinutes, minutesPage])
+
+  const totalMinutesPages = Math.max(1, Math.ceil(filteredMinutes.length / minutesPageSize))
+
+  useEffect(() => {
+    setMinutesPage((p) => Math.min(p, totalMinutesPages))
+  }, [totalMinutesPages])
+
   const stats = {
     total: minutes.length,
     thisMonth: minutes.filter((m) => {
@@ -366,38 +395,38 @@ export default function MinutesPage() {
       <div className="pointer-events-none absolute top-20 right-[15%] -z-10 h-150 w-150 rounded-full bg-indigo-500/5 blur-[140px]" />
       <div className="pointer-events-none absolute bottom-40 left-[20%] -z-10 h-125 w-125 rounded-full bg-blue-500/5 blur-[120px]" />
 
-      <div className="mx-auto max-w-400 space-y-12 p-8 lg:p-12">
+      <div className="mx-auto max-w-360 space-y-8 p-6 lg:p-8">
         {/* Header */}
-        <div className="flex flex-col justify-between gap-8 pt-4 md:flex-row md:items-end">
-          <div className="flex items-center gap-6">
+        <div className="flex flex-col justify-between gap-6 pt-2 md:flex-row md:items-end">
+          <div className="flex items-center gap-4">
             <div className="group relative">
               <div className="absolute -inset-2 rounded-3xl bg-linear-to-r from-indigo-600 to-purple-700 opacity-20 blur transition duration-1000 group-hover:opacity-40" />
-              <div className="relative flex h-20 w-20 items-center justify-center rounded-3xl bg-linear-to-br from-indigo-600 to-purple-700 text-white shadow-2xl shadow-indigo-500/30">
-                <FileText className="h-10 w-10" />
+              <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-linear-to-br from-indigo-600 to-purple-700 text-white shadow-2xl shadow-indigo-500/30">
+                <FileText className="h-8 w-8" />
               </div>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <span className="rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-[10px] font-black tracking-[0.2em] text-indigo-600 uppercase dark:border-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400">
                 Knowledge Base
               </span>
-              <h1 className="text-5xl leading-[0.9] font-black tracking-tighter text-slate-900 dark:text-white">
+              <h1 className="text-4xl leading-none font-black tracking-tighter text-slate-900 md:text-[2.75rem] dark:text-white">
                 Submit{" "}
                 <span className="bg-linear-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                   Minutes
                 </span>
               </h1>
-              <p className="text-lg font-medium text-slate-500 italic dark:text-slate-400">
+              <p className="text-sm font-medium text-slate-500 italic md:text-base dark:text-slate-400">
                 Org-wide meeting minutes — everyone can view
               </p>
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-3 pb-2">
+          <div className="flex shrink-0 items-center gap-3">
             <Link href={`/${locale}/reports`}>
               <Button
                 variant="outline"
                 size="lg"
-                className="h-14 gap-2 rounded-2xl border-slate-200 px-6 text-sm font-black tracking-widest uppercase shadow-sm hover:shadow-md dark:border-slate-700"
+                className="h-11 gap-2 rounded-2xl border-slate-200 px-5 text-xs font-black tracking-widest uppercase shadow-sm hover:shadow-md dark:border-slate-700"
               >
                 <FileText className="h-4 w-4" />
                 Reports
@@ -408,7 +437,7 @@ export default function MinutesPage() {
               onClick={() => {
                 setShowSubmitModal(true)
               }}
-              className="group relative h-14 gap-3 overflow-hidden rounded-2xl bg-slate-900 px-8 text-sm font-black tracking-widest text-white uppercase shadow-2xl transition-all hover:scale-105 dark:bg-white dark:text-slate-900"
+              className="group relative h-11 gap-2.5 overflow-hidden rounded-2xl bg-slate-900 px-6 text-xs font-black tracking-widest text-white uppercase shadow-2xl transition-all hover:scale-105 dark:bg-white dark:text-slate-900"
             >
               <div className="absolute inset-0 bg-linear-to-r from-indigo-600/20 to-purple-600/20 opacity-0 transition-opacity group-hover:opacity-100" />
               <Plus className="h-5 w-5" />
@@ -417,46 +446,34 @@ export default function MinutesPage() {
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            title="Total Minutes"
-            value={stats.total}
-            subtitle="Across the org"
-            icon={FileText}
-            variant="primary"
-          />
-          <StatCard
-            title="This Month"
-            value={stats.thisMonth}
-            subtitle="Recent activity"
-            icon={Calendar}
-            variant="success"
-          />
-          <StatCard
-            title="My Submissions"
-            value={stats.mine}
-            subtitle="Editable by you"
-            icon={CheckCircle2}
-            variant="warning"
-          />
-          <StatCard
-            title="Visibility"
-            value="Global"
-            subtitle="All members"
-            icon={StatusBadge as any}
-            variant="danger"
-          />
+        {/* Summary */}
+        <div className="flex flex-col gap-3 rounded-3xl border border-slate-100/60 bg-white/60 px-5 py-4 backdrop-blur-sm md:flex-row md:items-center md:justify-between dark:border-slate-800/50 dark:bg-slate-900/40">
+          <div className="space-y-1">
+            <p className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
+              Minutes summary
+            </p>
+            <p className="text-sm font-black text-slate-900 dark:text-white">
+              Total: {stats.total} • This month: {stats.thisMonth}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <span className="rounded-full border border-slate-100 bg-white/70 px-3 py-1 text-xs font-black text-slate-600 dark:border-slate-800 dark:bg-slate-900/40">
+              Mine: {stats.mine}
+            </span>
+            <span className="rounded-full border border-slate-100 bg-white/70 px-3 py-1 text-xs font-black text-slate-600 dark:border-slate-800 dark:bg-slate-900/40">
+              Visibility: Global
+            </span>
+          </div>
         </div>
 
         {/* List */}
-        <div className="space-y-8">
-          <div className="flex flex-col justify-between gap-6 border-b border-slate-100 pb-2 md:flex-row md:items-center dark:border-slate-800">
+        <div className="space-y-6">
+          <div className="flex flex-col justify-between gap-4 border-b border-slate-100 pb-2 md:flex-row md:items-center dark:border-slate-800">
             <div className="flex items-center gap-4">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white shadow-xl dark:bg-white dark:text-slate-900">
                 <FileBarChart className="h-5 w-5" />
               </div>
-              <h2 className="text-2xl font-black tracking-tight uppercase">Minutes History</h2>
+              <h2 className="text-xl font-black tracking-tight uppercase">Minutes History</h2>
             </div>
             <div className="flex gap-3">
               <div className="group relative">
@@ -468,7 +485,7 @@ export default function MinutesPage() {
                   onChange={(e) => {
                     setSearchTerm(e.target.value)
                   }}
-                  className="h-12 w-full rounded-2xl border border-slate-100 bg-white pr-6 pl-12 text-xs font-bold shadow-sm placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none md:w-64 dark:border-slate-800 dark:bg-slate-950"
+                  className="h-10 w-full rounded-2xl border border-slate-100 bg-white pr-5 pl-11 text-xs font-bold shadow-sm placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none md:w-56 dark:border-slate-800 dark:bg-slate-950"
                 />
               </div>
 
@@ -476,7 +493,7 @@ export default function MinutesPage() {
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="outline"
-                    className="h-12 gap-2 rounded-2xl border-slate-100 bg-white px-6 text-[10px] font-black tracking-widest uppercase shadow-sm dark:bg-slate-950"
+                    className="h-10 gap-2 rounded-2xl border-slate-100 bg-white px-5 text-[10px] font-black tracking-widest uppercase shadow-sm dark:bg-slate-950"
                   >
                     <Filter className="h-4 w-4 text-indigo-600" />
                     Type:{" "}
@@ -520,159 +537,231 @@ export default function MinutesPage() {
             </div>
           </div>
 
-          <div className="grid gap-6">
-            {loading ? (
-              <div className="py-24 text-center text-sm font-bold text-slate-400">Loading...</div>
-            ) : filteredMinutes.length === 0 ? (
-              <Card className="rounded-[2.5rem] border-none bg-white/40 p-24 text-center backdrop-blur-xl dark:bg-slate-900/40">
-                <FileBarChart className="mx-auto mb-6 h-16 w-16 text-slate-200" />
-                <h3 className="text-2xl font-black tracking-tight text-slate-400 uppercase">
-                  No minutes found
-                </h3>
-                <p className="mt-2 text-sm text-slate-400">Submit your first minutes above</p>
-              </Card>
-            ) : (
-              filteredMinutes.map((m) => (
-                <Card
-                  key={m._id}
-                  className="group overflow-hidden rounded-4xl border-none bg-white/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_32px_64px_-16px_rgba(0,0,0,0.08)] dark:bg-slate-900/60"
-                >
-                  <CardContent className="p-8">
-                    <div className="flex flex-col justify-between gap-8 lg:flex-row lg:items-center">
-                      <div className="flex flex-1 items-start gap-6">
-                        <div className="mt-1 flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-slate-50 shadow-inner transition-transform duration-500 group-hover:scale-110 dark:bg-slate-800">
-                          {getFileIcon(m.fileType)}
-                        </div>
-                        <div className="min-w-0 flex-1 space-y-2">
-                          <div className="flex flex-wrap items-center gap-3">
-                            <h3 className="text-xl font-black tracking-tight text-slate-900 uppercase transition-colors group-hover:text-indigo-600 dark:text-white">
-                              {m.title}
-                            </h3>
-                            <span className="rounded-full border border-slate-100 bg-slate-50 px-3 py-1 text-[10px] font-black tracking-widest text-slate-600 uppercase dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+          <div className="space-y-4">
+            <div className="overflow-hidden rounded-[2.5rem] border border-slate-100/60 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
+              <div className="overflow-x-auto">
+                <Table className="min-w-[980px]">
+                  <TableHeader>
+                    <TableRow className="border-b border-slate-100 bg-slate-50/60 dark:border-slate-800">
+                      <TableHead className="w-[72px]">File</TableHead>
+                      <TableHead className="min-w-[260px]">Title</TableHead>
+                      <TableHead className="w-[140px]">Type</TableHead>
+                      <TableHead className="w-[210px]">Date</TableHead>
+                      <TableHead className="min-w-[220px]">Submitted By</TableHead>
+                      <TableHead className="w-[200px]">File name</TableHead>
+                      <TableHead className="w-[220px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loading ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="py-16 text-center text-sm text-slate-400">
+                          Loading...
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredMinutes.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="py-16 text-center">
+                          <p className="text-sm font-bold text-slate-400">No minutes found</p>
+                          <p className="mt-1 text-xs text-slate-400">
+                            Submit your first minutes above
+                          </p>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      pagedMinutes.map((m) => (
+                        <TableRow
+                          key={m._id}
+                          className="border-b border-slate-50/80 hover:bg-slate-50/50 dark:border-slate-800/40 dark:hover:bg-slate-800/30"
+                        >
+                          <TableCell className="py-4">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 dark:bg-slate-800">
+                              {getFileIcon(m.fileType)}
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="py-4">
+                            <div className="space-y-1">
+                              <p className="text-sm font-black tracking-tight text-slate-900 uppercase dark:text-white">
+                                {m.title}
+                              </p>
+                              {m.description && (
+                                <p className="line-clamp-1 text-xs font-medium text-slate-500 italic">
+                                  {m.description}
+                                </p>
+                              )}
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="py-4">
+                            <span className="inline-flex rounded-full border border-slate-100 bg-slate-50 px-3 py-1 text-[10px] font-black tracking-widest text-slate-600 uppercase dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
                               {m.fileType ?? "doc"}
                             </span>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-4 text-[10px] font-black tracking-widest text-slate-400 uppercase">
-                            <span className="flex items-center gap-1.5">
+                          </TableCell>
+
+                          <TableCell className="py-4">
+                            <span className="inline-flex items-center gap-2 text-xs font-black tracking-widest text-slate-400 uppercase">
                               <Calendar className="h-3.5 w-3.5" />
                               {m.meetingDate
                                 ? `Meeting ${formatDate(new Date(m.meetingDate))}`
                                 : `Submitted ${formatDate(new Date(m.submittedAt))}`}
                             </span>
-                            <span className="h-1 w-1 rounded-full bg-slate-200 dark:bg-slate-700" />
-                            <span className="flex items-center gap-1.5">
+                          </TableCell>
+
+                          <TableCell className="py-4">
+                            <div className="flex items-center gap-2">
                               <UserAvatar
                                 name={m.submittedBy.name}
                                 image={m.submittedBy.avatar}
                                 size="xs"
                               />
-                              {m.submittedBy.name}
-                            </span>
-                            {m.fileName && (
-                              <>
-                                <span className="h-1 w-1 rounded-full bg-slate-200" />
-                                <span className="flex items-center gap-1.5">
-                                  <Paperclip className="h-3.5 w-3.5" />
-                                  {m.fileName}
-                                </span>
-                              </>
+                              <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                                {m.submittedBy.name}
+                              </span>
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="py-4">
+                            {m.fileName ? (
+                              <div className="flex items-center gap-2 text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                                <Paperclip className="h-3.5 w-3.5" />
+                                <span className="max-w-[140px] truncate">{m.fileName}</span>
+                              </div>
+                            ) : (
+                              <span className="text-[10px] font-bold tracking-widest text-slate-300 uppercase italic">
+                                —
+                              </span>
                             )}
-                          </div>
-                          {m.description && (
-                            <p className="line-clamp-1 text-xs font-medium text-slate-500 italic">
-                              {m.description}
-                            </p>
-                          )}
-                        </div>
-                      </div>
+                          </TableCell>
 
-                      <div className="flex items-center gap-4 border-slate-100 lg:border-l lg:pl-8 dark:border-slate-800">
-                        <div className="flex items-center gap-2">
-                          {(m.fileUrl || m.description) && (
-                            <Button
-                              variant="outline"
-                              size="lg"
-                              onClick={() => {
-                                setSelectedMinutes(m)
-                              }}
-                              className="h-12 gap-2 rounded-xl border-slate-100 px-6 text-[10px] font-black tracking-widest uppercase transition-all hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900"
-                            >
-                              View
-                            </Button>
-                          )}
-                          {m.fileUrl && m.fileType !== "link" && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => window.open(m.fileUrl, "_blank")}
-                              className="h-12 w-12 rounded-xl hover:bg-indigo-50 hover:text-indigo-600"
-                            >
-                              <Download className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {m.fileUrl && m.fileType === "link" && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => window.open(m.fileUrl, "_blank")}
-                              className="h-12 w-12 rounded-xl hover:bg-indigo-50 hover:text-indigo-600"
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
-                          )}
-
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-12 w-12 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
-                              >
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-52 rounded-2xl">
-                              <DropdownMenuLabel className="px-3 py-2 text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
-                                Actions
-                              </DropdownMenuLabel>
-                              <DropdownMenuSeparator />
-                              {canEdit(m) ? (
-                                <>
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      handleReplaceMinutes(m)
-                                    }}
-                                    className="gap-3 rounded-lg py-2"
-                                  >
-                                    <Upload className="h-4 w-4 text-indigo-600" />
-                                    <span className="font-bold">Edit / Replace</span>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    onClick={async () => handleDeleteMinutes(m._id)}
-                                    className="gap-3 rounded-lg py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                  >
-                                    <X className="h-4 w-4" />
-                                    <span className="font-bold">Delete</span>
-                                  </DropdownMenuItem>
-                                </>
-                              ) : (
-                                <DropdownMenuItem
-                                  className="rounded-lg py-2 text-slate-500"
-                                  disabled
+                          <TableCell className="py-4">
+                            <div className="flex flex-wrap items-center gap-2">
+                              {(m.fileUrl || m.description) && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>{  setSelectedMinutes(m); }}
+                                  className="h-8 rounded-xl"
                                 >
-                                  Only the author can edit/delete
-                                </DropdownMenuItem>
+                                  <Eye className="h-4 w-4" />
+                                  View
+                                </Button>
                               )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
+
+                              {m.fileUrl && m.fileType !== "link" && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => window.open(m.fileUrl, "_blank")}
+                                  className="h-8 w-8 rounded-xl hover:bg-indigo-50 hover:text-indigo-600"
+                                >
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              )}
+
+                              {m.fileUrl && m.fileType === "link" && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => window.open(m.fileUrl, "_blank")}
+                                  className="h-8 w-8 rounded-xl hover:bg-indigo-50 hover:text-indigo-600"
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                </Button>
+                              )}
+
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
+                                  >
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-52 rounded-2xl">
+                                  <DropdownMenuLabel className="px-3 py-2 text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
+                                    Actions
+                                  </DropdownMenuLabel>
+                                  <DropdownMenuSeparator />
+                                  {canEdit(m) ? (
+                                    <>
+                                      <DropdownMenuItem
+                                        onClick={() =>{  handleReplaceMinutes(m); }}
+                                        className="gap-3 rounded-lg py-2"
+                                      >
+                                        <Upload className="h-4 w-4 text-indigo-600" />
+                                        <span className="font-bold">Edit / Replace</span>
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem
+                                        onClick={async () => handleDeleteMinutes(m._id)}
+                                        className="gap-3 rounded-lg py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                      >
+                                        <X className="h-4 w-4" />
+                                        <span className="font-bold">Delete</span>
+                                      </DropdownMenuItem>
+                                    </>
+                                  ) : (
+                                    <DropdownMenuItem
+                                      className="rounded-lg py-2 text-slate-500"
+                                      disabled
+                                    >
+                                      Only the author can edit/delete
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Pagination */}
+              {!loading && filteredMinutes.length > 0 && totalMinutesPages > 1 && (
+                <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-white px-5 py-4 dark:border-slate-800/60 dark:bg-slate-900">
+                  <p className="text-xs font-bold text-slate-400">
+                    Showing{" "}
+                    {Math.min((minutesPage - 1) * minutesPageSize + 1, filteredMinutes.length)}-
+                    {Math.min(minutesPage * minutesPageSize, filteredMinutes.length)} of{" "}
+                    {filteredMinutes.length}
+                  </p>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 rounded-xl"
+                      disabled={minutesPage <= 1}
+                      onClick={() =>{  setMinutesPage((p) => Math.max(1, p - 1)); }}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Previous
+                    </Button>
+
+                    <span className="text-xs font-bold text-slate-500">
+                      Page {minutesPage} of {totalMinutesPages}
+                    </span>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 rounded-xl"
+                      disabled={minutesPage >= totalMinutesPages}
+                      onClick={() =>{  setMinutesPage((p) => Math.min(totalMinutesPages, p + 1)); }}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

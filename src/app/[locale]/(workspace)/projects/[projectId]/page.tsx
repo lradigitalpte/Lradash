@@ -134,7 +134,7 @@ export default function ProjectPage() {
 
   return (
     <div className="relative min-h-full space-y-6 overflow-hidden bg-slate-50/30 p-5 pb-20 font-sans md:p-6 md:pb-24 dark:bg-slate-950/30">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:20px_20px] opacity-30 dark:bg-[radial-gradient(#1e293b_1px,transparent_1px)] dark:opacity-40" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(#94a3b8_1px,transparent_1px)] [background-size:20px_20px] opacity-38 dark:bg-[radial-gradient(#475569_1px,transparent_1px)] dark:opacity-48" />
       <div className="pointer-events-none absolute top-20 right-[8%] h-[420px] w-[420px] rounded-full bg-blue-500/5 blur-[120px]" />
       <div className="pointer-events-none absolute bottom-10 left-[10%] h-[360px] w-[360px] rounded-full bg-indigo-500/5 blur-[120px]" />
       <div className="relative z-10 space-y-6">

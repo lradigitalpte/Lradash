@@ -4,6 +4,8 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
+  ChevronLeft,
+  ChevronRight,
   Download,
   FileText,
   Link2,
@@ -33,7 +35,7 @@ import { useParams } from "next/navigation"
 import { useState, useMemo, useEffect, useRef } from "react"
 import { toast } from "sonner"
 
-import { StatCard, StatusBadge, UserAvatar } from "@/components/common"
+import { StatusBadge, UserAvatar } from "@/components/common"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import {
@@ -45,6 +47,14 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import { Progress } from "@/components/ui/progress"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table"
 import { apiClient } from "@/lib/api/client"
 import { cn, formatDate } from "@/lib/utils"
 
@@ -278,6 +288,7 @@ export default function ReportsPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState<string>("all")
   const [modalTab, setModalTab] = useState<ModalTab>("upload")
+  const [reportsPage, setReportsPage] = useState(1)
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState>({
     show: false,
     reportId: null,
@@ -308,6 +319,10 @@ export default function ReportsPage() {
   useEffect(() => {
     fetchReports()
   }, [])
+
+  useEffect(() => {
+    setReportsPage(1)
+  }, [searchTerm, filterStatus])
 
   const fetchReports = async () => {
     try {
@@ -519,6 +534,19 @@ export default function ReportsPage() {
     pending: reports.filter((r) => r.status === "pending").length
   }
 
+  const reportsPageSize = 10
+
+  const pagedReports = useMemo(() => {
+    const start = (reportsPage - 1) * reportsPageSize
+    return filteredReports.slice(start, start + reportsPageSize)
+  }, [filteredReports, reportsPage])
+
+  const totalReportPages = Math.max(1, Math.ceil(filteredReports.length / reportsPageSize))
+
+  useEffect(() => {
+    setReportsPage((p) => Math.min(p, totalReportPages))
+  }, [totalReportPages])
+
   const validateFile = (f: File): string | null => {
     const ext = f.name.split(".").pop()?.toLowerCase() ?? ""
     const allowed = ["pdf", "ppt", "pptx", "doc", "docx", "txt", "md", "xls", "xlsx"]
@@ -591,38 +619,38 @@ export default function ReportsPage() {
       <div className="pointer-events-none absolute top-20 right-[15%] -z-10 h-150 w-150 rounded-full bg-blue-500/5 blur-[140px]" />
       <div className="pointer-events-none absolute bottom-40 left-[20%] -z-10 h-125 w-125 rounded-full bg-indigo-500/5 blur-[120px]" />
 
-      <div className="mx-auto max-w-400 space-y-12 p-8 lg:p-12">
+      <div className="mx-auto max-w-360 space-y-8 p-6 lg:p-8">
         {/* ── Header ── */}
-        <div className="flex flex-col justify-between gap-8 pt-4 md:flex-row md:items-end">
-          <div className="flex items-center gap-6">
+        <div className="flex flex-col justify-between gap-6 pt-2 md:flex-row md:items-end">
+          <div className="flex items-center gap-4">
             <div className="group relative">
               <div className="absolute -inset-2 rounded-3xl bg-linear-to-r from-blue-600 to-indigo-700 opacity-20 blur transition duration-1000 group-hover:opacity-40" />
-              <div className="relative flex h-20 w-20 items-center justify-center rounded-3xl bg-linear-to-br from-blue-600 to-indigo-700 text-white shadow-2xl shadow-blue-500/30">
-                <FileText className="h-10 w-10" />
+              <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-linear-to-br from-blue-600 to-indigo-700 text-white shadow-2xl shadow-blue-500/30">
+                <FileText className="h-8 w-8" />
               </div>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[10px] font-black tracking-[0.2em] text-blue-600 uppercase dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
                 Reports Management
               </span>
-              <h1 className="text-5xl leading-[0.9] font-black tracking-tighter text-slate-900 dark:text-white">
+              <h1 className="text-4xl leading-none font-black tracking-tighter text-slate-900 md:text-[2.75rem] dark:text-white">
                 Project{" "}
                 <span className="bg-linear-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                   Reports
                 </span>
               </h1>
-              <p className="text-lg font-medium text-slate-500 italic dark:text-slate-400">
+              <p className="text-sm font-medium text-slate-500 italic md:text-base dark:text-slate-400">
                 Upload, generate, and track your reports
               </p>
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-3 pb-2">
+          <div className="flex shrink-0 items-center gap-3">
             <Link href={`/${locale}/reports/admin`}>
               <Button
                 variant="outline"
                 size="lg"
-                className="h-14 gap-2 rounded-2xl border-slate-200 px-6 text-sm font-black tracking-widest uppercase shadow-sm hover:shadow-md dark:border-slate-700"
+                className="h-11 gap-2 rounded-2xl border-slate-200 px-5 text-xs font-black tracking-widest uppercase shadow-sm hover:shadow-md dark:border-slate-700"
               >
                 <Users className="h-4 w-4" />
                 All Members
@@ -633,7 +661,7 @@ export default function ReportsPage() {
               onClick={() => {
                 setShowSubmitModal(true)
               }}
-              className="group relative h-14 gap-3 overflow-hidden rounded-2xl bg-slate-900 px-8 text-sm font-black tracking-widest text-white uppercase shadow-2xl transition-all hover:scale-105 dark:bg-white dark:text-slate-900"
+              className="group relative h-11 gap-2.5 overflow-hidden rounded-2xl bg-slate-900 px-6 text-xs font-black tracking-widest text-white uppercase shadow-2xl transition-all hover:scale-105 dark:bg-white dark:text-slate-900"
             >
               <div className="absolute inset-0 bg-linear-to-r from-blue-600/20 to-indigo-600/20 opacity-0 transition-opacity group-hover:opacity-100" />
               <Plus className="h-5 w-5" />
@@ -642,47 +670,68 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* ── Stats ── */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            title="Submission Deadline"
-            value={`${daysUntilDue} Days`}
-            subtitle={nextDueDate.toLocaleDateString("en-US", { weekday: "long" })}
-            icon={Clock}
-            variant="primary"
-          />
-          <StatCard
-            title="Submitted"
-            value={reportStats.submitted}
-            subtitle="Reports submitted"
-            icon={CheckCircle2}
-            variant="success"
-          />
-          <StatCard
-            title="Overdue"
-            value={reportStats.overdue}
-            subtitle="Missed deadlines"
-            icon={AlertCircle}
-            variant="danger"
-          />
-          <StatCard
-            title="Pending"
-            value={reportStats.pending}
-            subtitle="Awaiting submission"
-            icon={TrendingUp}
-            variant="warning"
-          />
+        {/* ── Status Summary ── */}
+        <div className="flex flex-col gap-3 rounded-3xl border border-slate-100/60 bg-white/60 px-5 py-4 backdrop-blur-sm md:flex-row md:items-center md:justify-between dark:border-slate-800/50 dark:bg-slate-900/40">
+          <div className="space-y-1">
+            <p className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
+              Next due
+            </p>
+            <p className="text-sm font-black text-slate-900 dark:text-white">
+              {nextDueDate.toLocaleDateString("en-US", {
+                weekday: "long",
+                month: "short",
+                day: "numeric"
+              })}
+              <span className="mx-2 text-slate-400">•</span>
+              {daysUntilDue} days
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant={filterStatus === "all" ? "default" : "outline"}
+              className="h-8 rounded-xl"
+              onClick={() =>{  setFilterStatus("all"); }}
+            >
+              All ({reports.length})
+            </Button>
+            <Button
+              size="sm"
+              variant={filterStatus === "pending" ? "default" : "outline"}
+              className="h-8 rounded-xl"
+              onClick={() =>{  setFilterStatus("pending"); }}
+            >
+              Pending ({reportStats.pending})
+            </Button>
+            <Button
+              size="sm"
+              variant={filterStatus === "overdue" ? "default" : "outline"}
+              className="h-8 rounded-xl"
+              onClick={() =>{  setFilterStatus("overdue"); }}
+            >
+              Overdue ({reportStats.overdue})
+            </Button>
+            <Button
+              size="sm"
+              variant={filterStatus === "submitted" ? "default" : "outline"}
+              className="h-8 rounded-xl"
+              onClick={() =>{  setFilterStatus("submitted"); }}
+            >
+              Submitted ({reportStats.submitted})
+            </Button>
+          </div>
         </div>
 
         {/* ── Report list ── */}
-        <div className="space-y-8">
+        <div className="space-y-6">
           {/* List header + filters */}
-          <div className="flex flex-col justify-between gap-6 border-b border-slate-100 pb-2 md:flex-row md:items-center dark:border-slate-800">
+          <div className="flex flex-col justify-between gap-4 border-b border-slate-100 pb-2 md:flex-row md:items-center dark:border-slate-800">
             <div className="flex items-center gap-4">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white shadow-xl dark:bg-white dark:text-slate-900">
                 <FileBarChart className="h-5 w-5" />
               </div>
-              <h2 className="text-2xl font-black tracking-tight uppercase">Report History</h2>
+              <h2 className="text-xl font-black tracking-tight uppercase">Report History</h2>
             </div>
 
             <div className="flex gap-3">
@@ -695,7 +744,7 @@ export default function ReportsPage() {
                   onChange={(e) => {
                     setSearchTerm(e.target.value)
                   }}
-                  className="h-12 w-full rounded-2xl border border-slate-100 bg-white pr-6 pl-12 text-xs font-bold shadow-sm placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:outline-none md:w-64 dark:border-slate-800 dark:bg-slate-950"
+                  className="h-10 w-full rounded-2xl border border-slate-100 bg-white pr-5 pl-11 text-xs font-bold shadow-sm placeholder:text-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:outline-none md:w-56 dark:border-slate-800 dark:bg-slate-950"
                 />
               </div>
 
@@ -703,7 +752,7 @@ export default function ReportsPage() {
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="outline"
-                    className="h-12 gap-2 rounded-2xl border-slate-100 bg-white px-6 text-[10px] font-black tracking-widest uppercase shadow-sm dark:bg-slate-950"
+                    className="h-10 gap-2 rounded-2xl border-slate-100 bg-white px-5 text-[10px] font-black tracking-widest uppercase shadow-sm dark:bg-slate-950"
                   >
                     <Filter className="h-4 w-4 text-blue-600" />
                     Status:{" "}
@@ -743,182 +792,238 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          {/* Cards */}
-          <div className="grid gap-6">
-            {loading ? (
-              <div className="py-24 text-center text-sm font-bold text-slate-400">Loading...</div>
-            ) : filteredReports.length === 0 ? (
-              <Card className="rounded-[2.5rem] border-none bg-white/40 p-24 text-center backdrop-blur-xl dark:bg-slate-900/40">
-                <FileBarChart className="mx-auto mb-6 h-16 w-16 text-slate-200" />
-                <h3 className="text-2xl font-black tracking-tight text-slate-400 uppercase">
-                  No reports found
-                </h3>
-                <p className="mt-2 text-sm text-slate-400">Submit your first report above</p>
-              </Card>
-            ) : (
-              filteredReports.map((report) => (
-                <Card
-                  key={report._id}
-                  className="group overflow-hidden rounded-4xl border-none bg-white/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-xl transition-all duration-500 hover:-translate-y-1 hover:shadow-[0_32px_64px_-16px_rgba(0,0,0,0.08)] dark:bg-slate-900/60"
-                >
-                  <CardContent className="p-8">
-                    <div className="flex flex-col justify-between gap-8 lg:flex-row lg:items-center">
-                      {/* File icon + title */}
-                      <div className="flex flex-1 items-start gap-6">
-                        <div className="mt-1 flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-slate-50 shadow-inner transition-transform duration-500 group-hover:scale-110 dark:bg-slate-800">
-                          {getFileIcon(report.fileType)}
-                        </div>
-                        <div className="min-w-0 flex-1 space-y-2">
-                          <div className="flex flex-wrap items-center gap-3">
-                            <h3 className="text-xl font-black tracking-tight text-slate-900 uppercase transition-colors group-hover:text-blue-600 dark:text-white">
-                              {report.title}
-                            </h3>
-                            <StatusBadge
-                              type="custom"
-                              value={report.status}
-                              className={cn(
-                                "font-black tracking-widest uppercase",
-                                report.status === "submitted"
-                                  ? "border-emerald-100 bg-emerald-50 text-emerald-700"
-                                  : report.status === "overdue"
-                                    ? "border-rose-100 bg-rose-50 text-rose-700"
-                                    : "border-amber-100 bg-amber-50 text-amber-700"
-                              )}
-                            />
+          {/* Table */}
+          <div className="overflow-hidden rounded-[2.5rem] border border-slate-100/60 bg-white shadow-sm dark:border-slate-800/50 dark:bg-slate-900">
+            <div className="overflow-x-auto">
+              <Table className="min-w-[980px]">
+                <TableHeader>
+                  <TableRow className="border-b border-slate-100 bg-slate-50/60 dark:border-slate-800">
+                    <TableHead className="w-[72px]">File</TableHead>
+                    <TableHead className="min-w-[260px]">Title</TableHead>
+                    <TableHead className="w-[140px]">Status</TableHead>
+                    <TableHead className="w-[180px]">Week</TableHead>
+                    <TableHead className="min-w-[220px]">Submitted By</TableHead>
+                    <TableHead className="w-[200px]">Timestamp</TableHead>
+                    <TableHead className="w-[220px]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="py-16 text-center text-sm text-slate-400">
+                        Loading...
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredReports.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="py-16 text-center">
+                        <p className="text-sm font-bold text-slate-400">No reports found</p>
+                        <p className="mt-1 text-xs text-slate-400">
+                          Submit your first report above
+                        </p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    pagedReports.map((report) => (
+                      <TableRow
+                        key={report._id}
+                        className="border-b border-slate-50/80 hover:bg-slate-50/50 dark:border-slate-800/40 dark:hover:bg-slate-800/30"
+                      >
+                        <TableCell className="py-4">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-50 dark:bg-slate-800">
+                            {getFileIcon(report.fileType)}
                           </div>
-                          <div className="flex flex-wrap items-center gap-4 text-[10px] font-black tracking-widest text-slate-400 uppercase">
-                            <span className="flex items-center gap-1.5">
-                              <Calendar className="h-3.5 w-3.5" />
-                              Week {report.weekNumber}, {report.year}
-                            </span>
-                            <span className="h-1 w-1 rounded-full bg-slate-200 dark:bg-slate-700" />
-                            <span className="flex items-center gap-1.5">
-                              <UserAvatar
-                                name={report.submittedBy.name}
-                                image={report.submittedBy.avatar}
-                                size="xs"
-                              />
-                              {report.submittedBy.name}
-                            </span>
-                            {report.fileName && (
-                              <>
-                                <span className="h-1 w-1 rounded-full bg-slate-200" />
-                                <span className="flex items-center gap-1.5">
-                                  <Paperclip className="h-3.5 w-3.5" />
-                                  {report.fileName}
-                                </span>
-                              </>
+                        </TableCell>
+
+                        <TableCell className="py-4">
+                          <div className="space-y-1">
+                            <p className="text-sm font-black tracking-tight text-slate-900 uppercase dark:text-white">
+                              {report.title}
+                            </p>
+                            {report.description && (
+                              <p className="line-clamp-1 text-xs font-medium text-slate-500 italic">
+                                {report.description}
+                              </p>
                             )}
                           </div>
-                          {report.description && (
-                            <p className="line-clamp-1 text-xs font-medium text-slate-500 italic">
-                              {report.description}
-                            </p>
-                          )}
-                        </div>
-                      </div>
+                        </TableCell>
 
-                      {/* Actions */}
-                      <div className="flex items-center gap-4 border-slate-100 lg:border-l lg:pl-8 dark:border-slate-800">
-                        <div className="mr-4 hidden text-right sm:block">
-                          <p className="mb-1 text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
-                            Timestamp
-                          </p>
-                          <p className="text-xs font-black text-slate-600 dark:text-slate-400">
+                        <TableCell className="py-4">
+                          <StatusBadge
+                            type="custom"
+                            value={report.status}
+                            className={cn(
+                              "font-black tracking-widest uppercase",
+                              report.status === "submitted"
+                                ? "border-emerald-100 bg-emerald-50 text-emerald-700"
+                                : report.status === "overdue"
+                                  ? "border-rose-100 bg-rose-50 text-rose-700"
+                                  : "border-amber-100 bg-amber-50 text-amber-700"
+                            )}
+                          />
+                        </TableCell>
+
+                        <TableCell className="py-4">
+                          <span className="inline-flex items-center gap-2 text-xs font-black tracking-widest text-slate-400 uppercase">
+                            <Calendar className="h-3.5 w-3.5" />
+                            Week {report.weekNumber}, {report.year}
+                          </span>
+                        </TableCell>
+
+                        <TableCell className="py-4">
+                          <div className="flex items-center gap-2">
+                            <UserAvatar
+                              name={report.submittedBy.name}
+                              image={report.submittedBy.avatar}
+                              size="xs"
+                            />
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                              {report.submittedBy.name}
+                            </span>
+                          </div>
+                          {report.fileName && (
+                            <div className="mt-1 flex items-center gap-1 text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                              <Paperclip className="h-3.5 w-3.5" />
+                              <span className="max-w-[130px] truncate">{report.fileName}</span>
+                            </div>
+                          )}
+                        </TableCell>
+
+                        <TableCell className="py-4">
+                          <p className="text-xs font-bold text-slate-600 dark:text-slate-400">
                             {report.status === "pending"
                               ? `Due ${formatDate(report.dueDate)}`
                               : `Submitted ${formatDate(report.submittedAt)}`}
                           </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {(report.fileUrl || report.description) &&
-                            report.status !== "pending" && (
-                              <Button
-                                variant="outline"
-                                size="lg"
-                                onClick={() => {
-                                  setSelectedReport(report)
-                                }}
-                                className="h-12 gap-2 rounded-xl border-slate-100 px-6 text-[10px] font-black tracking-widest uppercase transition-all hover:bg-slate-900 hover:text-white dark:hover:bg-white dark:hover:text-slate-900"
-                              >
-                                <Eye className="h-4 w-4" />
-                                View
-                              </Button>
-                            )}
-                          {report.fileUrl && report.fileType !== "link" && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => window.open(report.fileUrl, "_blank")}
-                              className="h-12 w-12 rounded-xl hover:bg-blue-50 hover:text-blue-600"
-                            >
-                              <Download className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {report.fileUrl && report.fileType === "link" && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => window.open(report.fileUrl, "_blank")}
-                              className="h-12 w-12 rounded-xl hover:bg-blue-50 hover:text-blue-600"
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {report.status === "pending" && (
-                            <Button
-                              size="lg"
-                              onClick={() => {
-                                setShowSubmitModal(true)
-                              }}
-                              className="h-12 gap-2 rounded-xl bg-blue-600 px-8 text-[10px] font-black tracking-widest text-white uppercase shadow-lg shadow-blue-500/20 transition-all hover:scale-105"
-                            >
-                              <Upload className="h-4 w-4" />
-                              Submit Now
-                            </Button>
-                          )}
+                        </TableCell>
 
-                          {/* More actions dropdown */}
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
+                        <TableCell className="py-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {(report.fileUrl || report.description) &&
+                              report.status !== "pending" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>{  setSelectedReport(report); }}
+                                  className="h-8 rounded-xl"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                  View
+                                </Button>
+                              )}
+
+                            {report.fileUrl && report.fileType !== "link" && (
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-12 w-12 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
+                                onClick={() => window.open(report.fileUrl, "_blank")}
+                                className="h-8 w-8 rounded-xl hover:bg-blue-50 hover:text-blue-600"
                               >
-                                <MoreVertical className="h-4 w-4" />
+                                <Download className="h-4 w-4" />
                               </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-48 rounded-2xl">
-                              <DropdownMenuLabel className="px-3 py-2 text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
-                                Actions
-                              </DropdownMenuLabel>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  handleReplaceReport(report)
-                                }}
-                                className="gap-3 rounded-lg py-2"
+                            )}
+
+                            {report.fileUrl && report.fileType === "link" && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => window.open(report.fileUrl, "_blank")}
+                                className="h-8 w-8 rounded-xl hover:bg-blue-50 hover:text-blue-600"
                               >
-                                <Upload className="h-4 w-4 text-blue-600" />
-                                <span className="font-bold">Replace Report</span>
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={async () => handleDeleteReport(report._id)}
-                                className="gap-3 rounded-lg py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                            )}
+
+                            {report.status === "pending" && (
+                              <Button
+                                size="sm"
+                                onClick={() =>{  setShowSubmitModal(true); }}
+                                className="h-8 gap-2 rounded-xl bg-blue-600 px-4 text-[10px] font-black tracking-widest text-white uppercase shadow-lg shadow-blue-500/20 transition-all hover:scale-[1.01]"
                               >
-                                <X className="h-4 w-4" />
-                                <span className="font-bold">Delete Report</span>
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
+                                <Upload className="h-4 w-4" />
+                                Submit
+                              </Button>
+                            )}
+
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800"
+                                >
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-48 rounded-2xl">
+                                <DropdownMenuLabel className="px-3 py-2 text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase">
+                                  Actions
+                                </DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() =>{  handleReplaceReport(report); }}
+                                  className="gap-3 rounded-lg py-2"
+                                >
+                                  <Upload className="h-4 w-4 text-blue-600" />
+                                  <span className="font-bold">Replace</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={async () => handleDeleteReport(report._id)}
+                                  className="gap-3 rounded-lg py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                >
+                                  <X className="h-4 w-4" />
+                                  <span className="font-bold">Delete</span>
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Pagination */}
+            {!loading && filteredReports.length > 0 && totalReportPages > 1 && (
+              <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-white px-5 py-4 dark:border-slate-800/60 dark:bg-slate-900">
+                <p className="text-xs font-bold text-slate-400">
+                  Showing{" "}
+                  {Math.min((reportsPage - 1) * reportsPageSize + 1, filteredReports.length)}-
+                  {Math.min(reportsPage * reportsPageSize, filteredReports.length)} of{" "}
+                  {filteredReports.length}
+                </p>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 rounded-xl"
+                    disabled={reportsPage <= 1}
+                    onClick={() =>{  setReportsPage((p) => Math.max(1, p - 1)); }}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Previous
+                  </Button>
+
+                  <span className="text-xs font-bold text-slate-500">
+                    Page {reportsPage} of {totalReportPages}
+                  </span>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 rounded-xl"
+                    disabled={reportsPage >= totalReportPages}
+                    onClick={() =>{  setReportsPage((p) => Math.min(totalReportPages, p + 1)); }}
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
             )}
           </div>
         </div>

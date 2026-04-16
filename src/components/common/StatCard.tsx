@@ -15,6 +15,7 @@ interface StatCardProps {
   }
   className?: string
   variant?: "default" | "primary" | "success" | "warning" | "danger"
+  size?: "default" | "compact"
 }
 
 const variantStyles = {
@@ -44,19 +45,46 @@ export function StatCard({
   icon: Icon,
   trend,
   className,
-  variant = "default"
+  variant = "default",
+  size = "default"
 }: StatCardProps) {
   return (
-    <div className={cn("group rounded-xl border p-5", variantStyles[variant], className)}>
+    <div
+      className={cn(
+        "group rounded-xl border",
+        size === "compact" ? "p-4" : "p-5",
+        variantStyles[variant],
+        className
+      )}
+    >
       <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1.5">
-          <p className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+        <div className={cn(size === "compact" ? "space-y-1" : "space-y-1.5")}>
+          <p
+            className={cn(
+              "font-medium tracking-wide text-muted-foreground uppercase",
+              size === "compact" ? "text-[10px]" : "text-[11px]"
+            )}
+          >
             {title}
           </p>
-          <p className="text-2xl font-semibold tracking-tight text-foreground tabular-nums dark:text-white">
+          <p
+            className={cn(
+              "font-semibold tracking-tight text-foreground tabular-nums dark:text-white",
+              size === "compact" ? "text-xl" : "text-2xl"
+            )}
+          >
             {value}
           </p>
-          {subtitle && <p className="text-xs leading-snug text-muted-foreground">{subtitle}</p>}
+          {subtitle && (
+            <p
+              className={cn(
+                "leading-snug text-muted-foreground",
+                size === "compact" ? "text-[11px]" : "text-xs"
+              )}
+            >
+              {subtitle}
+            </p>
+          )}
           {trend && (
             <div className="flex items-center gap-2 pt-1">
               <span
@@ -77,8 +105,14 @@ export function StatCard({
           )}
         </div>
         {Icon && (
-          <div className={cn("rounded-lg p-2.5", iconVariantStyles[variant])}>
-            <Icon className="size-5" />
+          <div
+            className={cn(
+              "rounded-lg",
+              size === "compact" ? "p-2" : "p-2.5",
+              iconVariantStyles[variant]
+            )}
+          >
+            <Icon className={cn(size === "compact" ? "size-4.5" : "size-5")} />
           </div>
         )}
       </div>
