@@ -79,7 +79,9 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
     }
 
     window.addEventListener("keydown", handleKeyDown)
-    return () =>{  window.removeEventListener("keydown", handleKeyDown); }
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+    }
   }, [isOpen, onClose, clear, results, selectedIndex])
 
   // Focus input when modal opens
@@ -111,7 +113,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                 type="text"
                 placeholder="Search tasks, projects, boards... (Ctrl+K)"
                 value={query}
-                onChange{ ={(e) => setQuery(e.targe; }t.value)}
+                onChang{ e={(e) => setQuery(e.targ; }et.value)}
                 className="w-full bg-transparent text-lg outline-none placeholder:text-slate-500 dark:placeholder:text-slate-400"
               />
             </div>
@@ -144,7 +146,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                 {results.map((result, index) => (
                   <li key={`${result.type}-${result.id}`}>
                     <button
-                      onClic{ k={() => handleSelectResult; }(result)}
+                      onCli{ ck={() => handleSelectResul; }t(result)}
                       className={cn(
                         "w-full px-4 py-3 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-900/50",
                         selectedIndex === index && "bg-slate-50 dark:bg-slate-900/50"
