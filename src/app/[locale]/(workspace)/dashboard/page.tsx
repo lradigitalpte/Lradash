@@ -28,6 +28,7 @@ import { useBoards } from "@/hooks/useBoards"
 import { useProjectStats } from "@/hooks/useProjectStats"
 import { useRecentActivity } from "@/hooks/useRecentActivity"
 import { useTaskStats } from "@/hooks/useTaskStats"
+import { useWorkspaceActivity } from "@/hooks/useWorkspaceActivity"
 import { Link } from "@/i18n/navigation"
 import { apiClient } from "@/lib/api/client"
 import { useTaskStore } from "@/lib/store"
@@ -39,7 +40,9 @@ export default function DashboardPage() {
   const taskStats = useTaskStats(userId)
   const projectStats = useProjectStats()
   const recentActivity = useRecentActivity(5)
+  const workspaceActivity = useWorkspaceActivity(5)
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([])
+  const [activityView, setActivityView] = useState<"personal" | "workspace">("personal")
 
   // Fetch calendar events
   useEffect(() => {
@@ -422,15 +425,43 @@ export default function DashboardPage() {
 
             <Card className="rounded-xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-800/90 dark:bg-slate-950/35">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Recent activity</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium">Recent activity</CardTitle>
+                  <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800">
+                    <button
+                      onClick={() =>{  setActivityView("personal"); }}
+                      className={cn(
+                        "rounded px-2 py-1 text-xs font-medium transition-colors",
+                        activityView === "personal"
+                          ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white"
+                          : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-300"
+                      )}
+                    >
+                      My Activity
+                    </button>
+                    <button
+                      onClick={() =>{  setActivityView("workspace"); }}
+                      className={cn(
+                        "rounded px-2 py-1 text-xs font-medium transition-colors",
+                        activityView === "workspace"
+                          ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white"
+                          : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-300"
+                      )}
+                    >
+                      Team Activity
+                    </button>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="pt-0">
-                {recentActivity.length === 0 ? (
+                {(activityView === "personal" ? recentActivity : workspaceActivity).length === 0 ? (
                   <p className="py-6 text-center text-xs text-muted-foreground">
                     No recent activity
                   </p>
                 ) : (
-                  <ActivityFeed activities={recentActivity} />
+                  <ActivityFeed
+                    activities={activityView === "personal" ? recentActivity : workspaceActivity}
+                  />
                 )}
               </CardContent>
             </Card>

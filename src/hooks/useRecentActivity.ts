@@ -7,13 +7,17 @@ import { ActivityItem, Task } from "@/types/dbInterface"
 
 type ActivityType = "created" | "updated" | "completed" | "assigned" | "commented"
 
-interface Activity {
+export interface Activity {
   id: string
   type: ActivityType
   user: { name: string; image?: string }
   target: string
   description?: string
   timestamp: Date | string
+  context?: {
+    project?: string
+    board?: string
+  }
 }
 
 export function useRecentActivity(limit: number = 10): Activity[] {
