@@ -1,16 +1,24 @@
 "use client"
 
-import { Search, CheckCircle, FolderKanban, LayoutGrid, Loader2, ArrowRight } from "lucide-react"
+import {
+  Search,
+  CheckCircle,
+  FolderKanban,
+  LayoutGrid,
+  Loader2,
+  ArrowRight,
+  type LucideIcon
+} from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 
 import { useSearch, SearchResult } from "@/hooks/useSearch"
 import { cn } from "@/lib/utils"
 
-const iconMap: Record<string, React.ReactNode> = {
-  CheckCircle: <CheckCircle className="h-4 w-4" />,
-  FolderKanban: <FolderKanban className="h-4 w-4" />,
-  LayoutGrid: <LayoutGrid className="h-4 w-4" />
+const iconMap: Record<string, LucideIcon> = {
+  CheckCircle,
+  FolderKanban,
+  LayoutGrid
 }
 
 const typeColors: Record<string, string> = {
@@ -30,53 +38,61 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const { query, setQuery, results, loading, clear } = useSearch()
   const [selectedIndex, setSelectedIndex] = useState(0)
 
+  const handleSelectResult = (result: SearchResult) => {
+    if (!result?.url) {
+      return
+    }
+    router.push(result.url)
+    onClose()
+    clear()
+  }
+
   // Handle keyboard shortcuts
   useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
     const handleKeyDown = (e: KeyboardEvent) => {
       // Escape to close
-      if (e.key === "Escape" && isOpen) {
+      if (e.key === "Escape") {
         onClose()
         clear()
       }
 
       // Arrow down/up for navigation
-      if (e.key === "ArrowDown" && isOpen) {
+      if (e.key === "ArrowDown") {
         e.preventDefault()
         setSelectedIndex((prev) => (prev < results.length - 1 ? prev + 1 : prev))
       }
 
-      if (e.key === "ArrowUp" && isOpen) {
+      if (e.key === "ArrowUp") {
         e.preventDefault()
         setSelectedIndex((prev) => (prev > 0 ? prev - 1 : 0))
       }
 
       // Enter to select
-      if (e.key === "Enter" && isOpen && results.length > 0) {
+      if (e.key === "Enter" && results.length > 0) {
         e.preventDefault()
         handleSelectResult(results[selectedIndex])
       }
     }
 
     window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [isOpen, onClose, cl{ ear, results, selectedIndex])
+    return () =>{  window.removeEventListener("keydown", handleKeyDown); }
+  }, [isOpen, onClose, clear, results, selectedIndex])
 
-  // Focus input when ; }modal opens
+  // Focus input when modal opens
   useEffect(() => {
     if (isOpen && inputRef.current) {
       inputRef.current.focus()
+      setSelectedIndex(0)
     }
   }, [isOpen])
 
-  const handleSelectResult = (result: SearchResult) => {
-    if (result.url) {
-      router.push(result.url)
-      onClose()
-      clear()
-    }
+  if (!isOpen) {
+    return null
   }
-
-  if (!isOpen) return null
 
   return (
     <>
@@ -95,9 +111,9 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                 type="text"
                 placeholder="Search tasks, projects, boards... (Ctrl+K)"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="w-full bg-transparent text-lg outline-none placeholder:text-slate-500 dark:placeholder:te{ xt-slate-400"
-           ; }   />
+                onChange{ ={(e) => setQuery(e.targe; }t.value)}
+                className="w-full bg-transparent text-lg outline-none placeholder:text-slate-500 dark:placeholder:text-slate-400"
+              />
             </div>
           </div>
 
@@ -128,16 +144,23 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                 {results.map((result, index) => (
                   <li key={`${result.type}-${result.id}`}>
                     <button
-                      onClick={() => handleSelectResult(result)}
+                      onClic{ k={() => handleSelectResult; }(result)}
                       className={cn(
-                        "w-full px-4 py-3 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-90{ 0/50",
-                    ; }    selectedIndex === index && "bg-slate-50 dark:bg-slate-900/50"
+                        "w-full px-4 py-3 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-900/50",
+                        selectedIndex === index && "bg-slate-50 dark:bg-slate-900/50"
                       )}
                     >
                       <div className="flex items-start gap-3">
                         {/* Icon */}
                         <div className="mt-1 text-slate-400 dark:text-slate-500">
-                          {iconMap[result.icon || "Search"] || <Search className="h-4 w-4" />}
+                          {(() => {
+                            const Icon = iconMap[result.icon || ""]
+                            return Icon ? (
+                              <Icon className="h-4 w-4" />
+                            ) : (
+                              <Search className="h-4 w-4" />
+                            )
+                          })()}
                         </div>
 
                         {/* Content */}

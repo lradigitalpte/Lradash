@@ -55,13 +55,19 @@ export function useSearch() {
     }
   }, [])
 
-  const handleQueryChange = useCallback(
-    (newQuery: string) => {
-      setQuery(newQuery)
-      search(newQuery)
-    },
-    [search]
-  )
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      search(query)
+    }, 300)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [query, search])
+
+  const handleQueryChange = useCallback((newQuery: string) => {
+    setQuery(newQuery)
+  }, [])
 
   const clear = useCallback(() => {
     setQuery("")
