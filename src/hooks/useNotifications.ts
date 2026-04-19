@@ -18,6 +18,12 @@ import { useNotificationStore } from "@/store/notificationStore"
 
 const SSE_RECONNECT_MS = 5_000
 
+// Module-level ref-count: ensures only one SSE connection is active at a time
+// even when useNotifications() is mounted by multiple components (Header + notifications page)
+let sseInstanceCount = 0
+let globalSseController: AbortController | null = null
+let globalReconnectTimer: ReturnType<typeof setTimeout> | null = null
+
 export function useNotifications() {
   const { accessToken: token } = useAuth()
   const store = useNotificationStore()
@@ -48,20 +54,25 @@ export function useNotifications() {
   // ── SSE connection ─────────────────────────────────────────────────────────
   // Uses fetch so we can check status codes (e.g. stop on 401) and always
   // reads the freshest token from localStorage on every connect attempt.
+  // Uses module-level controller so multiple hook instances share one SSE stream.
   const connectSse = useCallback(() => {
     if (typeof window === "undefined") {
       return
     }
 
-    // Always grab the latest token – avoids reconnecting with a stale JWT
+    // If a global SSE connection is already active, don't open another one
+    if (globalSseController && !globalSseController.signal.aborted) {
+      return
+    }
+
     const currentToken = localStorage.getItem("accessToken")
     if (!currentToken) {
       return
     }
 
-    // Abort any previous connection
-    sseRef.current?.abort()
+    globalSseController?.abort()
     const controller = new AbortController()
+    globalSseController = controller
     sseRef.current = controller
 
     ;(async () => {
@@ -72,9 +83,6 @@ export function useNotifications() {
         )
 
         if (response.status === 401) {
-          // Token expired / invalid – suppress the retry loop entirely.
-          // The connection will re-open automatically when the token changes
-          // (the useEffect below depends on `token` from useAuth).
           console.warn("[SSE] 401 Unauthorized – reconnect suppressed until token refreshes")
           return
         }
@@ -95,7 +103,6 @@ export function useNotifications() {
           }
           buffer += decoder.decode(value, { stream: true })
 
-          // SSE blocks are separated by double newline
           const blocks = buffer.split("\n\n")
           buffer = blocks.pop() ?? ""
           for (const block of blocks) {
@@ -113,7 +120,6 @@ export function useNotifications() {
           }
         }
       } catch (err: unknown) {
-        // AbortError means we closed the connection intentionally
         if (
           typeof err === "object" &&
           err !== null &&
@@ -127,7 +133,7 @@ export function useNotifications() {
 
       // Schedule reconnect only if not deliberately aborted
       if (!controller.signal.aborted) {
-        reconnectTimer.current = setTimeout(connectSse, SSE_RECONNECT_MS)
+        globalReconnectTimer = setTimeout(connectSse, SSE_RECONNECT_MS)
       }
     })()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -165,24 +171,44 @@ export function useNotifications() {
     if (!token) {
       return
     }
-    fetchNotifications()
-    connectSse()
-    registerFcm()
 
-    // Re-connect SSE whenever the API client silently refreshes the access token.
-    // The apiClient dispatches this event after writing the new token to localStorage,
-    // so connectSse() will pick it up via localStorage.getItem("accessToken").
+    // Track how many components are using this hook; only the first starts SSE,
+    // only the last stops it — prevents duplicate connections from Header + notifications page
+    sseInstanceCount++
+    const isFirstMount = sseInstanceCount === 1
+
+    if (isFirstMount) {
+      fetchNotifications()
+      connectSse()
+      registerFcm()
+    }
+
     const handleTokenRefresh = () => {
-      if (reconnectTimer.current) {
-        clearTimeout(reconnectTimer.current)
+      if (globalReconnectTimer) {
+        clearTimeout(globalReconnectTimer)
+        globalReconnectTimer = null
       }
+      // Force a new connection regardless of current state
+      globalSseController?.abort()
+      globalSseController = null
       connectSse()
     }
     window.addEventListener("token-refreshed", handleTokenRefresh)
 
     return () => {
       window.removeEventListener("token-refreshed", handleTokenRefresh)
-      sseRef.current?.abort()
+      sseInstanceCount--
+
+      // Only close the SSE stream when the very last consumer unmounts
+      if (sseInstanceCount === 0) {
+        globalSseController?.abort()
+        globalSseController = null
+        if (globalReconnectTimer) {
+          clearTimeout(globalReconnectTimer)
+          globalReconnectTimer = null
+        }
+      }
+
       sseRef.current = null
       if (reconnectTimer.current) {
         clearTimeout(reconnectTimer.current)

@@ -39,7 +39,7 @@ export default function BoardProjectsPage() {
   const myBoards = useTaskStore((state) => state.myBoards)
   const teamBoards = useTaskStore((state) => state.teamBoards)
   const fetchProjects = useTaskStore((state) => state.fetchProjects)
-  const { fetchBoards, loading: boardsLoading } = useBoards()
+  const { loading: boardsLoading } = useBoards()
   const [viewMode, setViewMode] = useState<"grid" | "team" | "timeline">("grid")
   const [statusFilter, setStatusFilter] = useState<"all" | "on_track" | "at_risk" | "off_track">(
     "all"
@@ -128,11 +128,7 @@ export default function BoardProjectsPage() {
     }
   }, [boardId, boardsLoading, boards])
 
-  useEffect(() => {
-    if (boardId) {
-      fetchBoards()
-    }
-  }, [boardId, fetchBoards])
+  // useBoards() already auto-fetches on mount — no manual fetchBoards() needed here
 
   // Use real projects from database (filter out archived)
   const displayProjects = (projects || []).filter((p) => !p.isArchived)

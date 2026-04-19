@@ -51,6 +51,11 @@ export interface DispatchNotificationInput {
 
 export async function dispatchNotification(input: DispatchNotificationInput): Promise<void> {
   try {
+    // Never notify the actor about their own action.
+    if (String(input.recipientUserId) === String(input.triggeredBy.userId)) {
+      return
+    }
+
     const normalizedTitle =
       typeof input.title === "string" && input.title.trim().length > 0
         ? input.title.trim()

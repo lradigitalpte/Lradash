@@ -1,5 +1,6 @@
 "use client"
 
+import type { MeetingRecord } from "@/hooks/useMeetings"
 import { format } from "date-fns"
 import {
   CalendarClock,
@@ -33,17 +34,45 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { useAuth } from "@/hooks/useAuth"
 import { useGoogleWorkspaceConnection } from "@/hooks/useGoogleWorkspaceConnection"
 import { useMeetings } from "@/hooks/useMeetings"
-import { getMeetingRecurrenceLabel } from "@/lib/meetings/recurrence"
+import { getMeetingRecurrenceLabel, getNextMeetingOccurrence } from "@/lib/meetings/recurrence"
 
 interface OrganizationMeetingsPanelProps {
   /** Called after meetings list changes so other views (e.g. org calendar grid) can refresh. */
   onMeetingsChanged?: () => void
+  /**
+   * Optional: pass pre-fetched meetings from a parent to avoid a duplicate /api/meetings
+   * request. Supply all three together or none at all.
+   */
+  externalMeetings?: MeetingRecord[]
+  externalLoading?: boolean
+  externalRefresh?: () => Promise<void>
+  externalCancelMeeting?: (id: string) => Promise<unknown>
 }
 
-export function OrganizationMeetingsPanel({ onMeetingsChanged }: OrganizationMeetingsPanelProps) {
+export function OrganizationMeetingsPanel({
+  onMeetingsChanged,
+  externalMeetings,
+  externalLoading,
+  externalRefresh,
+  externalCancelMeeting
+}: OrganizationMeetingsPanelProps) {
   const { user } = useAuth()
   const { loading: connectionLoading, busy, status, connect } = useGoogleWorkspaceConnection()
-  const { loading, nextOccurrences, refresh, cancelMeeting } = useMeetings()
+  const hasExternal = externalMeetings !== undefined
+  const internalHook = useMeetings()
+
+  const loading = hasExternal ? (externalLoading ?? false) : internalHook.loading
+  const refresh = externalRefresh ?? internalHook.refresh
+  const cancelMeeting = externalCancelMeeting ?? internalHook.cancelMeeting
+
+  const nextOccurrences = useMemo(() => {
+    if (!hasExternal) {
+      return internalHook.nextOccurrences
+    }
+    return (externalMeetings ?? [])
+      .map((m) => getNextMeetingOccurrence(m))
+      .filter(Boolean) as typeof internalHook.nextOccurrences
+  }, [hasExternal, externalMeetings, internalHook.nextOccurrences])
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogPreset, setDialogPreset] = useState<"general" | "standup">("general")
   const [editMeetingId, setEditMeetingId] = useState<string | null>(null)

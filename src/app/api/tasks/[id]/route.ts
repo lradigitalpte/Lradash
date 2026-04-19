@@ -89,38 +89,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     // Fire-and-forget notifications
     if (user) {
-      const changedFields = Object.keys(body).filter((k) => k !== "updatedAt")
-      const changeDesc =
-        changedFields.length === 1
-          ? `${changedFields[0]} was updated`
-          : `${changedFields.length} fields were updated`
-
       const taskTitle = (updatedTask as any)?.title ?? taskId
       const taskProjectId = getEntityId((updatedTask as any)?.project)
       const isCompleting = body.status === "DONE" || body.status === "COMPLETED"
       const nextAssigneeId = getEntityId(body.assigneeId ?? body.assignee)
       const isAssigning = !!nextAssigneeId
+      const shouldNotifyCreator = isCompleting || isAssigning
+      const creatorId = getEntityId((updatedTask as any)?.creator)
 
-      const notifType = isCompleting
-        ? ("task_completed" as const)
-        : isAssigning
-          ? ("task_assigned" as const)
-          : ("task_updated" as const)
-
-      // Notify the current user (self)
-      dispatchNotification({
-        recipientUserId: String(user._id),
-        type: notifType,
-        title: `Task Updated: ${taskTitle}`,
-        body: `${changeDesc} by ${user.name ?? userEmail}.`,
-        taskId,
-        projectId: taskProjectId ?? undefined,
-        triggeredBy: {
-          userId: String(user._id),
-          name: user.name ?? userEmail,
-          avatar: user.avatar ?? undefined
-        }
-      }).catch(() => {})
+      // Skip generic edit notifications to reduce in-app noise.
+      if (!isCompleting && !isAssigning) {
+        return NextResponse.json(updatedTask)
+      }
 
       // Email + in-app notify the ASSIGNEE when a task is assigned to them
       if (isAssigning && nextAssigneeId !== String(user._id)) {
@@ -161,8 +141,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
 
       // Email + in-app notify the CREATOR when someone else updates or completes their task
-      const creatorId = getEntityId((updatedTask as any)?.creator)
-      if (creatorId && creatorId !== String(user._id)) {
+      if (shouldNotifyCreator && creatorId && creatorId !== String(user._id)) {
         try {
           await connectToDatabase()
           const creator = (await UserModel.findById(creatorId)
@@ -171,15 +150,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           if (creator?.email) {
             const creatorBody = isCompleting
               ? `${user.name ?? userEmail} completed a task you assigned.`
-              : `${changeDesc} by ${user.name ?? userEmail}.`
+              : `${user.name ?? userEmail} assigned this task to ${nextAssigneeId === creatorId ? "you" : "another teammate"}.`
             const creatorChanges = isCompleting
               ? `Task completed by ${user.name ?? userEmail}`
-              : `${changeDesc} by ${user.name ?? userEmail}`
+              : `Task reassigned by ${user.name ?? userEmail}`
+            const creatorType = isCompleting
+              ? ("task_completed" as const)
+              : ("task_assigned" as const)
 
             dispatchNotification({
               recipientUserId: creatorId,
-              type: notifType,
-              title: isCompleting ? `Task Completed: ${taskTitle}` : `Task Updated: ${taskTitle}`,
+              type: creatorType,
+              title: isCompleting ? `Task Completed: ${taskTitle}` : `Task Assigned: ${taskTitle}`,
               body: creatorBody,
               taskId,
               projectId: taskProjectId ?? undefined,

@@ -44,6 +44,7 @@ import { useProjectStats } from "@/hooks/useProjectStats"
 import { useTaskStats } from "@/hooks/useTaskStats"
 import { useRouter } from "@/i18n/navigation"
 import { apiClient } from "@/lib/api/client"
+import { fetchProjectsCached, invalidateProjectsCache } from "@/lib/api/projectsCache"
 import { cn, formatDate, getDaysUntil } from "@/lib/utils"
 
 export default function ProjectsPage() {
@@ -64,14 +65,8 @@ export default function ProjectsPage() {
 
   const fetchProjects = async () => {
     try {
-      const response = await apiClient.get("/api/projects")
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch projects")
-      }
-
-      const data = await response.json()
-      setProjects(data)
+      const data = await fetchProjectsCached()
+      setProjects(data as any)
     } catch (error) {
       console.error("Error fetching projects:", error)
       toast.error("Failed to load projects")
@@ -98,6 +93,7 @@ export default function ProjectsPage() {
       toast.success("Project created successfully!")
       setFormData({ title: "", description: "" })
       setDialogOpen(false)
+      invalidateProjectsCache()
       fetchProjects()
     } catch (error) {
       console.error("Create project error:", error)

@@ -255,7 +255,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         const recipientEmail = getNotificationEmail(recipient)
         dispatchNotification({
           recipientUserId: String(recipient._id),
-          type: "task_updated",
+          type: "status_change",
           title: `Completion Update: ${(task as any).title}`,
           body: `${(user as any).name || (user as any).email} submitted completion evidence${evidenceAttachments.length > 0 ? ` with ${evidenceAttachments.length} attachment(s)` : ""}.`,
           taskId,

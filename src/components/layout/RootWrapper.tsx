@@ -10,7 +10,7 @@ import ClientSidebar from "@/components/layout/ClientSidebar"
 import Header from "@/components/layout/Header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { TOAST_DURATION_MS } from "@/constants/ui"
-import { apiClient } from "@/lib/api/client"
+import { fetchAuthMeCached } from "@/lib/api/authMeCache"
 import { useTaskStore } from "@/lib/store"
 
 interface UserInfo {
@@ -31,12 +31,11 @@ export default function RootWrapper({ children }: { children: React.ReactNode })
 
     const initializeUser = async () => {
       try {
-        const response = await apiClient.get("/api/auth/me")
-        if (response.ok && mounted) {
-          const user = await response.json()
-          await setUserInfo(user.email, user.id ?? null)
-          setOrgRole(user.orgRole ?? null)
-          setClientUser({ name: user.name ?? user.email, email: user.email })
+        const user = await fetchAuthMeCached()
+        if (mounted) {
+          await setUserInfo(user.email, user.id! ?? null)
+          setOrgRole(user.orgRole! ?? null)
+          setClientUser({ name: user.name! ?? user.email, email: user.email })
         }
       } catch (error) {
         console.error("[RootWrapper] Failed to initialize user:", error)

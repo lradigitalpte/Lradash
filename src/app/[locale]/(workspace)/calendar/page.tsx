@@ -72,7 +72,11 @@ export default function CalendarPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState<any | null>(null)
 
-  const { meetings, refresh: refreshMeetings } = useMeetings({ includePastWindowHours: 24 * 180 })
+  const {
+    meetings,
+    refresh: refreshMeetings,
+    cancelMeeting
+  } = useMeetings({ includePastWindowHours: 24 * 180 })
 
   const mergedSchedule = useMemo(() => {
     const rangeStart = startOfMonth(currentDate)
@@ -457,7 +461,13 @@ export default function CalendarPage() {
           />
         </div>
 
-        <OrganizationMeetingsPanel onMeetingsChanged={refreshMeetings} />
+        <OrganizationMeetingsPanel
+          onMeetingsChanged={refreshMeetings}
+          externalMeetings={meetings}
+          externalLoading={false}
+          externalRefresh={refreshMeetings}
+          externalCancelMeeting={cancelMeeting}
+        />
 
         {/* Primary Schedule Interface - full width calendar, no sidebar */}
         <div className="w-full max-w-[1600px] overflow-hidden">
@@ -467,7 +477,9 @@ export default function CalendarPage() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() =>{  handleCalendarStep(-1); }}
+                  onClick={() => {
+                    handleCalendarStep(-1)
+                  }}
                   className="h-10 w-10 rounded-2xl border border-transparent shadow-sm hover:border-slate-100 hover:bg-white sm:h-12 sm:w-12 dark:hover:bg-slate-800"
                 >
                   <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -483,7 +495,9 @@ export default function CalendarPage() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() =>{  handleCalendarStep(1); }}
+                  onClick={() => {
+                    handleCalendarStep(1)
+                  }}
                   className="h-10 w-10 rounded-2xl border border-transparent shadow-sm hover:border-slate-100 hover:bg-white sm:h-12 sm:w-12 dark:hover:bg-slate-800"
                 >
                   <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 
-import { apiClient } from "@/lib/api/client"
+import { fetchTasksCached } from "@/lib/api/tasksCache"
 import { ActivityItem, Task } from "@/types/dbInterface"
 
 type ActivityType = "created" | "updated" | "completed" | "assigned" | "commented"
@@ -22,31 +22,28 @@ export function useRecentActivity(limit: number = 10): Activity[] {
   useEffect(() => {
     const fetchActivities = async () => {
       try {
-        const response = await apiClient.get("/api/tasks")
-        if (response.ok) {
-          const tasks = (await response.json()) as Task[]
-          const activitiesFromTasks = tasks.flatMap((task) =>
-            (task.activities || []).map((activity: ActivityItem) => ({
-              id:
-                activity._id ||
-                `${task._id}-${activity.type}-${new Date(activity.createdAt).getTime()}`,
-              type: activity.type === "comment" ? "commented" : inferActivityType(activity.text),
-              user: {
-                name: activity.user?.name || "System",
-                image: activity.user?.image || activity.user?.avatar
-              },
-              target: task.title,
-              description: activity.text,
-              timestamp: activity.createdAt
-            }))
-          )
+        const tasks = await fetchTasksCached()
+        const activitiesFromTasks = tasks.flatMap((task) =>
+          (task.activities || []).map((activity: ActivityItem) => ({
+            id:
+              activity._id ||
+              `${task._id}-${activity.type}-${new Date(activity.createdAt).getTime()}`,
+            type: activity.type === "comment" ? "commented" : inferActivityType(activity.text),
+            user: {
+              name: activity.user?.name || "System",
+              image: activity.user?.image || activity.user?.avatar
+            },
+            target: task.title,
+            description: activity.text,
+            timestamp: activity.createdAt
+          }))
+        )
 
-          const sorted = activitiesFromTasks
-            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-            .slice(0, limit)
+        const sorted = activitiesFromTasks
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+          .slice(0, limit)
 
-          setActivities(sorted)
-        }
+        setActivities(sorted)
       } catch (error) {
         console.error("Failed to fetch activities:", error)
       }

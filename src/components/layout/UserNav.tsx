@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
-import { apiClient } from "@/lib/api/client"
+import { fetchAuthMeCached, invalidateAuthMeCache } from "@/lib/api/authMeCache"
 import { useTaskStore } from "@/lib/store"
 
 interface User {
@@ -37,15 +37,8 @@ export function UserNav() {
 
     const loadUser = async () => {
       try {
-        const response = await apiClient.get("/api/auth/me")
-
-        if (!response.ok) {
-          console.error("Failed to fetch user")
-          return
-        }
-
-        const userData = await response.json()
-        setUser(userData)
+        const userData = await fetchAuthMeCached()
+        setUser(userData as User)
 
         if (userData?.name) {
           const init = userData.name
@@ -73,6 +66,7 @@ export function UserNav() {
 
       localStorage.removeItem("accessToken")
       localStorage.removeItem("user")
+      invalidateAuthMeCache()
 
       // Clear Zustand store to ensure complete user data isolation on logout
       useTaskStore.setState({

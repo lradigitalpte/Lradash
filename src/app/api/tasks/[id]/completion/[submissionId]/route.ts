@@ -216,8 +216,8 @@ export async function PATCH(
     }
 
     const recipientIds = new Set<string>()
-    if ((targetSubmission)?.submittedBy?.userId) {
-      recipientIds.add(String((targetSubmission).submittedBy.userId))
+    if (targetSubmission?.submittedBy?.userId) {
+      recipientIds.add(String(targetSubmission.submittedBy.userId))
     }
     if ((task as any)?.assignee?._id) {
       recipientIds.add(String((task as any).assignee._id))
@@ -251,7 +251,7 @@ export async function PATCH(
         const recipientEmail = getNotificationEmail(recipient)
         dispatchNotification({
           recipientUserId: String(recipient._id),
-          type: action === "approve" ? "task_completed" : "task_updated",
+          type: action === "approve" ? "task_completed" : "status_change",
           title,
           body: bodyText,
           taskId,

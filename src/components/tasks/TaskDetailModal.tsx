@@ -83,6 +83,11 @@ export function TaskDetailModal({
   const [status, setStatus] = useState(task?.status || "TODO")
   const [priority, setPriority] = useState(task?.priority || "MEDIUM")
   const [attaching, setAttaching] = useState(false)
+  const [attachmentModalOpen, setAttachmentModalOpen] = useState(false)
+  const [attachmentMode, setAttachmentMode] = useState<"file" | "link">("file")
+  const [linkUrl, setLinkUrl] = useState("")
+  const [linkName, setLinkName] = useState("")
+  const [addingLink, setAddingLink] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -371,6 +376,78 @@ export function TaskDetailModal({
     }
   }
 
+  const normalizeLinkUrl = (rawUrl: string): string | null => {
+    const trimmed = rawUrl.trim()
+    if (!trimmed) {
+      return null
+    }
+
+    const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+    try {
+      const parsed = new URL(withProtocol)
+      if (!parsed.hostname) {
+        return null
+      }
+      return parsed.toString()
+    } catch {
+      return null
+    }
+  }
+
+  const handleAttachLink = async (): Promise<boolean> => {
+    const normalizedUrl = normalizeLinkUrl(linkUrl)
+    if (!normalizedUrl) {
+      toast.error("Enter a valid URL")
+      return false
+    }
+
+    setAddingLink(true)
+    try {
+      const effectiveProjectId = projectId ?? (task as any)?.project ?? undefined
+      const displayName = linkName.trim() || new URL(normalizedUrl).hostname
+      const newAttachment = {
+        name: displayName,
+        url: normalizedUrl,
+        type: "link",
+        size: 0,
+        createdAt: new Date()
+      }
+
+      const patchRes = await apiClient.patch(`/api/tasks/${task._id}`, {
+        attachments: [...(task.attachments || []), newAttachment]
+      })
+
+      if (!patchRes.ok) {
+        throw new Error("Failed to save link")
+      }
+
+      const updatedTask = await patchRes.json()
+      onTaskUpdated?.(updatedTask)
+
+      if (effectiveProjectId) {
+        await apiClient.post(`/api/projects/${effectiveProjectId}/documents`, {
+          name: displayName,
+          type: "Link",
+          size: "Link",
+          folder: "From tasks",
+          url: normalizedUrl,
+          taskId: task._id?.toString?.() ?? (task as any)._id,
+          taskTitle: task.title
+        })
+      }
+
+      setLinkUrl("")
+      setLinkName("")
+      toast.success("Link attached")
+      return true
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to attach link")
+      return false
+    } finally {
+      setAddingLink(false)
+    }
+  }
+
   const handleRemoveAttachment = async (index: number) => {
     const newAttachments = task.attachments?.filter((_, i) => i !== index) ?? []
     try {
@@ -429,7 +506,7 @@ export function TaskDetailModal({
         className="flex !h-[90vh] max-h-[90vh] !w-[95vw] !max-w-[95vw] flex-col overflow-hidden rounded-[2.5rem] border-white/20 bg-white/80 p-0 pt-0 shadow-2xl shadow-slate-200/50 backdrop-blur-2xl sm:max-w-[95vw] lg:!max-w-[1100px] dark:border-slate-800/50 dark:bg-slate-900/80 dark:shadow-none"
         aria-describedby={undefined}
       >
-        <div className="relative flex h-full flex-col overflow-hidden">
+        <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
           {/* Cover Color Banner */}
           {task.coverColor && (
             <div
@@ -484,7 +561,7 @@ export function TaskDetailModal({
           </div>
 
           {/* Main Content Area - Scrollable */}
-          <div className="custom-scrollbar relative flex-1 overflow-y-auto px-10 pb-12">
+          <div className="custom-scrollbar relative min-h-0 flex-1 overflow-y-auto px-10 pb-12">
             <div className="grid grid-cols-1 gap-12 lg:grid-cols-[1fr_300px]">
               {/* Left Column - Details */}
               <div className="space-y-12">
@@ -546,8 +623,11 @@ export function TaskDetailModal({
                     <Button
                       variant="outline"
                       size="sm"
-                      disabled={attaching || !projectId}
-                      onClick={() => fileInputRef.current?.click()}
+                      disabled={attaching || addingLink}
+                      onClick={() => {
+                        setAttachmentMode("file")
+                        setAttachmentModalOpen(true)
+                      }}
                       className="h-10 rounded-xl border-slate-200 px-6 text-[10px] font-black tracking-widest uppercase hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800"
                     >
                       {attaching ? (
@@ -555,7 +635,7 @@ export function TaskDetailModal({
                       ) : (
                         <Plus className="mr-2 h-3.5 w-3.5" />
                       )}
-                      {attaching ? "Uploading…" : "Attach file"}
+                      {attaching ? "Uploading…" : "Attach"}
                     </Button>
                   </div>
 
@@ -584,9 +664,11 @@ export function TaskDetailModal({
                               {file.name}
                             </a>
                             <p className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
-                              {(file.size || 0) / 1024 > 1024
-                                ? `${((file.size || 0) / (1024 * 1024)).toFixed(1)} MB`
-                                : `${((file.size || 0) / 1024).toFixed(1)} KB`}
+                              {file.type === "link"
+                                ? "LINK"
+                                : (file.size || 0) / 1024 > 1024
+                                  ? `${((file.size || 0) / (1024 * 1024)).toFixed(1)} MB`
+                                  : `${((file.size || 0) / 1024).toFixed(1)} KB`}
                             </p>
                           </div>
                           <Button
@@ -764,6 +846,120 @@ export function TaskDetailModal({
               </div>
             </div>
           </div>
+
+          {attachmentModalOpen && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/35 p-4 backdrop-blur-[1px]">
+              <div className="w-full max-w-md rounded-3xl border border-white/20 bg-white/95 p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900/95">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-black tracking-wider text-slate-900 uppercase dark:text-white">
+                      Attach To Task
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Choose what you want to add
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => {
+                      setAttachmentModalOpen(false)
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                <div className="mb-4 grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant={attachmentMode === "file" ? "default" : "outline"}
+                    className="h-10 rounded-xl text-xs font-black tracking-widest uppercase"
+                    onClick={() => {
+                      setAttachmentMode("file")
+                    }}
+                  >
+                    <Paperclip className="mr-2 h-3.5 w-3.5" />
+                    File
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={attachmentMode === "link" ? "default" : "outline"}
+                    className="h-10 rounded-xl text-xs font-black tracking-widest uppercase"
+                    onClick={() => {
+                      setAttachmentMode("link")
+                    }}
+                  >
+                    <Link2 className="mr-2 h-3.5 w-3.5" />
+                    Link
+                  </Button>
+                </div>
+
+                {attachmentMode === "file" ? (
+                  <div className="space-y-3">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Upload documents, images, spreadsheets, PDFs, and more.
+                    </p>
+                    <Button
+                      type="button"
+                      disabled={attaching}
+                      onClick={() => {
+                        setAttachmentModalOpen(false)
+                        fileInputRef.current?.click()
+                      }}
+                      className="h-10 w-full rounded-xl text-xs font-black tracking-widest uppercase"
+                    >
+                      {attaching ? (
+                        <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Plus className="mr-2 h-3.5 w-3.5" />
+                      )}
+                      {attaching ? "Uploading..." : "Choose File"}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <Input
+                      value={linkUrl}
+                      onChange={(e) => {
+                        setLinkUrl(e.target.value)
+                      }}
+                      placeholder="Paste URL (example.com/doc)"
+                      className="h-10 rounded-xl border-slate-200 bg-white/80 dark:border-slate-800 dark:bg-slate-900/70"
+                    />
+                    <Input
+                      value={linkName}
+                      onChange={(e) => {
+                        setLinkName(e.target.value)
+                      }}
+                      placeholder="Link title (optional)"
+                      className="h-10 rounded-xl border-slate-200 bg-white/80 dark:border-slate-800 dark:bg-slate-900/70"
+                    />
+                    <Button
+                      type="button"
+                      disabled={addingLink || !linkUrl.trim()}
+                      onClick={async () => {
+                        const ok = await handleAttachLink()
+                        if (ok) {
+                          setAttachmentModalOpen(false)
+                        }
+                      }}
+                      className="h-10 w-full rounded-xl text-xs font-black tracking-widest uppercase"
+                    >
+                      {addingLink ? (
+                        <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Link2 className="mr-2 h-3.5 w-3.5" />
+                      )}
+                      {addingLink ? "Adding..." : "Attach Link"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </DialogContent>
 
