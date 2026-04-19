@@ -18,7 +18,8 @@ const nextConfig: NextConfig = {
   // enable react compiler will increase build time 30~40%
   reactCompiler: false,
   experimental: {
-    turbopackFileSystemCacheForBuild: true
+    turbopackFileSystemCacheForBuild: false,
+    turbopackFileSystemCacheForDev: false
   }
 }
 

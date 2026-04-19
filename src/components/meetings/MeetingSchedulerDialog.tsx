@@ -1,7 +1,7 @@
 "use client"
 
 import { addDays, format, parseISO } from "date-fns"
-import { CalendarDays, Check, Clock, Loader2, Repeat, Users } from "lucide-react"
+import { CalendarDays, Check, Clock, Loader2, Repeat, Users, X } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -405,11 +406,17 @@ export function MeetingSchedulerDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        showCloseButton
+        showCloseButton={false}
         className="flex max-h-[min(92vh,720px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
       >
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-          <div className="shrink-0 rounded-t-[2rem] bg-linear-to-r from-blue-600 to-indigo-700 px-6 py-5 text-white sm:px-8 sm:py-6">
+          <div className="relative shrink-0 rounded-t-[2rem] bg-linear-to-r from-blue-600 to-indigo-700 px-6 py-5 pr-16 text-white sm:px-8 sm:py-6 sm:pr-18">
+            <DialogClose
+              className="absolute top-4 right-4 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white transition-colors hover:bg-white/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" />
+            </DialogClose>
             <DialogHeader>
               <DialogTitle className="text-xl font-black sm:text-2xl">
                 {isEditMode
@@ -662,7 +669,7 @@ export function MeetingSchedulerDialog({
                   </div>
                 )}
 
-                <div className="space-y-2">
+                <div className="space-y-2 rounded-xl border border-slate-200 p-3 dark:border-slate-800">
                   <Label>
                     <Users className="mr-1 inline h-3.5 w-3.5" />
                     Attendees
@@ -679,7 +686,7 @@ export function MeetingSchedulerDialog({
                       Loading team…
                     </div>
                   ) : suggestions.length > 0 ? (
-                    <ScrollArea className="max-h-[min(180px,28vh)] rounded-xl border border-slate-200 dark:border-slate-800">
+                    <ScrollArea className="max-h-[min(220px,32vh)] rounded-xl border border-slate-200 dark:border-slate-800">
                       <div className="space-y-0.5 p-2">
                         {suggestions.map((p) => {
                           const checked = selectedEmails.some(
@@ -729,9 +736,24 @@ export function MeetingSchedulerDialog({
                       setAttendeesText(e.target.value)
                     }}
                     placeholder="More emails (comma or line separated)"
-                    rows={2}
-                    className="resize-y text-sm"
+                    rows={3}
+                    className="resize-none text-sm"
                   />
+                  {attendeePreview.length > 0 && (
+                    <ScrollArea className="max-h-20 rounded-lg border border-slate-200 bg-slate-50/70 p-2 dark:border-slate-800 dark:bg-slate-900/30">
+                      <div className="flex flex-wrap gap-1.5">
+                        {attendeePreview.map((email) => (
+                          <Badge
+                            key={email.toLowerCase()}
+                            variant="secondary"
+                            className="text-[10px]"
+                          >
+                            {email}
+                          </Badge>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  )}
                   <p className="text-xs text-slate-500">
                     {attendeePreview.length} attendee{attendeePreview.length === 1 ? "" : "s"} in
                     this meeting.
