@@ -32,6 +32,18 @@ interface MeetingSchedulerDialogProps {
   defaultPreset?: "general" | "standup"
   /** When set, dialog loads this meeting and PATCHes instead of creating. */
   editMeetingId?: string | null
+  /** Optional: edit only one occurrence from a recurring meeting. */
+  occurrenceEdit?: {
+    meetingId: string
+    occurrenceStart: string
+    title: string
+    description?: string
+    startTime: string
+    endTime: string
+    timezone: string
+    attendees: Array<{ email: string }>
+    projectId?: string | null
+  } | null
 }
 
 interface SuggestedPerson {
@@ -83,7 +95,8 @@ export function MeetingSchedulerDialog({
   projectId,
   mode = "project",
   defaultPreset = "general",
-  editMeetingId = null
+  editMeetingId = null,
+  occurrenceEdit = null
 }: MeetingSchedulerDialogProps) {
   const [submitting, setSubmitting] = useState(false)
   const [loadingMeeting, setLoadingMeeting] = useState(false)
@@ -105,7 +118,7 @@ export function MeetingSchedulerDialog({
   const attendeeHydrateKey = useRef<string>("")
 
   useEffect(() => {
-    if (!open || editMeetingId) {
+    if (!open || editMeetingId || occurrenceEdit) {
       return
     }
 
@@ -129,7 +142,26 @@ export function MeetingSchedulerDialog({
     setSelectedEmails([])
     setRecurrenceEndMode("never")
     setRecurrenceEndDate("")
-  }, [defaultPreset, open, editMeetingId])
+  }, [defaultPreset, open, editMeetingId, occurrenceEdit])
+
+  useEffect(() => {
+    if (!open || !occurrenceEdit) {
+      return
+    }
+    const start = new Date(occurrenceEdit.startTime)
+    const end = new Date(occurrenceEdit.endTime)
+    setTitle(occurrenceEdit.title)
+    setDescription(occurrenceEdit.description || "")
+    setDate(format(start, "yyyy-MM-dd"))
+    setStartTime(format(start, "HH:mm"))
+    setEndTime(format(end, "HH:mm"))
+    setTimezone(occurrenceEdit.timezone || DEFAULT_TIMEZONE)
+    setScheduleMode("once")
+    setRecurrenceEndMode("never")
+    setRecurrenceEndDate("")
+    setSelectedEmails([])
+    setAttendeesText(occurrenceEdit.attendees.map((a) => a.email).join(", "))
+  }, [open, occurrenceEdit])
 
   useEffect(() => {
     if (!open) {
@@ -314,6 +346,7 @@ export function MeetingSchedulerDialog({
   }
 
   const isEditMode = Boolean(editMeetingId)
+  const isOccurrenceEditMode = Boolean(occurrenceEdit)
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -340,6 +373,32 @@ export function MeetingSchedulerDialog({
         }
 
         toast.success("Meeting updated")
+        onOpenChange(false)
+        onSuccess()
+        return
+      }
+
+      if (isOccurrenceEditMode && occurrenceEdit) {
+        const response = await apiClient.patch(
+          `/api/meetings/${occurrenceEdit.meetingId}/occurrence`,
+          {
+            occurrence_start: occurrenceEdit.occurrenceStart,
+            title,
+            description,
+            start_time: new Date(`${date}T${startTime}`).toISOString(),
+            end_time: new Date(`${date}T${endTime}`).toISOString(),
+            timezone,
+            attendees,
+            ...(projectId || occurrenceEdit.projectId
+              ? { projectId: projectId || occurrenceEdit.projectId }
+              : {})
+          }
+        )
+        const data = await response.json().catch(() => null)
+        if (!response.ok) {
+          throw new Error(data?.error || "Failed to update this occurrence")
+        }
+        toast.success("Occurrence updated")
         onOpenChange(false)
         onSuccess()
         return
@@ -419,18 +478,22 @@ export function MeetingSchedulerDialog({
             </DialogClose>
             <DialogHeader>
               <DialogTitle className="text-xl font-black sm:text-2xl">
-                {isEditMode
-                  ? mode === "organization"
-                    ? "Edit workspace meeting"
-                    : "Edit project meeting"
-                  : mode === "organization"
-                    ? "Schedule Workspace Meeting"
-                    : "Schedule Project Meeting"}
+                {isOccurrenceEditMode
+                  ? "Edit this occurrence"
+                  : isEditMode
+                    ? mode === "organization"
+                      ? "Edit workspace meeting"
+                      : "Edit project meeting"
+                    : mode === "organization"
+                      ? "Schedule Workspace Meeting"
+                      : "Schedule Project Meeting"}
               </DialogTitle>
               <DialogDescription className="text-sm text-blue-100">
                 {isEditMode
                   ? "Changes sync to Google Calendar (same connected account). Recurrence pattern and series end date must be changed in Google Calendar — this form updates time, details, and guests."
-                  : "Create a Google Calendar event and generate a Meet link you can join from the app."}
+                  : isOccurrenceEditMode
+                    ? "This updates only the selected date from the recurring series. Other occurrences remain unchanged."
+                    : "Create a Google Calendar event and generate a Meet link you can join from the app."}
               </DialogDescription>
             </DialogHeader>
           </div>
@@ -443,7 +506,7 @@ export function MeetingSchedulerDialog({
               </div>
             ) : (
               <div className="space-y-4">
-                {!isEditMode ? (
+                {!isEditMode && !isOccurrenceEditMode ? (
                   <div className="space-y-2">
                     <Label className="text-xs font-semibold">
                       <Repeat className="mr-1 inline h-3.5 w-3.5" />
@@ -492,7 +555,7 @@ export function MeetingSchedulerDialog({
                       </Button>
                     </div>
                   </div>
-                ) : (
+                ) : isEditMode ? (
                   <div className="space-y-2">
                     <Label className="text-xs font-semibold">
                       <Repeat className="mr-1 inline h-3.5 w-3.5" />
@@ -507,6 +570,23 @@ export function MeetingSchedulerDialog({
                       To switch between one-time and recurring, or to change the series end date,
                       edit the event in Google Calendar.
                     </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold">
+                      <Repeat className="mr-1 inline h-3.5 w-3.5" />
+                      Scope
+                    </Label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary" className="text-xs">
+                        This occurrence only
+                      </Badge>
+                      {occurrenceEdit?.occurrenceStart && (
+                        <Badge variant="outline" className="text-xs">
+                          {format(new Date(occurrenceEdit.occurrenceStart), "MMM d, yyyy")}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -778,10 +858,14 @@ export function MeetingSchedulerDialog({
                 {submitting
                   ? isEditMode
                     ? "Saving…"
-                    : "Scheduling…"
+                    : isOccurrenceEditMode
+                      ? "Updating occurrence…"
+                      : "Scheduling…"
                   : isEditMode
                     ? "Save changes"
-                    : "Schedule Meeting"}
+                    : isOccurrenceEditMode
+                      ? "Save this occurrence"
+                      : "Schedule Meeting"}
               </Button>
             </div>
           </div>

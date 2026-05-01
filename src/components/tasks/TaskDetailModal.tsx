@@ -526,7 +526,7 @@ export function TaskDetailModal({
           <div className="relative shrink-0 px-10 pt-12 pb-6">
             <div className="mb-6 flex items-center gap-3">
               <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[10px] font-black tracking-[0.2em] text-blue-600 uppercase shadow-sm dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                {task.projectTitle || "Personal Task"}
+                {task.projectTitle || "Personal Tasks Accumulation"}
               </span>
               <div className="h-1 w-1 rounded-full bg-slate-200 dark:bg-slate-700" />
               <span className="text-[10px] font-black tracking-[0.2em] text-slate-400 uppercase italic">

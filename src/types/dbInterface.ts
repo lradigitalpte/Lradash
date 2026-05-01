@@ -429,6 +429,7 @@ export interface MeetingRecurrence {
   interval: number
   weekdays?: string[]
   until?: Date
+  exceptions?: Date[]
 }
 
 export interface Meeting {

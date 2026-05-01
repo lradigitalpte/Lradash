@@ -31,6 +31,7 @@ import { toast } from "sonner"
 import { CreateEventModal } from "@/components/calendar/CreateEventModal"
 import { EventHoverCard } from "@/components/calendar/EventHoverCard"
 import { StatusBadge, UserAvatar, StatCard, AvatarGroup } from "@/components/common"
+import { MeetingSchedulerDialog } from "@/components/meetings/MeetingSchedulerDialog"
 import { OrganizationMeetingsPanel } from "@/components/meetings/OrganizationMeetingsPanel"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -43,6 +44,7 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useAuth } from "@/hooks/useAuth"
 import { useMeetings } from "@/hooks/useMeetings"
 import { apiClient } from "@/lib/api/client"
 import { getMeetingOccurrencesBetween } from "@/lib/meetings/recurrence"
@@ -64,6 +66,7 @@ interface CalendarItem {
 }
 
 export default function CalendarPage() {
+  const { user } = useAuth()
   const projects = useTaskStore((state) => state.projects)
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewType, setViewType] = useState<ViewType>("week")
@@ -71,6 +74,7 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState<any | null>(null)
+  const [editingOccurrence, setEditingOccurrence] = useState<any | null>(null)
 
   const {
     meetings,
@@ -117,6 +121,15 @@ export default function CalendarPage() {
 
   const openEditModal = (eventOrItem: any) => {
     if (eventOrItem?.isMeeting) {
+      const viewerId = String((user as any)?.id || (user as any)?._id || "")
+      const organizerId = String(eventOrItem.organizerUserId || "")
+      if (!viewerId || !organizerId || viewerId !== organizerId) {
+        toast.message("Only the organizer can edit this occurrence.")
+        return
+      }
+      setEditingOccurrence(eventOrItem)
+      setEditingEvent(null)
+      setIsModalOpen(true)
       return
     }
 
@@ -138,6 +151,7 @@ export default function CalendarPage() {
   const handleCloseModal = (open: boolean) => {
     if (!open) {
       setEditingEvent(null)
+      setEditingOccurrence(null)
     }
     setIsModalOpen(open)
   }
@@ -589,13 +603,50 @@ export default function CalendarPage() {
         </div>
       </div>
       <CreateEventModal
-        open={isModalOpen}
+        open={isModalOpen && !editingOccurrence}
         onOpenChange={handleCloseModal}
         onSuccess={() => {
           fetchEvents()
           setEditingEvent(null)
         }}
         event={editingEvent}
+      />
+      <MeetingSchedulerDialog
+        open={isModalOpen && !!editingOccurrence}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingOccurrence(null)
+            if (!editingEvent) {
+              setIsModalOpen(false)
+            }
+          }
+        }}
+        onSuccess={() => {
+          fetchEvents()
+          setEditingOccurrence(null)
+          setIsModalOpen(false)
+        }}
+        mode="organization"
+        occurrenceEdit={
+          editingOccurrence
+            ? {
+                meetingId: String(editingOccurrence.id || "").split(":")[0],
+                occurrenceStart:
+                  editingOccurrence.occurrenceStart?.toISOString?.() ||
+                  editingOccurrence.startTime ||
+                  new Date().toISOString(),
+                title: editingOccurrence.title || "",
+                description: editingOccurrence.description || "",
+                startTime:
+                  editingOccurrence.occurrenceStart?.toISOString?.() || editingOccurrence.startTime,
+                endTime:
+                  editingOccurrence.occurrenceEnd?.toISOString?.() || editingOccurrence.endTime,
+                timezone: editingOccurrence.timezone || "UTC",
+                attendees: editingOccurrence.attendees || [],
+                projectId: editingOccurrence.projectId || null
+              }
+            : null
+        }
       />
     </div>
   )
@@ -649,7 +700,7 @@ function DayView({ currentDate, events = [], onDeleteEvent, onEditEvent }: any) 
                         key={event._id || event.id}
                         event={event}
                         onDelete={event.isMeeting ? undefined : onDeleteEvent}
-                        onEdit={event.isMeeting ? undefined : onEditEvent}
+                        onEdit={onEditEvent}
                       >
                         <div
                           className={cn(
@@ -772,9 +823,7 @@ function MonthView({
                       key={idx}
                       event={item}
                       onDelete={item.isMeeting ? undefined : onDeleteEvent}
-                      onEdit={
-                        item.isEvent && !item.isMeeting ? () => onEditEvent?.(item) : undefined
-                      }
+                      onEdit={item.isEvent ? () => onEditEvent?.(item) : undefined}
                     >
                       <div
                         className={cn(
@@ -902,7 +951,7 @@ function WeekView({
                             key={event._id || event.id}
                             event={event}
                             onDelete={event.isMeeting ? undefined : onDeleteEvent}
-                            onEdit={event.isMeeting ? undefined : onEditEvent}
+                            onEdit={onEditEvent}
                           >
                             <button
                               type="button"

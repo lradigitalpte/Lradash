@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { requireAdmin } from "@/lib/admin/guard"
+import { hashPassword } from "@/lib/auth/password"
 import { connectToDatabase } from "@/lib/db/connect"
 import { OrganizationModel } from "@/models/organization.model"
 import { UserModel } from "@/models/user.model"
@@ -55,7 +56,7 @@ export async function GET(request: NextRequest) {
 /**
  * PATCH /api/admin/users
  * Update a user's org role or platform status.
- * Body: { userId, orgRole?: "ADMIN"|"MEMBER", status?: "ACTIVE"|"SUSPENDED" }
+ * Body: { userId, orgRole?: "ADMIN"|"MEMBER", status?: "ACTIVE"|"SUSPENDED", password?: string }
  */
 export async function PATCH(request: NextRequest) {
   const guard = await requireAdmin(request)
@@ -65,14 +66,14 @@ export async function PATCH(request: NextRequest) {
 
   const { orgId, user: adminUser } = guard
 
-  let body: { userId?: string; orgRole?: string; status?: string }
+  let body: { userId?: string; orgRole?: string; status?: string; password?: string }
   try {
     body = await request.json()
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
   }
 
-  const { userId, orgRole, status } = body
+  const { userId, orgRole, status, password } = body
   if (!userId) {
     return NextResponse.json({ error: "userId is required" }, { status: 400 })
   }
@@ -96,6 +97,59 @@ export async function PATCH(request: NextRequest) {
         orgId,
         { $set: { "members.$[elem].role": orgRole } },
         { arrayFilters: [{ "elem.userId": userId }], new: true }
+      ).lean()
+    )
+  }
+
+  if (password !== undefined) {
+    if (typeof password !== "string" || password.length < 8) {
+      return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 })
+    }
+
+    const org = await OrganizationModel.findById(orgId).lean()
+    if (!org) {
+      return NextResponse.json({ error: "Organization not found" }, { status: 404 })
+    }
+
+    const ownerId = (org as any).owner.toString()
+    if (userId === ownerId) {
+      return NextResponse.json(
+        { error: "Owner password must be changed by the owner account directly" },
+        { status: 400 }
+      )
+    }
+
+    const requesterId = adminUser._id.toString()
+    const requesterRole =
+      requesterId === ownerId
+        ? "OWNER"
+        : ((org as any).members.find((m: any) => m.userId.toString() === requesterId)?.role ??
+          "MEMBER")
+    const targetRole = (org as any).members.find((m: any) => m.userId.toString() === userId)?.role
+
+    if (!targetRole) {
+      return NextResponse.json(
+        { error: "User is not a member of this organization" },
+        { status: 404 }
+      )
+    }
+
+    if (requesterRole === "ADMIN" && targetRole !== "MEMBER" && targetRole !== "CLIENT") {
+      return NextResponse.json(
+        { error: "Admins can only reset passwords for Member/Client accounts" },
+        { status: 403 }
+      )
+    }
+
+    updates.push(
+      UserModel.findByIdAndUpdate(
+        userId,
+        {
+          passwordHash: await hashPassword(password),
+          passwordResetToken: undefined,
+          passwordResetExpires: undefined
+        },
+        { new: true }
       ).lean()
     )
   }

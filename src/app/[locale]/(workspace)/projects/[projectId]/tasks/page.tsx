@@ -27,7 +27,7 @@ import {
   ClipboardCheck
 } from "lucide-react"
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useParams, useSearchParams } from "next/navigation"
 import { useState, useEffect, useMemo } from "react"
 import { toast } from "sonner"
 
@@ -69,6 +69,7 @@ function taskShortId(taskId: string | undefined): string {
 
 export default function TasksPage() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const projectId = (params?.projectId || params?.boardId) as string
   const locale = params?.locale as string
   const [project, setProject] = useState<any>(null)
@@ -99,6 +100,19 @@ export default function TasksPage() {
     }
     fetchCurrentUser()
   }, [projectId])
+
+  useEffect(() => {
+    const taskIdFromUrl = searchParams.get("taskId")
+    if (!taskIdFromUrl || tasks.length === 0) {
+      return
+    }
+    const matched = tasks.find((task) => task._id === taskIdFromUrl)
+    if (!matched) {
+      return
+    }
+    setSelectedTask(matched)
+    setViewTaskModalOpen(true)
+  }, [searchParams, tasks])
 
   const fetchCurrentUser = async () => {
     try {

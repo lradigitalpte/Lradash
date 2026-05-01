@@ -6,6 +6,7 @@ interface RecurrenceConfig {
   interval?: number
   weekdays?: string[]
   until?: string | Date | null
+  exceptions?: Array<string | Date>
 }
 
 interface MeetingLike {
@@ -45,6 +46,16 @@ function toDate(value: string | Date) {
 
 function getOccurrenceEnd(start: Date, originalStart: Date, originalEnd: Date) {
   return new Date(start.getTime() + (originalEnd.getTime() - originalStart.getTime()))
+}
+
+function isExcludedByException(candidate: Date, recurrence?: RecurrenceConfig | null) {
+  if (!recurrence?.exceptions?.length) {
+    return false
+  }
+  return recurrence.exceptions.some((raw) => {
+    const ex = toDate(raw)
+    return isSameDay(ex, candidate)
+  })
 }
 
 export function getMeetingRecurrenceLabel(recurrence?: RecurrenceConfig | null) {
@@ -110,7 +121,11 @@ export function getNextMeetingOccurrence<T extends MeetingLike>(
     if (includeWeekday) {
       const occurrenceEnd = getOccurrenceEnd(cursor, start, end)
       /** Next occurrence = first slot that has not ended yet (skips today's meeting if it's already over). */
-      if (isAfter(occurrenceEnd, afterDate) && (!until || !isAfter(cursor, until))) {
+      if (
+        isAfter(occurrenceEnd, afterDate) &&
+        (!until || !isAfter(cursor, until)) &&
+        !isExcludedByException(cursor, recurrence)
+      ) {
         return {
           ...meeting,
           occurrenceStart: cursor,
@@ -184,7 +199,8 @@ export function getMeetingOccurrencesBetween<T extends MeetingLike>(
       if (
         includeWeekday &&
         (isAfter(cursor, rangeStart) || isSameDay(cursor, rangeStart)) &&
-        (isBefore(cursor, rangeEnd) || isSameDay(cursor, rangeEnd))
+        (isBefore(cursor, rangeEnd) || isSameDay(cursor, rangeEnd)) &&
+        !isExcludedByException(cursor, recurrence)
       ) {
         occurrences.push({
           ...meeting,

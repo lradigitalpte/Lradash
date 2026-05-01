@@ -11,7 +11,8 @@ import {
   Upload,
   Check,
   Pencil,
-  RotateCcw
+  RotateCcw,
+  KeyRound
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
@@ -148,6 +149,10 @@ export default function SettingsPage() {
   const [avatarZoom, setAvatarZoom] = useState(1)
   const [avatarOffsetX, setAvatarOffsetX] = useState(0)
   const [avatarOffsetY, setAvatarOffsetY] = useState(0)
+  const [changingPassword, setChangingPassword] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const form = useForm<ProfileFormValue>({
@@ -331,6 +336,50 @@ export default function SettingsPage() {
       toast.error("Failed to update profile")
     } finally {
       setSaving(false)
+    }
+  }
+
+  const onChangePassword = async () => {
+    if (newPassword.length < 8) {
+      toast.error("New password must be at least 8 characters")
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("New password and confirmation do not match")
+      return
+    }
+
+    setChangingPassword(true)
+    try {
+      const accessToken = localStorage.getItem("accessToken")
+      if (!accessToken) {
+        toast.error("Not authenticated")
+        return
+      }
+
+      const response = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ currentPassword, newPassword })
+      })
+
+      if (!response.ok) {
+        const payload = await response.json()
+        toast.error(payload.error || "Failed to change password")
+        return
+      }
+
+      setCurrentPassword("")
+      setNewPassword("")
+      setConfirmPassword("")
+      toast.success("Password changed successfully")
+    } catch {
+      toast.error("Failed to change password")
+    } finally {
+      setChangingPassword(false)
     }
   }
 
@@ -870,6 +919,74 @@ export default function SettingsPage() {
           </div>
 
           <GoogleWorkspaceConnectionCard />
+
+          <Card className="rounded-3xl border-slate-200/60 bg-white/80 shadow-2xl shadow-slate-200/50 backdrop-blur-xl dark:border-slate-800/60 dark:bg-slate-950/80">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-950">
+                  <KeyRound className="h-5 w-5 stroke-2 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <CardTitle className="text-2xl font-bold">Change Password</CardTitle>
+                  <CardDescription>Update your sign-in password</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  Current Password
+                </label>
+                <Input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => {
+                    setCurrentPassword(e.target.value)
+                  }}
+                  disabled={changingPassword}
+                  className="rounded-xl border-slate-200 bg-white/60 dark:border-slate-800 dark:bg-slate-900/60"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  New Password
+                </label>
+                <Input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => {
+                    setNewPassword(e.target.value)
+                  }}
+                  disabled={changingPassword}
+                  className="rounded-xl border-slate-200 bg-white/60 dark:border-slate-800 dark:bg-slate-900/60"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  Confirm New Password
+                </label>
+                <Input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value)
+                  }}
+                  disabled={changingPassword}
+                  className="rounded-xl border-slate-200 bg-white/60 dark:border-slate-800 dark:bg-slate-900/60"
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  onClick={onChangePassword}
+                  disabled={changingPassword}
+                  className="rounded-xl"
+                >
+                  {changingPassword ? "Updating..." : "Change Password"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Action Button */}
           <div className="flex justify-end pt-4">

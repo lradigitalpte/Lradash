@@ -241,9 +241,10 @@ export default function DashboardPage() {
                       {userProjectsWithProgress
                         .slice(0, 6)
                         .map(({ project, progress, taskCount }) => (
-                          <div
+                          <Link
                             key={project._id}
-                            className="rounded-lg border border-slate-200/90 bg-slate-50/80 p-4 shadow-sm dark:border-slate-800/90 dark:bg-slate-900/40"
+                            href={`/projects/${project._id}`}
+                            className="block rounded-lg border border-slate-200/90 bg-slate-50/80 p-4 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/40 hover:shadow-md dark:border-slate-800/90 dark:bg-slate-900/40 dark:hover:border-blue-900/40 dark:hover:bg-blue-950/20"
                           >
                             <div className="flex flex-col gap-3">
                               <div className="flex items-center justify-between gap-3">
@@ -268,7 +269,7 @@ export default function DashboardPage() {
                               </div>
                               <ProgressBar value={progress} size="sm" className="bg-muted" />
                             </div>
-                          </div>
+                          </Link>
                         ))}
                     </div>
                   )
@@ -429,7 +430,9 @@ export default function DashboardPage() {
                   <CardTitle className="text-sm font-medium">Recent activity</CardTitle>
                   <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800">
                     <button
-                      onClick={() =>{  setActivityView("personal"); }}
+                      onClick={() => {
+                        setActivityView("personal")
+                      }}
                       className={cn(
                         "rounded px-2 py-1 text-xs font-medium transition-colors",
                         activityView === "personal"
@@ -440,7 +443,9 @@ export default function DashboardPage() {
                       My Activity
                     </button>
                     <button
-                      onClick={() =>{  setActivityView("workspace"); }}
+                      onClick={() => {
+                        setActivityView("workspace")
+                      }}
                       className={cn(
                         "rounded px-2 py-1 text-xs font-medium transition-colors",
                         activityView === "workspace"

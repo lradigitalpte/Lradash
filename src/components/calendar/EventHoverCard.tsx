@@ -142,6 +142,21 @@ export function EventHoverCard({ children, event, onDelete, onEdit }: EventHover
 
           {!isTask && isMeeting && (
             <div className="flex flex-col gap-2 border-t border-slate-100 pt-3 dark:border-slate-600/60">
+              {onEdit && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 w-fit rounded-full border-slate-200 text-xs dark:border-slate-500"
+                    onClick={() => {
+                      onEdit(event)
+                    }}
+                  >
+                    <Edit3 className="mr-2 h-3.5 w-3.5" />
+                    Edit this occurrence
+                  </Button>
+                </div>
+              )}
               {event.meetUri && (
                 <div className="flex flex-wrap items-center gap-2">
                   <Button

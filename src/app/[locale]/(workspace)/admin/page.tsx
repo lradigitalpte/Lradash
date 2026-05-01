@@ -10,6 +10,7 @@ import {
   Clock,
   FolderKanban,
   Layers,
+  ListTodo,
   RefreshCw,
   Shield,
   TrendingUp,
@@ -174,6 +175,12 @@ export default function AdminOverviewPage() {
               <Button size="sm" variant="outline" className="gap-2 rounded-xl">
                 <FolderKanban className="h-4 w-4" />
                 Projects
+              </Button>
+            </Link>
+            <Link href="/admin/tasks">
+              <Button size="sm" variant="outline" className="gap-2 rounded-xl">
+                <ListTodo className="h-4 w-4" />
+                All Tasks
               </Button>
             </Link>
           </div>

@@ -12,7 +12,8 @@ import {
   ArrowRight,
   Target,
   Zap,
-  Trash2
+  Trash2,
+  KeyRound
 } from "lucide-react"
 import { useEffect, useState, useMemo } from "react"
 import { toast } from "sonner"
@@ -23,6 +24,14 @@ import { InviteUserDialog } from "@/components/team/InviteUserDialog"
 import { MemberDetailsSheet } from "@/components/team/MemberDetailsSheet"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog"
 import { apiClient } from "@/lib/api/client"
 import { cn } from "@/lib/utils"
 
@@ -48,6 +57,10 @@ export default function TeamPage() {
   const [loading, setLoading] = useState(true)
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false)
+  const [passwordTarget, setPasswordTarget] = useState<Member | null>(null)
+  const [newPassword, setNewPassword] = useState("")
+  const [updatingPasswordFor, setUpdatingPasswordFor] = useState<string | null>(null)
 
   useEffect(() => {
     loadTeamData()
@@ -100,6 +113,43 @@ export default function TeamPage() {
       loadTeamData()
     } catch (error) {
       toast.error("An error occurred while removing the member")
+    }
+  }
+
+  const handleResetPassword = async () => {
+    if (!organization) {
+      return
+    }
+    if (!passwordTarget) {
+      return
+    }
+
+    if (newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters")
+      return
+    }
+
+    setUpdatingPasswordFor(passwordTarget._id)
+    try {
+      const response = await apiClient.patch(
+        `/api/organizations/${organization.id}/members/${passwordTarget._id}`,
+        { password: newPassword }
+      )
+
+      if (!response.ok) {
+        const data = await response.json()
+        toast.error(data.error || "Failed to reset password")
+        return
+      }
+
+      toast.success(`Password updated for ${passwordTarget.userName}`)
+      setPasswordModalOpen(false)
+      setPasswordTarget(null)
+      setNewPassword("")
+    } catch (error) {
+      toast.error("An error occurred while updating password")
+    } finally {
+      setUpdatingPasswordFor(null)
     }
   }
 
@@ -310,6 +360,20 @@ export default function TeamPage() {
                               <Button
                                 variant="ghost"
                                 size="icon"
+                                onClick={async () => {
+                                  setPasswordTarget(member)
+                                  setNewPassword("")
+                                  setPasswordModalOpen(true)
+                                }}
+                                className="h-12 w-12 rounded-2xl text-slate-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-900/10"
+                              >
+                                <KeyRound className="h-5 w-5" />
+                              </Button>
+                            )}
+                            {member.role !== "OWNER" && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
                                 onClick={async () => handleDeleteMember(member._id)}
                                 className="h-12 w-12 rounded-2xl text-slate-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-900/10"
                               >
@@ -411,6 +475,56 @@ export default function TeamPage() {
         open={isDetailsOpen}
         onOpenChange={setIsDetailsOpen}
       />
+      <Dialog
+        open={passwordModalOpen}
+        onOpenChange={(open) => {
+          setPasswordModalOpen(open)
+          if (!open) {
+            setPasswordTarget(null)
+            setNewPassword("")
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              Set a new temporary password for {passwordTarget?.userName || "this member"}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label htmlFor="team-reset-password" className="text-sm font-medium">
+              New Password
+            </label>
+            <input
+              id="team-reset-password"
+              type="password"
+              value={newPassword}
+              onChange={(e) => {
+                setNewPassword(e.target.value)
+              }}
+              placeholder="Minimum 8 characters"
+              className="h-10 w-full rounded-md border px-3 text-sm outline-none focus:ring-2 focus:ring-indigo-400/30"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPasswordModalOpen(false)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleResetPassword}
+              disabled={updatingPasswordFor === passwordTarget?._id}
+            >
+              {updatingPasswordFor === passwordTarget?._id ? "Saving..." : "Save Password"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

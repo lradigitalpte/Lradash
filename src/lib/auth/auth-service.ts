@@ -153,6 +153,10 @@ export async function loginUser(data: SignInData): Promise<AuthResponse> {
       return { success: false, error: "Invalid email or password" }
     }
 
+    if (user.status !== "ACTIVE") {
+      return { success: false, error: "Account is inactive. Contact your organization owner." }
+    }
+
     // Verify password
     if (!user.passwordHash) {
       return { success: false, error: "Invalid email or password" }
@@ -248,6 +252,11 @@ export async function refreshAccessToken(refreshToken: string): Promise<AuthResp
     const user = await UserModel.findById(decoded.userId).lean()
     if (!user) {
       return { success: false, error: "User not found" }
+    }
+
+    if ((user as any).status !== "ACTIVE") {
+      await RefreshTokenModel.updateOne({ token: refreshToken }, { revokedAt: new Date() })
+      return { success: false, error: "Account is inactive" }
     }
 
     // Ensure user has a default organization (multi-tenant)

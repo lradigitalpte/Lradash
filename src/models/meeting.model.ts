@@ -50,7 +50,8 @@ const meetingSchema = new mongoose.Schema(
       },
       interval: { type: Number, default: 1 },
       weekdays: [{ type: String }],
-      until: { type: Date, default: null }
+      until: { type: Date, default: null },
+      exceptions: [{ type: Date }]
     },
     attendees: [
       {

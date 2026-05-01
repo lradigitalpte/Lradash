@@ -59,9 +59,13 @@ export function useAdminAccess() {
   useEffect(() => {
     apiClient
       .get("/api/admin/me")
-      .then( async (r) => r.json())
-      .then((data) =>{  setIsAdmin(data.isAdmin ?? false); })
-      .catch(() =>{  setIsAdmin(false); })
+      .then(async (r) => r.json())
+      .then((data) => {
+        setIsAdmin(data.isAdmin ?? false)
+      })
+      .catch(() => {
+        setIsAdmin(false)
+      })
   }, [])
 
   return isAdmin
@@ -76,7 +80,7 @@ export function useAdminStats() {
     setLoading(true)
     apiClient
       .get("/api/admin/stats")
-      .then( async (r) => {
+      .then(async (r) => {
         if (!r.ok) {
           throw new Error("Forbidden")
         }
@@ -86,8 +90,12 @@ export function useAdminStats() {
         setStats(data)
         setError(null)
       })
-      .catch((e) =>{  setError(e.message); })
-      .finally(() =>{  setLoading(false); })
+      .catch((e) => {
+        setError(e.message)
+      })
+      .finally(() => {
+        setLoading(false)
+      })
   }
 
   useEffect(() => {
@@ -106,7 +114,7 @@ export function useAdminUsers() {
     setLoading(true)
     apiClient
       .get("/api/admin/users")
-      .then( async (r) => {
+      .then(async (r) => {
         if (!r.ok) {
           throw new Error("Forbidden")
         }
@@ -116,8 +124,12 @@ export function useAdminUsers() {
         setUsers(data.users ?? [])
         setError(null)
       })
-      .catch((e) =>{  setError(e.message); })
-      .finally(() =>{  setLoading(false); })
+      .catch((e) => {
+        setError(e.message)
+      })
+      .finally(() => {
+        setLoading(false)
+      })
   }
 
   const updateUser = async (userId: string, updates: { orgRole?: string; status?: string }) => {
@@ -128,11 +140,18 @@ export function useAdminUsers() {
     refresh()
   }
 
+  const resetUserPassword = async (userId: string, password: string) => {
+    const res = await apiClient.patch("/api/admin/users", { userId, password })
+    if (!res.ok) {
+      throw new Error((await res.json()).error)
+    }
+  }
+
   useEffect(() => {
     refresh()
   }, [])
 
-  return { users, loading, error, refresh, updateUser }
+  return { users, loading, error, refresh, updateUser, resetUserPassword }
 }
 
 export function useAdminProjects() {
@@ -144,7 +163,7 @@ export function useAdminProjects() {
     setLoading(true)
     apiClient
       .get("/api/admin/projects")
-      .then( async (r) => {
+      .then(async (r) => {
         if (!r.ok) {
           throw new Error("Forbidden")
         }
@@ -154,8 +173,12 @@ export function useAdminProjects() {
         setProjects(data.projects ?? [])
         setError(null)
       })
-      .catch((e) =>{  setError(e.message); })
-      .finally(() =>{  setLoading(false); })
+      .catch((e) => {
+        setError(e.message)
+      })
+      .finally(() => {
+        setLoading(false)
+      })
   }
 
   useEffect(() => {
@@ -172,10 +195,16 @@ export function useAdminActivity() {
   useEffect(() => {
     apiClient
       .get("/api/admin/activity")
-      .then( async (r) => r.json())
-      .then((data) =>{  setActivities(data.activities ?? []); })
-      .catch(() =>{  setActivities([]); })
-      .finally(() =>{  setLoading(false); })
+      .then(async (r) => r.json())
+      .then((data) => {
+        setActivities(data.activities ?? [])
+      })
+      .catch(() => {
+        setActivities([])
+      })
+      .finally(() => {
+        setLoading(false)
+      })
   }, [])
 
   return { activities, loading }

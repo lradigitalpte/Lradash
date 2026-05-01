@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   ChevronDown,
+  KeyRound,
   RefreshCw,
   Search,
   Shield,
@@ -19,6 +20,14 @@ import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,9 +70,12 @@ const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 }
 
 export default function AdminUsersPage() {
-  const { users, loading, error, updateUser } = useAdminUsers()
+  const { users, loading, error, updateUser, resetUserPassword } = useAdminUsers()
   const [search, setSearch] = useState("")
   const [updating, setUpdating] = useState<string | null>(null)
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false)
+  const [passwordTarget, setPasswordTarget] = useState<{ id: string; name: string } | null>(null)
+  const [newPassword, setNewPassword] = useState("")
 
   const filtered = users.filter(
     (u) =>
@@ -91,6 +103,29 @@ export default function AdminUsersPage() {
       toast.success(`User ${newStatus === "ACTIVE" ? "activated" : "suspended"}`)
     } catch (e: any) {
       toast.error(e.message ?? "Failed to update status")
+    } finally {
+      setUpdating(null)
+    }
+  }
+
+  const handlePasswordReset = async () => {
+    if (!passwordTarget) {
+      return
+    }
+    if (newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters")
+      return
+    }
+
+    setUpdating(passwordTarget.id)
+    try {
+      await resetUserPassword(passwordTarget.id, newPassword)
+      toast.success(`Password updated for ${passwordTarget.name}`)
+      setPasswordModalOpen(false)
+      setPasswordTarget(null)
+      setNewPassword("")
+    } catch (e: any) {
+      toast.error(e.message ?? "Failed to reset password")
     } finally {
       setUpdating(null)
     }
@@ -150,7 +185,9 @@ export default function AdminUsersPage() {
             type="text"
             placeholder="Search by name or email..."
             value={search}
-            onChange={(e) =>{  setSearch(e.target.value); }}
+            onChange={(e) => {
+              setSearch(e.target.value)
+            }}
             className="h-11 w-full rounded-2xl border border-slate-200/80 bg-white pr-4 pl-11 text-sm text-slate-900 placeholder-slate-400 shadow-sm ring-0 transition outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 dark:border-slate-800 dark:bg-slate-900 dark:text-white"
           />
         </div>
@@ -257,14 +294,14 @@ export default function AdminUsersPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-44 rounded-2xl shadow-xl">
                             <DropdownMenuItem
-                              onClick={ async () => handleRoleChange(user._id, "ADMIN")}
+                              onClick={async () => handleRoleChange(user._id, "ADMIN")}
                               className="gap-2 rounded-xl text-xs font-bold"
                             >
                               <Shield className="h-3.5 w-3.5 text-blue-500" />
                               Make Admin
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={ async () => handleRoleChange(user._id, "MEMBER")}
+                              onClick={async () => handleRoleChange(user._id, "MEMBER")}
                               className="gap-2 rounded-xl text-xs font-bold"
                             >
                               <UserCheck className="h-3.5 w-3.5 text-slate-400" />
@@ -272,7 +309,19 @@ export default function AdminUsersPage() {
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
-                              onClick={ async () => handleStatusToggle(user._id, user.status)}
+                              onClick={async () => {
+                                setPasswordTarget({ id: user._id, name: user.name })
+                                setNewPassword("")
+                                setPasswordModalOpen(true)
+                              }}
+                              className="gap-2 rounded-xl text-xs font-bold"
+                            >
+                              <KeyRound className="h-3.5 w-3.5 text-violet-600" />
+                              Reset Password
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={async () => handleStatusToggle(user._id, user.status)}
                               className={cn(
                                 "gap-2 rounded-xl text-xs font-bold",
                                 user.status === "ACTIVE"
@@ -303,6 +352,53 @@ export default function AdminUsersPage() {
           </CardContent>
         </Card>
       </div>
+      <Dialog
+        open={passwordModalOpen}
+        onOpenChange={(open) => {
+          setPasswordModalOpen(open)
+          if (!open) {
+            setPasswordTarget(null)
+            setNewPassword("")
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              Set a new temporary password for {passwordTarget?.name || "this user"}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label htmlFor="admin-reset-password" className="text-sm font-medium">
+              New Password
+            </label>
+            <input
+              id="admin-reset-password"
+              type="password"
+              value={newPassword}
+              onChange={(e) => {
+                setNewPassword(e.target.value)
+              }}
+              placeholder="Minimum 8 characters"
+              className="h-10 w-full rounded-md border px-3 text-sm outline-none focus:ring-2 focus:ring-violet-400/30"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPasswordModalOpen(false)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handlePasswordReset} disabled={updating === passwordTarget?.id}>
+              {updating === passwordTarget?.id ? "Saving..." : "Save Password"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

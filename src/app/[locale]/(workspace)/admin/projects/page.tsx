@@ -4,6 +4,7 @@ import { formatDistanceToNow } from "date-fns"
 import {
   AlertCircle,
   ArrowLeft,
+  ArrowRight,
   CheckCircle2,
   Clock,
   FolderKanban,
@@ -24,7 +25,7 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import { useAdminProjects } from "@/hooks/useAdmin"
-import { Link } from "@/i18n/navigation"
+import { Link, useRouter } from "@/i18n/navigation"
 import { cn } from "@/lib/utils"
 
 type SortKey = "recent" | "completion" | "tasks" | "members"
@@ -52,6 +53,7 @@ function CompletionBar({ rate }: { rate: number }) {
 }
 
 export default function AdminProjectsPage() {
+  const router = useRouter()
   const { projects, loading, error } = useAdminProjects()
   const [search, setSearch] = useState("")
   const [sort, setSort] = useState<SortKey>("recent")
@@ -130,25 +132,35 @@ export default function AdminProjectsPage() {
               </div>
             </div>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2 rounded-xl">
-                <SortAsc className="h-4 w-4" />
-                {SORT_LABELS[sort]}
+          <div className="flex items-center gap-2">
+            <Link href="/admin/tasks">
+              <Button variant="default" size="sm" className="gap-2 rounded-xl">
+                All Tasks
+                <ArrowRight className="h-4 w-4" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44 rounded-2xl shadow-xl">
-              {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
-                <DropdownMenuItem
-                  key={k}
-                  onClick={() =>{  setSort(k); }}
-                  className={cn("rounded-xl text-xs font-bold", sort === k && "text-violet-600")}
-                >
-                  {SORT_LABELS[k]}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            </Link>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2 rounded-xl">
+                  <SortAsc className="h-4 w-4" />
+                  {SORT_LABELS[sort]}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44 rounded-2xl shadow-xl">
+                {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
+                  <DropdownMenuItem
+                    key={k}
+                    onClick={() => {
+                      setSort(k)
+                    }}
+                    className={cn("rounded-xl text-xs font-bold", sort === k && "text-violet-600")}
+                  >
+                    {SORT_LABELS[k]}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         {/* Search */}
@@ -158,7 +170,9 @@ export default function AdminProjectsPage() {
             type="text"
             placeholder="Search projects..."
             value={search}
-            onChange={(e) =>{  setSearch(e.target.value); }}
+            onChange={(e) => {
+              setSearch(e.target.value)
+            }}
             className="h-11 w-full rounded-2xl border border-slate-200/80 bg-white pr-4 pl-11 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-400/20 dark:border-slate-800 dark:bg-slate-900 dark:text-white"
           />
         </div>
@@ -183,7 +197,10 @@ export default function AdminProjectsPage() {
             {filtered.map((proj) => (
               <Card
                 key={proj._id}
-                className="group relative overflow-hidden border-slate-200/60 shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-slate-800/60"
+                className="group relative cursor-pointer overflow-hidden border-slate-200/60 shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-slate-800/60"
+                onClick={() => {
+                  router.push(`/admin/tasks?projectId=${proj._id}`)
+                }}
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-purple-500/5 opacity-0 transition group-hover:opacity-100" />
                 <CardHeader className="pb-3">
@@ -286,9 +303,24 @@ export default function AdminProjectsPage() {
                       )}
                       <span className="text-xs text-slate-500">{proj.owner?.name}</span>
                     </div>
-                    <span className="text-[10px] text-slate-400">
-                      {formatDistanceToNow(new Date(proj.createdAt), { addSuffix: true })}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-slate-400">
+                        {formatDistanceToNow(new Date(proj.createdAt), { addSuffix: true })}
+                      </span>
+                      <Link href={`/admin/tasks?projectId=${proj._id}`}>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 gap-1 rounded-lg px-2 text-[10px]"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                          }}
+                        >
+                          View Tasks
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </Button>
+                      </Link>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
