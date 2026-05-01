@@ -72,6 +72,7 @@ export async function GET(request: NextRequest) {
       .limit(limit)
       .populate("project", "title")
       .populate("assignee", "name email avatar")
+      .populate("assignees", "name email avatar")
       .lean(),
     TaskModel.countDocuments({ ...query, status: "TODO" }),
     TaskModel.countDocuments({ ...query, status: "IN_PROGRESS" }),
@@ -104,6 +105,14 @@ export async function GET(request: NextRequest) {
             avatar: task.assignee.avatar || null
           }
         : null,
+      assignees: Array.isArray(task.assignees)
+        ? task.assignees.map((person: any) => ({
+            _id: person._id.toString(),
+            name: person.name,
+            email: person.email,
+            avatar: person.avatar || null
+          }))
+        : [],
       attachmentCount: Array.isArray(task.attachments) ? task.attachments.length : 0,
       attachments: Array.isArray(task.attachments)
         ? task.attachments.map((attachment: any) => ({

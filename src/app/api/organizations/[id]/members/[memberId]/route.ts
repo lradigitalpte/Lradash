@@ -55,17 +55,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Member not found in organization" }, { status: 404 })
     }
 
-    // Admins can only reset non-elevated users. Owners can reset any non-owner.
-    if (
-      requesterMember.role === "ADMIN" &&
-      targetMember.role !== "MEMBER" &&
-      targetMember.role !== "CLIENT"
-    ) {
-      return NextResponse.json(
-        { error: "Admins can only reset passwords for Member/Client accounts" },
-        { status: 403 }
-      )
-    }
+    // Owners/Admins can reset any non-owner member password.
 
     if (targetMember.role === "OWNER") {
       return NextResponse.json(

@@ -134,9 +134,9 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    if (requesterRole === "ADMIN" && targetRole !== "MEMBER" && targetRole !== "CLIENT") {
+    if (requesterRole !== "OWNER" && requesterRole !== "ADMIN") {
       return NextResponse.json(
-        { error: "Admins can only reset passwords for Member/Client accounts" },
+        { error: "You do not have permission to reset user passwords" },
         { status: 403 }
       )
     }

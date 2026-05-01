@@ -48,6 +48,7 @@ interface AdminTask {
   dueDate: string | null
   project: { _id: string; title: string } | null
   assignee: { _id: string; name: string; email: string; avatar: string | null } | null
+  assignees: { _id: string; name: string; email: string; avatar: string | null }[]
   attachmentCount: number
   attachments: { name: string; url: string; type: string; size: number }[]
 }
@@ -100,6 +101,15 @@ export default function AdminTasksPage() {
   })
   const [selectedTask, setSelectedTask] = useState<AdminTask | null>(null)
   const [taskModalOpen, setTaskModalOpen] = useState(false)
+  const getAssigneeLabel = (task: AdminTask) => {
+    if (task.assignee?.name) {
+      return task.assignee.name
+    }
+    if (task.assignees?.length) {
+      return task.assignees.map((person) => person.name).join(", ")
+    }
+    return "Unassigned"
+  }
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -596,7 +606,7 @@ export default function AdminTasksPage() {
                         Due {new Date(task.dueDate).toLocaleDateString()}
                       </span>
                     ) : null}
-                    <span>Assignee: {task.assignee?.name || "Unassigned"}</span>
+                    <span>Assignee: {getAssigneeLabel(task)}</span>
                     <Button
                       type="button"
                       size="sm"
@@ -679,7 +689,7 @@ export default function AdminTasksPage() {
             </p>
             <div className="grid grid-cols-2 gap-2 text-xs text-slate-500">
               <div>Priority: {selectedTask?.priority || "-"}</div>
-              <div>Assignee: {selectedTask?.assignee?.name || "Unassigned"}</div>
+              <div>Assignee: {selectedTask ? getAssigneeLabel(selectedTask) : "Unassigned"}</div>
               <div>
                 Created:{" "}
                 {selectedTask?.createdAt
