@@ -159,10 +159,10 @@ export function TaskDetailModal({
         return null
       }
       const updatedTask = await response.json()
-      onTaskUpdated?.(updatedTask)
       if (successMessage) {
         toast.success(successMessage)
       }
+      onTaskUpdated?.(updatedTask)
       return updatedTask
     } catch {
       toast.error("Failed to update task")

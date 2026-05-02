@@ -158,7 +158,21 @@ export default function TasksPage() {
             projectId: prev.projectId
           } as TaskWithProject
         })
-        await fetchTasks({ silent: true })
+        setTasks((prev) =>
+          prev.map((t) =>
+            String(t._id) !== String(updatedTaskData._id)
+              ? t
+              : ({
+                  ...t,
+                  ...updatedTaskData,
+                  projectTitle: t.projectTitle,
+                  projectId: t.projectId
+                } as TaskWithProject)
+          )
+        )
+        queueMicrotask(() => {
+          void fetchTasks({ silent: true })
+        })
       } else {
         toast.error("Could not update task")
       }
@@ -179,7 +193,21 @@ export default function TasksPage() {
         projectId: prev.projectId
       } as TaskWithProject
     })
-    void fetchTasks({ silent: true })
+    setTasks((prev) =>
+      prev.map((t) =>
+        String(t._id) === String(updatedTask._id)
+          ? ({
+              ...t,
+              ...updatedTask,
+              projectTitle: t.projectTitle,
+              projectId: t.projectId
+            } as TaskWithProject)
+          : t
+      )
+    )
+    queueMicrotask(() => {
+      void fetchTasks({ silent: true })
+    })
   }
 
   return (
