@@ -350,7 +350,7 @@ export default function ProjectPage() {
                       Latest task updates
                     </CardDescription>
                   </div>
-                  <Link href={`/${locale}/projects/${projectId}/work-packages`}>
+                  <Link href={`/${locale}/projects/${projectId}/tasks`}>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -381,8 +381,9 @@ export default function ProjectPage() {
                 ) : (
                   <div className="space-y-3">
                     {recentTasks.map((task) => (
-                      <div
+                      <Link
                         key={task._id}
+                        href={`/${locale}/projects/${projectId}/tasks?taskId=${encodeURIComponent(String(task._id))}`}
                         className="group relative flex cursor-pointer items-center justify-between rounded-xl border border-transparent bg-slate-50/40 p-4 transition-all hover:border-blue-500/20 hover:bg-slate-50/70 dark:bg-slate-950/20 dark:hover:bg-slate-950/40"
                       >
                         <div className="flex flex-1 items-center gap-4">
@@ -449,7 +450,7 @@ export default function ProjectPage() {
                             )}
                           </div>
                         </div>
-                      </div>
+                      </Link>
                     ))}
                   </div>
                 )}
@@ -537,9 +538,10 @@ export default function ProjectPage() {
                 ) : (
                   <div className="space-y-2">
                     {upcomingTasks.map((task: any) => (
-                      <div
+                      <Link
                         key={task._id}
-                        className="flex items-center justify-between rounded-xl bg-slate-50/50 px-3 py-2.5 dark:bg-slate-950/30"
+                        href={`/${locale}/projects/${projectId}/tasks?taskId=${encodeURIComponent(String(task._id))}`}
+                        className="flex items-center justify-between rounded-xl bg-slate-50/50 px-3 py-2.5 transition-colors hover:bg-slate-100/80 dark:bg-slate-950/30 dark:hover:bg-slate-900/50"
                       >
                         <div className="min-w-0">
                           <p className="truncate text-sm font-bold text-slate-900 dark:text-white">
@@ -552,7 +554,7 @@ export default function ProjectPage() {
                         <span className="shrink-0 text-xs font-bold text-slate-500">
                           {new Date(task.dueDate).toLocaleDateString()}
                         </span>
-                      </div>
+                      </Link>
                     ))}
                   </div>
                 )}

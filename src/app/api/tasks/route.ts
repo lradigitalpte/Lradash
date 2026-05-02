@@ -6,7 +6,8 @@ import { getUserByEmail, getUserById } from "@/lib/db/user"
 
 /**
  * GET /api/tasks
- * Fetch all tasks for the authenticated user (personal + project tasks)
+ * Workspace task stream: tasks you created, are assigned to, or appear on as assignee,
+ * scoped to your org and projects you belong to (plus personal tasks). Most recently updated first.
  */
 export async function GET(request: NextRequest) {
   try {

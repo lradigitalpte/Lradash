@@ -2,6 +2,7 @@
 
 import { Types } from "mongoose"
 
+import { getAccessibleProjectIdsForUser } from "@/lib/board-access"
 import { BoardModel } from "@/models/board.model"
 import { ProjectModel } from "@/models/project.model"
 import { TaskModel, TaskType } from "@/models/task.model"
@@ -544,7 +545,9 @@ export async function deleteTaskInDb(taskId: string): Promise<void> {
 }
 
 /**
- * Get all tasks for a user across all projects in their organization
+ * Get tasks for the workspace list: created by the user, assigned to them, or in `assignees`,
+ * limited to the org and to projects the user can access (owner/member) plus personal tasks
+ * (no project). Newest first by `updatedAt` / `createdAt`.
  */
 export async function getAllUserTasks(userEmail: string): Promise<Task[]> {
   try {
@@ -554,19 +557,45 @@ export async function getAllUserTasks(userEmail: string): Promise<Task[]> {
       throw new Error("User not found")
     }
 
-    // Get user's organization
     const organizationId = user.defaultOrganizationId
     if (!organizationId) {
       return []
     }
 
-    // Find all tasks CREATED BY this user in their organization (personal tasks only)
+    const userOid = new Types.ObjectId(String(user._id))
+
+    const accessibleProjectIds = await getAccessibleProjectIdsForUser(
+      userOid.toString(),
+      organizationId
+    )
+    const projectObjectIds = accessibleProjectIds.map((id) => new Types.ObjectId(id))
+
+    const inAccessibleProjectOrPersonal =
+      projectObjectIds.length > 0
+        ? {
+            $or: [
+              { project: { $in: projectObjectIds } },
+              { project: null },
+              { project: { $exists: false } }
+            ]
+          }
+        : {
+            $or: [{ project: null }, { project: { $exists: false } }]
+          }
+
     const tasks = await TaskModel.find({
-      organizationId: organizationId,
-      creator: user._id,
+      organizationId,
       deletedAt: null,
-      isArchived: false
-    } as any).lean()
+      isArchived: false,
+      $and: [
+        inAccessibleProjectOrPersonal,
+        {
+          $or: [{ creator: userOid }, { assignee: userOid }, { assignees: userOid }]
+        }
+      ]
+    } as any)
+      .sort({ updatedAt: -1, createdAt: -1 })
+      .lean()
 
     const taskPromises = tasks.map(async (task) => convertTaskToPlainObject(task as any))
     return await Promise.all(taskPromises)

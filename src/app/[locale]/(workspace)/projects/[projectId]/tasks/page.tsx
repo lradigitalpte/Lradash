@@ -67,6 +67,56 @@ function taskShortId(taskId: string | undefined): string {
   return taskId.slice(-6).toUpperCase()
 }
 
+/** Normalize populated user ref or raw ObjectId to string id */
+function userRefToId(ref: unknown): string | null {
+  if (ref == null) {
+    return null
+  }
+  if (typeof ref === "string") {
+    return ref
+  }
+  if (typeof ref === "object") {
+    const o = ref as { _id?: unknown; id?: unknown }
+    if (o._id != null) {
+      return String(o._id)
+    }
+    if (o.id != null) {
+      return String(o.id)
+    }
+  }
+  return null
+}
+
+/** True if task is assigned to the user, created by them, or listed in assignees */
+function taskMatchesCurrentUser(task: any, currentUserId: string | undefined): boolean {
+  if (!currentUserId) {
+    return false
+  }
+  const uid = String(currentUserId)
+
+  const assigneeId = userRefToId(task.assignee)
+  if (assigneeId === uid) {
+    return true
+  }
+
+  const creatorId = userRefToId(task.creator)
+  if (creatorId === uid) {
+    return true
+  }
+
+  const assignees = task.assignees
+  if (Array.isArray(assignees)) {
+    for (const a of assignees) {
+      const aid = userRefToId(a)
+      if (aid === uid) {
+        return true
+      }
+    }
+  }
+
+  return false
+}
+
 export default function TasksPage() {
   const params = useParams()
   const searchParams = useSearchParams()
@@ -249,12 +299,8 @@ export default function TasksPage() {
           })()) ||
         (filterDueDate === "NO_DATE" && !task.dueDate)
       const matchesCompleted = showCompleted || task.status !== "DONE"
-      const matchesMine =
-        !myTasksOnly ||
-        (currentUser &&
-          (task.assignee?._id === currentUser.id ||
-            task.assignee?.id === currentUser.id ||
-            task.assignee === currentUser.id))
+      const meId = currentUser?.id ?? currentUser?._id
+      const matchesMine = !myTasksOnly || taskMatchesCurrentUser(task, meId)
       return (
         matchesSearch &&
         matchesStatus &&
@@ -1115,8 +1161,8 @@ export default function TasksPage() {
                 <Info className="h-4 w-4" />
               </div>
               <p className="text-xs font-bold text-slate-500 italic">
-                Tasks are shared across all project members. Use &quot;My Tasks&quot; to filter your
-                own.
+                Tasks are shared across all project members. Use &quot;My Tasks&quot; to show tasks
+                you created, are assigned to, or appear on as an assignee.
               </p>
             </div>
             <Link href={`/${locale}/projects/${projectId}/tasks/activity`}>
