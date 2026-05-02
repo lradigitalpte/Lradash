@@ -8,6 +8,7 @@ import {
   MoreVertical,
   Plus,
   RefreshCw,
+  Send,
   ShieldCheck,
   Trash2,
   X
@@ -17,6 +18,7 @@ import { useParams } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 
+import { SmtpProfilesPanel } from "@/components/monitor/SmtpProfilesPanel"
 import { UptimeStatusBars } from "@/components/monitor/UptimeStatusBars"
 import { apiClient } from "@/lib/api/client"
 
@@ -361,6 +363,8 @@ export default function InfrastructureURMonitorPage() {
   const [modal, setModal] = useState<null | { mode: "add" | "edit"; monitor?: URMonitor }>(null)
   const [deleteTarget, setDeleteTarget] = useState<URMonitor | null>(null)
   const snapshotFiredRef = useRef(false)
+  const [smtpTo, setSmtpTo] = useState("")
+  const [smtpSending, setSmtpSending] = useState(false)
 
   async function loadMonitors() {
     setLoading(true)
@@ -412,6 +416,20 @@ export default function InfrastructureURMonitorPage() {
   }, [])
 
   useEffect(() => {
+    try {
+      const raw = localStorage.getItem("user")
+      if (raw) {
+        const j = JSON.parse(raw) as { email?: string }
+        if (j.email) {
+          setSmtpTo(j.email)
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  useEffect(() => {
     if (!monitors.length || snapshotFiredRef.current) {
       return
     }
@@ -434,6 +452,38 @@ export default function InfrastructureURMonitorPage() {
     await Promise.all([loadMonitors(), loadHistory(), fireSnapshot()])
     setRefreshing(false)
     toast.success("Refreshed")
+  }
+
+  async function handleSmtpAppTest() {
+    setSmtpSending(true)
+    try {
+      const res = await apiClient.post("/api/monitor/smtp-test", {
+        to: smtpTo.trim() || undefined
+      })
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean
+        error?: string
+        to?: string
+      }
+      if (res.status === 401) {
+        toast.error("Sign in again to send a test email")
+        return
+      }
+      if (!res.ok) {
+        toast.error(data.error || `Request failed (${res.status})`)
+        return
+      }
+      if (data.ok) {
+        toast.success(`Test email sent to ${data.to ?? smtpTo}`)
+      } else {
+        toast.error(data.error || "Send failed")
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Network error"
+      toast.error(msg)
+    } finally {
+      setSmtpSending(false)
+    }
   }
 
   async function handleDelete(m: URMonitor) {
@@ -527,6 +577,63 @@ export default function InfrastructureURMonitorPage() {
           <p className="mt-1 text-[11px] font-bold text-slate-400">Currently down/unknown</p>
         </div>
       </div>
+
+      {/* App SMTP: real send test (env-based; not UptimeRobot) */}
+      <div className="rounded-[1.5rem] border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-6 dark:border-slate-800 dark:from-slate-900/80 dark:to-slate-900/40">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black tracking-[0.2em] text-red-500 uppercase">
+              App email
+            </p>
+            <h2 className="mt-1 text-lg font-black tracking-tight text-slate-900 dark:text-white">
+              Send test email (LRADASH SMTP)
+            </h2>
+            <p className="mt-1 text-[11px] font-medium text-slate-500">
+              UptimeRobot above only checks the <strong className="font-bold">port</strong>. This
+              button sends a real message using{" "}
+              <code className="rounded bg-slate-100 px-1 text-[10px] dark:bg-slate-800">
+                SMTP_*
+              </code>{" "}
+              from your server environment.
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="min-w-0 flex-1">
+            <label
+              htmlFor="smtp-test-to"
+              className="mb-1 block text-[10px] font-black tracking-widest text-slate-500 uppercase"
+            >
+              Recipient
+            </label>
+            <input
+              id="smtp-test-to"
+              type="email"
+              value={smtpTo}
+              onChange={(e) => {
+                setSmtpTo(e.target.value)
+              }}
+              placeholder="you@example.com (blank = your account email)"
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-900 placeholder:font-normal placeholder:text-slate-400 focus:border-red-400 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleSmtpAppTest()}
+            disabled={smtpSending}
+            className="flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 text-sm font-black text-white transition-all hover:bg-red-600 disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-red-100"
+          >
+            {smtpSending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+            {smtpSending ? "Sending…" : "Send test email"}
+          </button>
+        </div>
+      </div>
+
+      <SmtpProfilesPanel />
 
       {/* Monitor list */}
       {loading ? (
