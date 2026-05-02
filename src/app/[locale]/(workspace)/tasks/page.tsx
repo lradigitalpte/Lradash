@@ -15,7 +15,7 @@ import {
   CheckSquare,
   Plus
 } from "lucide-react"
-import { useMemo, useState, useEffect } from "react"
+import { useMemo, useState, useEffect, useCallback } from "react"
 import { toast } from "sonner"
 
 import { StatusBadge, StatCard } from "@/components/common"
@@ -51,10 +51,13 @@ export default function TasksPage() {
   const [selectedTask, setSelectedTask] = useState<TaskWithProject | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
 
-  // Fetch tasks from backend
-  const fetchTasks = async () => {
+  // Fetch tasks from backend. Use `silent` after saves so the full-page loader does not flash.
+  const fetchTasks = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent === true
     try {
-      setLoading(true)
+      if (!silent) {
+        setLoading(true)
+      }
       const response = await apiClient.get("/api/tasks")
       if (response.ok) {
         const data = await response.json()
@@ -79,7 +82,7 @@ export default function TasksPage() {
             }
             return {
               ...task,
-              projectTitle: "Personal Task",
+              projectTitle: "Personal task",
               projectId: undefined
             }
           })
@@ -93,13 +96,15 @@ export default function TasksPage() {
       console.error("Error fetching tasks:", error)
       toast.error("Failed to fetch tasks")
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
-  }
+  }, [])
 
   useEffect(() => {
-    fetchTasks()
-  }, [])
+    void fetchTasks()
+  }, [fetchTasks])
 
   // Filter tasks
   const filteredTasks = useMemo(() => {
@@ -139,18 +144,23 @@ export default function TasksPage() {
   // Handle task update
   const handleTaskUpdate = async (updatedTask: Task) => {
     try {
-      // Check if this update has already been patched (contains updatedAt from server)
-      // If it came from a direct API response, just update the state without patching again
       const response = await apiClient.patch(`/api/tasks/${updatedTask._id}`, updatedTask)
       if (response.ok) {
-        const updatedTaskData = await response.json()
-        toast.success("Initiative parameters synchronized")
-        // Update selectedTask with the fresh data so modal shows updated info
-        setSelectedTask(updatedTaskData)
-        // Refetch all tasks to keep list in sync
-        fetchTasks()
+        const updatedTaskData = (await response.json()) as Task
+        toast.success("Task updated")
+        setSelectedTask((prev) => {
+          if (!prev || String(prev._id) !== String(updatedTaskData._id)) {
+            return updatedTaskData as TaskWithProject
+          }
+          return {
+            ...updatedTaskData,
+            projectTitle: prev.projectTitle,
+            projectId: prev.projectId
+          } as TaskWithProject
+        })
+        await fetchTasks({ silent: true })
       } else {
-        toast.error("Data synchronization failure")
+        toast.error("Could not update task")
       }
     } catch (error) {
       console.error("Update task error:", error)
@@ -158,12 +168,18 @@ export default function TasksPage() {
     }
   }
 
-  // Handle task update that was already patched (from modal direct updates)
   const handleTaskUpdated = (updatedTask: Task) => {
-    // Just update the state without doing another patch
-    setSelectedTask(updatedTask)
-    // Refetch all tasks to keep list in sync
-    fetchTasks()
+    setSelectedTask((prev) => {
+      if (!prev || String(prev._id) !== String(updatedTask._id)) {
+        return updatedTask as TaskWithProject
+      }
+      return {
+        ...updatedTask,
+        projectTitle: prev.projectTitle,
+        projectId: prev.projectId
+      } as TaskWithProject
+    })
+    void fetchTasks({ silent: true })
   }
 
   return (
@@ -179,34 +195,24 @@ export default function TasksPage() {
           <div className="space-y-6">
             <div className="flex items-center gap-4">
               <div className="rounded-full bg-slate-900 px-4 py-1.5 text-white dark:bg-white dark:text-slate-900">
-                <span className="text-[10px] font-black tracking-[0.3em] uppercase italic">
-                  Task Logic v2.0
-                </span>
+                <span className="text-[10px] font-black tracking-[0.2em] uppercase">Workspace</span>
               </div>
               <div className="h-0.5 w-12 bg-slate-200 dark:bg-slate-800" />
             </div>
-            <h1 className="text-7xl leading-[0.85] font-black tracking-tighter text-slate-900 dark:text-white">
-              Objective{" "}
+            <h1 className="text-5xl leading-[0.95] font-black tracking-tighter text-slate-900 sm:text-6xl md:text-7xl dark:text-white">
+              My{" "}
               <span className="bg-linear-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                Intelligence
+                tasks
               </span>
             </h1>
-            <p className="max-w-2xl text-xl leading-relaxed font-medium text-slate-500 italic opacity-80 dark:text-slate-400">
+            <p className="max-w-2xl text-lg leading-relaxed font-medium text-slate-600 dark:text-slate-400">
               {loading
-                ? "Decrypting initiative stream..."
-                : `Monitoring ${filteredTasks.length} mission-critical objectives across active operational sectors.`}
+                ? "Loading your tasks…"
+                : `Personal tasks and tasks from projects you belong to — created by you or assigned to you (${filteredTasks.length} shown with current filters).`}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-6 pb-2">
-            <div className="mr-4 hidden flex-col items-end gap-1 lg:flex">
-              <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
-                Security Clearance
-              </span>
-              <span className="text-sm font-bold text-slate-900 dark:text-white">
-                Admin Level 4
-              </span>
-            </div>
-            <CreateTaskModal onTaskCreated={fetchTasks} />
+            <CreateTaskModal onTaskCreated={() => void fetchTasks({ silent: true })} />
           </div>
         </div>
 
@@ -255,7 +261,7 @@ export default function TasksPage() {
                   }}
                   className="rounded-lg px-5 text-[10px] font-black tracking-widest uppercase transition-all data-[state=active]:bg-slate-900 data-[state=active]:text-white data-[state=active]:shadow-md dark:data-[state=active]:bg-white dark:data-[state=active]:text-slate-900"
                 >
-                  All Objectives
+                  All tasks
                 </TabsTrigger>
                 <TabsTrigger
                   value="todo"
@@ -295,7 +301,18 @@ export default function TasksPage() {
                     className="h-9 gap-2 rounded-xl border-slate-200 bg-white/80 px-4 text-[10px] font-black tracking-widest uppercase shadow-sm backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/50"
                   >
                     <Filter className="h-3.5 w-3.5 text-blue-600" />
-                    Priority: <span className="text-blue-600">{priorityFilter || "Standard"}</span>
+                    Priority:{" "}
+                    <span className="text-blue-600">
+                      {priorityFilter === "URGENT"
+                        ? "Urgent"
+                        : priorityFilter === "HIGH"
+                          ? "High"
+                          : priorityFilter === "MEDIUM"
+                            ? "Medium"
+                            : priorityFilter === "LOW"
+                              ? "Low"
+                              : "Any"}
+                    </span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
@@ -303,7 +320,7 @@ export default function TasksPage() {
                   className="w-72 rounded-4xl border-slate-100 bg-white/95 p-3 shadow-2xl backdrop-blur-3xl"
                 >
                   <DropdownMenuLabel className="p-5 text-[10px] font-black tracking-[0.3em] text-slate-400 uppercase">
-                    Classification Levels
+                    Priority
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator className="mx-2 mb-2 opacity-50" />
                   <DropdownMenuItem
@@ -312,7 +329,7 @@ export default function TasksPage() {
                     }}
                     className="m-1 gap-4 rounded-xl py-4 font-bold transition-colors"
                   >
-                    Default Stream
+                    Any priority
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => {
@@ -320,7 +337,7 @@ export default function TasksPage() {
                     }}
                     className="m-1 gap-4 rounded-xl bg-rose-50/50 py-4 font-bold text-rose-600"
                   >
-                    Urgent Breach
+                    Urgent
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => {
@@ -328,7 +345,7 @@ export default function TasksPage() {
                     }}
                     className="m-1 gap-4 rounded-xl bg-amber-50/50 py-4 font-bold text-amber-600"
                   >
-                    High Vulnerability
+                    High
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => {
@@ -336,7 +353,7 @@ export default function TasksPage() {
                     }}
                     className="m-1 gap-4 rounded-xl bg-blue-50/50 py-4 font-bold text-blue-600"
                   >
-                    Standard Protocol
+                    Medium
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => {
@@ -356,7 +373,7 @@ export default function TasksPage() {
                     className="h-9 gap-2 rounded-xl border-slate-200 bg-white/80 px-4 text-[10px] font-black tracking-widest uppercase shadow-sm backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/50"
                   >
                     <User className="h-3.5 w-3.5 text-indigo-600" />
-                    Assignee: <span className="text-indigo-600">{assigneeFilter || "Global"}</span>
+                    Assignee: <span className="text-indigo-600">{assigneeFilter || "Anyone"}</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
@@ -364,7 +381,7 @@ export default function TasksPage() {
                   className="w-72 rounded-4xl border-slate-100 bg-white/95 p-3 shadow-2xl backdrop-blur-3xl"
                 >
                   <DropdownMenuLabel className="p-5 text-[10px] font-black tracking-[0.3em] text-slate-400 uppercase">
-                    Personnel Surveillance
+                    Assignee
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator className="mx-2 mb-2 opacity-50" />
                   <DropdownMenuItem
@@ -373,7 +390,7 @@ export default function TasksPage() {
                     }}
                     className="m-1 gap-4 rounded-xl py-4 font-bold"
                   >
-                    All Operators
+                    Anyone
                   </DropdownMenuItem>
                   {Array.from(new Set(tasks.map((t) => t.assignee?.name).filter(Boolean))).map(
                     (name) => (
@@ -406,11 +423,9 @@ export default function TasksPage() {
                     <FileText className="h-5 w-5" />
                   </div>
                   <div>
-                    <CardTitle className="text-lg font-black tracking-tight uppercase">
-                      Data Stream
-                    </CardTitle>
-                    <CardDescription className="mt-0.5 text-[10px] font-black tracking-[0.3em] text-slate-400 uppercase opacity-60">
-                      Verified initiative matrix & operational status
+                    <CardTitle className="text-lg font-black tracking-tight">Task list</CardTitle>
+                    <CardDescription className="mt-0.5 text-xs font-medium text-slate-500 normal-case">
+                      Tasks you created or that are assigned to you, including from shared projects.
                     </CardDescription>
                   </div>
                 </div>
@@ -423,8 +438,8 @@ export default function TasksPage() {
                         <div className="absolute inset-0 rounded-full border-4 border-slate-100 dark:border-slate-800" />
                         <div className="absolute inset-0 animate-[spin_0.8s_linear_infinite] rounded-full border-4 border-blue-600 border-t-transparent" />
                       </div>
-                      <p className="text-[11px] font-black tracking-[0.4em] text-slate-400 uppercase">
-                        establishing neural link...
+                      <p className="text-[11px] font-black tracking-[0.15em] text-slate-400 uppercase">
+                        Loading tasks…
                       </p>
                     </div>
                   </div>
@@ -473,8 +488,8 @@ export function TaskTable({ tasks, onTaskClick }: TaskTableProps) {
     {
       accessorKey: "title",
       header: () => (
-        <span className="pl-6 text-[11px] font-black tracking-[0.3em] text-slate-400 uppercase">
-          Objective Matrix
+        <span className="pl-6 text-[11px] font-black tracking-[0.2em] text-slate-400 uppercase">
+          Task & project
         </span>
       ),
       cell: ({ row }) => (
@@ -490,7 +505,7 @@ export function TaskTable({ tasks, onTaskClick }: TaskTableProps) {
             )}
           />
           <div className="min-w-0 space-y-1">
-            <span className="block truncate text-sm font-bold text-slate-900 uppercase transition-colors group-hover/row:text-blue-600 dark:text-white">
+            <span className="block truncate text-sm font-bold text-slate-900 transition-colors group-hover/row:text-blue-600 dark:text-white">
               {row.original.title}
             </span>
             <div className="flex flex-wrap items-center gap-2">
@@ -505,7 +520,7 @@ export function TaskTable({ tasks, onTaskClick }: TaskTableProps) {
                   <CheckSquare className="h-3 w-3" />
                   <span className="text-[10px] font-bold tracking-wider uppercase">
                     {row.original.checklist.filter((i) => i.completed).length}/
-                    {row.original.checklist.length} Verified
+                    {row.original.checklist.length} checklist
                   </span>
                 </div>
               )}
@@ -517,8 +532,8 @@ export function TaskTable({ tasks, onTaskClick }: TaskTableProps) {
     {
       accessorKey: "status",
       header: () => (
-        <span className="text-[11px] font-black tracking-[0.3em] text-slate-400 uppercase">
-          Execution
+        <span className="text-[11px] font-black tracking-[0.2em] text-slate-400 uppercase">
+          Status
         </span>
       ),
       cell: ({ row }) => (
@@ -533,8 +548,8 @@ export function TaskTable({ tasks, onTaskClick }: TaskTableProps) {
     {
       accessorKey: "priority",
       header: () => (
-        <span className="text-[11px] font-black tracking-[0.3em] text-slate-400 uppercase">
-          Impact
+        <span className="text-[11px] font-black tracking-[0.2em] text-slate-400 uppercase">
+          Priority
         </span>
       ),
       cell: ({ row }) => (
@@ -556,7 +571,7 @@ export function TaskTable({ tasks, onTaskClick }: TaskTableProps) {
             column.toggleSorting(column.getIsSorted() === "asc")
           }}
         >
-          Timeline
+          Due
           <ArrowUpDown className="h-4 w-4 stroke-3" />
         </button>
       ),
@@ -618,7 +633,7 @@ export function TaskTable({ tasks, onTaskClick }: TaskTableProps) {
       <DataTable
         columns={columns}
         data={tasks}
-        searchPlaceholder="Filter neural initiative matrix..."
+        searchPlaceholder="Search by task title…"
         pageSize={10}
         enableColumnVisibility={true}
         onRowClick={(task) => onTaskClick?.(task)}
