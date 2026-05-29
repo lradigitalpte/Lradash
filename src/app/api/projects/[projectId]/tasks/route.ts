@@ -113,9 +113,10 @@ export async function POST(
     // Fire-and-forget: notify only the assignee if different from creator
     if (body.assigneeId && String(body.assigneeId) !== String(user._id)) {
       const assignee = (await UserModel.findById(body.assigneeId)
-        .select("name email notificationEmail avatar")
+        .select("name email notificationEmail avatar preferences.emailNotifications")
         .lean()) as any
-      if (assignee?.email) {
+      const recipientEmail = getNotificationEmail(assignee)
+      if (recipientEmail) {
         dispatchNotification({
           recipientUserId: String(assignee._id),
           type: "task_created",
@@ -129,7 +130,7 @@ export async function POST(
             avatar: user.avatar ?? undefined
           },
           email: {
-            recipientEmail: getNotificationEmail(assignee),
+            recipientEmail,
             recipientName: assignee.name ?? assignee.email,
             taskTitle,
             taskDescription: body.description,

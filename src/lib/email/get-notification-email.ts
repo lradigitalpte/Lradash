@@ -7,10 +7,22 @@
  */
 
 export function getNotificationEmail(
-  user: { notificationEmail?: string; email?: string } | null | undefined
+  user:
+    | {
+        notificationEmail?: string
+        email?: string
+        preferences?: { emailNotifications?: boolean } | null
+      }
+    | null
+    | undefined
 ): string {
   if (!user) {
     return ""
   }
+
+  if (user.preferences?.emailNotifications === false) {
+    return ""
+  }
+
   return user.notificationEmail?.trim() || user.email || ""
 }

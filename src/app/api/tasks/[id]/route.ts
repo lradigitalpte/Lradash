@@ -33,6 +33,48 @@ function getEntityId(value: unknown): string | null {
   return String(value)
 }
 
+function describeTaskChanges(body: Record<string, unknown>): string {
+  const changeLabels: string[] = []
+
+  if (typeof body.title === "string") {
+    changeLabels.push("title")
+  }
+  if (typeof body.description === "string") {
+    changeLabels.push("description")
+  }
+  if (typeof body.status === "string") {
+    changeLabels.push("status")
+  }
+  if (typeof body.priority === "string") {
+    changeLabels.push("priority")
+  }
+  if (body.dueDate !== undefined) {
+    changeLabels.push("due date")
+  }
+  if (body.assigneeId !== undefined || body.assignee !== undefined) {
+    changeLabels.push("assignee")
+  }
+  if (body.checklist !== undefined) {
+    changeLabels.push("checklist")
+  }
+  if (body.labels !== undefined) {
+    changeLabels.push("labels")
+  }
+  if (body.attachments !== undefined) {
+    changeLabels.push("attachments")
+  }
+
+  if (changeLabels.length === 0) {
+    return "Task details were updated"
+  }
+
+  if (changeLabels.length === 1) {
+    return `Updated ${changeLabels[0]}`
+  }
+
+  return `Updated ${changeLabels.slice(0, -1).join(", ")} and ${changeLabels.at(-1)}`
+}
+
 /**
  * GET /api/tasks/[id]
  * Get task details
@@ -82,7 +124,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    const body = await request.json()
+    const body = (await request.json()) as Record<string, unknown>
     const { id: taskId } = await params
 
     const updatedTask = await updateTaskInDb(taskId, userEmail, body)
@@ -94,22 +136,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       const isCompleting = body.status === "DONE" || body.status === "COMPLETED"
       const nextAssigneeId = getEntityId(body.assigneeId ?? body.assignee)
       const isAssigning = !!nextAssigneeId
+      const changeSummary = describeTaskChanges(body)
       const shouldNotifyCreator = isCompleting || isAssigning
       const creatorId = getEntityId((updatedTask as any)?.creator)
-
-      // Skip generic edit notifications to reduce in-app noise.
-      if (!isCompleting && !isAssigning) {
-        return NextResponse.json(updatedTask)
-      }
 
       // Email + in-app notify the ASSIGNEE when a task is assigned to them
       if (isAssigning && nextAssigneeId !== String(user._id)) {
         try {
           await connectToDatabase()
           const assignee = (await UserModel.findById(nextAssigneeId)
-            .select("name email notificationEmail avatar")
+            .select("name email notificationEmail avatar preferences.emailNotifications")
             .lean()) as any
-          if (assignee?.email) {
+          const recipientEmail = getNotificationEmail(assignee)
+          if (recipientEmail) {
             dispatchNotification({
               recipientUserId: String(assignee._id),
               type: "task_assigned",
@@ -123,7 +162,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
                 avatar: user.avatar ?? undefined
               },
               email: {
-                recipientEmail: getNotificationEmail(assignee),
+                recipientEmail,
                 recipientName: assignee.name ?? assignee.email,
                 taskTitle,
                 taskDescription: (updatedTask as any)?.description,
@@ -131,7 +170,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
                 taskPriority: (updatedTask as any)?.priority,
                 taskDueDate: (updatedTask as any)?.dueDate
                   ? new Date((updatedTask as any).dueDate).toLocaleDateString()
-                  : undefined
+                  : undefined,
+                changes: changeSummary
               }
             }).catch(() => {})
           }
@@ -145,9 +185,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         try {
           await connectToDatabase()
           const creator = (await UserModel.findById(creatorId)
-            .select("name email notificationEmail avatar")
+            .select("name email notificationEmail avatar preferences.emailNotifications")
             .lean()) as any
-          if (creator?.email) {
+          const recipientEmail = getNotificationEmail(creator)
+          if (recipientEmail) {
             const creatorBody = isCompleting
               ? `${user.name ?? userEmail} completed a task you assigned.`
               : `${user.name ?? userEmail} assigned this task to ${nextAssigneeId === creatorId ? "you" : "another teammate"}.`
@@ -171,7 +212,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
                 avatar: user.avatar ?? undefined
               },
               email: {
-                recipientEmail: getNotificationEmail(creator),
+                recipientEmail,
                 recipientName: creator.name ?? creator.email,
                 taskTitle,
                 taskDescription: (updatedTask as any)?.description,

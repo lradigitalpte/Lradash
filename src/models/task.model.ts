@@ -180,6 +180,10 @@ taskSchema.index({ creator: 1 })
 taskSchema.index({ organizationId: 1, board: 1, project: 1 })
 taskSchema.index({ organizationId: 1, workPackage: 1 })
 taskSchema.index({ deletedAt: 1 })
+taskSchema.index({ organizationId: 1, deletedAt: 1, isArchived: 1, creator: 1, updatedAt: -1 })
+taskSchema.index({ organizationId: 1, deletedAt: 1, isArchived: 1, assignee: 1, updatedAt: -1 })
+taskSchema.index({ organizationId: 1, deletedAt: 1, isArchived: 1, assignees: 1, updatedAt: -1 })
+taskSchema.index({ organizationId: 1, deletedAt: 1, isArchived: 1, project: 1, updatedAt: -1 })
 
 function isTaskModel(model: any): model is Model<TaskType> {
   return model && model.modelName === "Task"

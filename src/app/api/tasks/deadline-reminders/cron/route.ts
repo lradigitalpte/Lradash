@@ -38,7 +38,10 @@ export async function GET(request: NextRequest) {
       $or: [{ deadlineReminder12hSentAt: { $exists: false } }, { deadlineReminder12hSentAt: null }]
     })
       .populate([
-        { path: "assignee", select: "name email notificationEmail avatar" },
+        {
+          path: "assignee",
+          select: "name email notificationEmail avatar preferences.emailNotifications"
+        },
         { path: "creator", select: "name email avatar" },
         { path: "project", select: "name title" }
       ])
@@ -50,7 +53,8 @@ export async function GET(request: NextRequest) {
 
     for (const task of tasks as any[]) {
       const assignee = task.assignee
-      if (!assignee?.email) {
+      const recipientEmail = getNotificationEmail(assignee)
+      if (!recipientEmail) {
         skipped += 1
         continue
       }
@@ -70,7 +74,7 @@ export async function GET(request: NextRequest) {
           avatar: undefined
         },
         email: {
-          recipientEmail: getNotificationEmail(assignee),
+          recipientEmail,
           recipientName: assignee.name ?? assignee.email,
           taskTitle: task.title,
           taskDescription: task.description,

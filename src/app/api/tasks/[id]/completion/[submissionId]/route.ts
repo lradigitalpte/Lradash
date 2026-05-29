@@ -231,7 +231,7 @@ export async function PATCH(
       const recipientDocs = await UserModel.find({
         _id: { $in: Array.from(recipientIds) }
       })
-        .select("name email notificationEmail avatar")
+        .select("name email notificationEmail avatar preferences.emailNotifications")
         .lean()
 
       const title =

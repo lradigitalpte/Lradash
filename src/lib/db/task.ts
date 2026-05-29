@@ -31,6 +31,32 @@ interface TaskBase {
   __v?: number
 }
 
+interface PopulatedUserSummary {
+  _id: Types.ObjectId | string
+  name: string
+  avatar?: string | null
+}
+
+interface PopulatedProjectSummary {
+  _id: Types.ObjectId | string
+  title: string
+}
+
+interface WorkspaceTaskRecord extends Omit<
+  TaskBase,
+  "project" | "assignee" | "creator" | "lastModifier"
+> {
+  project?: Types.ObjectId | string | PopulatedProjectSummary | null
+  assignee?: Types.ObjectId | string | PopulatedUserSummary | null
+  assignees?: Array<Types.ObjectId | string | PopulatedUserSummary>
+  creator: Types.ObjectId | string | PopulatedUserSummary
+  lastModifier: Types.ObjectId | string | PopulatedUserSummary
+  checklist?: Task["checklist"]
+  labels?: Task["labels"]
+  attachments?: Task["attachments"]
+  coverColor?: string
+}
+
 async function convertTaskToPlainObject(taskDoc: TaskBase): Promise<TaskType> {
   if (!taskDoc) {
     throw new Error("Task document is undefined")
@@ -152,6 +178,81 @@ async function convertTaskToPlainObject(taskDoc: TaskBase): Promise<TaskType> {
       : [],
     attachments: (taskDoc as any).attachments || [],
     coverColor: (taskDoc as any).coverColor,
+    createdAt:
+      typeof taskDoc.createdAt === "string" ? new Date(taskDoc.createdAt) : taskDoc.createdAt,
+    updatedAt:
+      typeof taskDoc.updatedAt === "string" ? new Date(taskDoc.updatedAt) : taskDoc.updatedAt
+  }
+}
+
+function toUserInfo(user?: Types.ObjectId | string | PopulatedUserSummary | null) {
+  if (!user) {
+    return undefined
+  }
+
+  if (typeof user === "object" && "name" in user && "_id" in user) {
+    return {
+      id: String(user._id),
+      name: user.name,
+      avatar: user.avatar || undefined
+    }
+  }
+
+  return undefined
+}
+
+function convertWorkspaceTaskToPlainObject(taskDoc: WorkspaceTaskRecord): TaskType & {
+  projectTitle?: string
+  projectId?: string
+} {
+  const projectInfo =
+    taskDoc.project && typeof taskDoc.project === "object" && "title" in taskDoc.project
+      ? taskDoc.project
+      : null
+
+  const assignee = toUserInfo(taskDoc.assignee)
+  const assignees = Array.isArray(taskDoc.assignees)
+    ? taskDoc.assignees
+        .map((user) => toUserInfo(user))
+        .filter((user): user is NonNullable<typeof user> => !!user)
+    : []
+  const creator = toUserInfo(taskDoc.creator)
+  const lastModifier = toUserInfo(taskDoc.lastModifier)
+
+  if (!creator || !lastModifier) {
+    throw new Error("Workspace task is missing populated creator or lastModifier")
+  }
+
+  return {
+    _id: String(taskDoc._id),
+    title: taskDoc.title,
+    description: taskDoc.description || "",
+    status: taskDoc.status || TaskStatus.TODO,
+    dueDate: taskDoc.dueDate,
+    organizationId: String(taskDoc.organizationId),
+    board: taskDoc.board ? String(taskDoc.board) : undefined,
+    project: projectInfo
+      ? String(projectInfo._id)
+      : taskDoc.project
+        ? String(taskDoc.project)
+        : undefined,
+    projectId: projectInfo
+      ? String(projectInfo._id)
+      : taskDoc.project
+        ? String(taskDoc.project)
+        : undefined,
+    projectTitle: projectInfo?.title || "Personal task",
+    assignee,
+    assignees,
+    isBackdated: Boolean((taskDoc as any).isBackdated),
+    creator,
+    lastModifier,
+    priority: (taskDoc.priority as TaskPriority) || TaskPriority.MEDIUM,
+    isArchived: taskDoc.isArchived || false,
+    checklist: taskDoc.checklist || [],
+    labels: taskDoc.labels || [],
+    attachments: taskDoc.attachments || [],
+    coverColor: taskDoc.coverColor,
     createdAt:
       typeof taskDoc.createdAt === "string" ? new Date(taskDoc.createdAt) : taskDoc.createdAt,
     updatedAt:
@@ -594,11 +695,20 @@ export async function getAllUserTasks(userEmail: string): Promise<Task[]> {
         }
       ]
     } as any)
+      .select(
+        "title description status dueDate organizationId board project assignee assignees isBackdated creator lastModifier priority isArchived checklist labels attachments coverColor createdAt updatedAt"
+      )
+      .populate("project", "title")
+      .populate("assignee", "name avatar")
+      .populate("assignees", "name avatar")
+      .populate("creator", "name avatar")
+      .populate("lastModifier", "name avatar")
       .sort({ updatedAt: -1, createdAt: -1 })
       .lean()
 
-    const taskPromises = tasks.map(async (task) => convertTaskToPlainObject(task as any))
-    return await Promise.all(taskPromises)
+    return tasks.map((task) =>
+      convertWorkspaceTaskToPlainObject(task as unknown as WorkspaceTaskRecord)
+    )
   } catch (error) {
     console.error("Error fetching user tasks:", error)
     throw error

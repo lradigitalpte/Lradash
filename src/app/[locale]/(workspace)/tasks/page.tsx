@@ -60,35 +60,8 @@ export default function TasksPage() {
       }
       const response = await apiClient.get("/api/tasks")
       if (response.ok) {
-        const data = await response.json()
-
-        // Fetch project details for tasks that have projectId
-        const tasksWithProjects = await Promise.all(
-          data.map(async (task: Task) => {
-            if (task.project) {
-              try {
-                const projectResponse = await apiClient.get(`/api/projects/${task.project}`)
-                if (projectResponse.ok) {
-                  const project = await projectResponse.json()
-                  return {
-                    ...task,
-                    projectTitle: project.title,
-                    projectId: project._id
-                  }
-                }
-              } catch (error) {
-                console.error("Failed to fetch project:", error)
-              }
-            }
-            return {
-              ...task,
-              projectTitle: "Personal task",
-              projectId: undefined
-            }
-          })
-        )
-
-        setTasks(tasksWithProjects)
+        const data = (await response.json()) as TaskWithProject[]
+        setTasks(data)
       } else {
         toast.error("Failed to fetch tasks")
       }
@@ -209,6 +182,33 @@ export default function TasksPage() {
       void fetchTasks({ silent: true })
     })
   }
+
+  const handleTaskClick = useCallback(async (task: TaskWithProject) => {
+    setSelectedTask(task)
+    setModalOpen(true)
+
+    try {
+      const response = await apiClient.get(`/api/tasks/${task._id}`)
+      if (!response.ok) {
+        return
+      }
+
+      const fullTask = (await response.json()) as Task
+      setSelectedTask((prev) => {
+        if (!prev || String(prev._id) !== String(task._id)) {
+          return prev
+        }
+
+        return {
+          ...fullTask,
+          projectTitle: task.projectTitle,
+          projectId: task.projectId
+        }
+      })
+    } catch (error) {
+      console.error("Error fetching task details:", error)
+    }
+  }, [])
 
   return (
     <div className="relative min-h-full overflow-hidden pb-32">
@@ -475,8 +475,7 @@ export default function TasksPage() {
                   <TaskTable
                     tasks={filteredTasks}
                     onTaskClick={(task) => {
-                      setSelectedTask(task)
-                      setModalOpen(true)
+                      void handleTaskClick(task)
                     }}
                   />
                 )}

@@ -4,8 +4,12 @@ import { connect, connection, ConnectOptions } from "mongoose"
 
 import {
   DB_CONNECT_TIMEOUT_MS,
+  DB_MAX_IDLE_TIME_MS,
+  DB_MAX_POOL_SIZE,
+  DB_MIN_POOL_SIZE,
   DB_SERVER_SELECTION_TIMEOUT_MS,
-  DB_SOCKET_TIMEOUT_MS
+  DB_SOCKET_TIMEOUT_MS,
+  DB_WAIT_QUEUE_TIMEOUT_MS
 } from "@/constants/db"
 
 // This file is used in both server and client components
@@ -29,6 +33,10 @@ const getClientOptions = (): ConnectOptions => {
     connectTimeoutMS: DB_CONNECT_TIMEOUT_MS, // 10 seconds
     socketTimeoutMS: DB_SOCKET_TIMEOUT_MS, // 45 seconds
     serverSelectionTimeoutMS: DB_SERVER_SELECTION_TIMEOUT_MS, // 10 seconds
+    maxPoolSize: DB_MAX_POOL_SIZE,
+    minPoolSize: DB_MIN_POOL_SIZE,
+    maxIdleTimeMS: DB_MAX_IDLE_TIME_MS,
+    waitQueueTimeoutMS: DB_WAIT_QUEUE_TIMEOUT_MS,
     // Force TLS 1.2+ for MongoDB Atlas
     tls: true,
     tlsAllowInvalidCertificates: false,
