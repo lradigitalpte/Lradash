@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { verifyAccessToken } from "@/lib/auth/tokens"
 import { connectToDatabase } from "@/lib/db/connect"
 import { getUserByEmail, getUserById } from "@/lib/db/user"
+import { getNewMentionTargets, normalizeMentionTargets } from "@/lib/notifications/mentions"
 import { sendMentionNotifications } from "@/lib/notifications/notification-service"
 import { TaskModel } from "@/models/task.model"
 
@@ -62,6 +63,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { id: taskId } = await params
     const body = await request.json()
     const { text, mentions = [] } = body
+    const normalizedMentions = normalizeMentionTargets(mentions)
 
     if (!text || !text.trim()) {
       return NextResponse.json({ error: "Comment text is required" }, { status: 400 })
@@ -88,11 +90,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       type: "comment",
       text: text.trim(),
       createdAt: new Date(),
-      mentions: mentions.map((mention: any) => ({
+      mentions: normalizedMentions.map((mention) => ({
         userId: mention.userId,
         userName: mention.userName
       })),
-      notificationsSent: mentions.map((mention: any) => ({
+      notificationsSent: normalizedMentions.map((mention) => ({
         userId: mention.userId,
         sentAt: new Date(),
         method: "in-app",
@@ -122,14 +124,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       taskId,
       commentId: newComment._id,
       author: user.name,
-      mentions: mentions.length,
-      mentionedUsers: mentions.map((m: any) => m.userName)
+      mentions: normalizedMentions.length,
+      mentionedUsers: normalizedMentions.map((mention) => mention.userName)
     })
 
     // Send notifications to mentioned users
-    if (mentions.length > 0) {
+    if (normalizedMentions.length > 0) {
       try {
-        for (const mention of mentions) {
+        for (const mention of normalizedMentions) {
           await sendMentionNotifications({
             userId: mention.userId,
             type: "mention",
@@ -154,12 +156,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     return NextResponse.json({
       comment: savedComment,
-      notificationsToSend: mentions.map((m: any) => ({
-        userId: m.userId,
+      notificationsToSend: normalizedMentions.map((mention) => ({
+        userId: mention.userId,
         type: "mention",
         taskId,
         commentId: newComment._id,
-        userName: m.userName
+        userName: mention.userName
       }))
     })
   } catch (error: any) {
@@ -193,6 +195,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const { id: taskId } = await params
     const body = await request.json()
     const { commentId, text, mentions = [] } = body
+    const normalizedMentions = normalizeMentionTargets(mentions)
 
     if (!text || !text.trim()) {
       return NextResponse.json({ error: "Comment text is required" }, { status: 400 })
@@ -225,12 +228,49 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // Update comment
     if (task.activities && task.activities[commentIndex]) {
-      task.activities[commentIndex].text = text.trim()(
-        task.activities[commentIndex] as any
-      ).mentions = mentions.map((mention: any) => ({
+      const comment = task.activities[commentIndex] as any
+      const previousMentions = normalizeMentionTargets(comment.mentions || [])
+      const newlyAddedMentions = getNewMentionTargets(previousMentions, normalizedMentions)
+
+      comment.text = text.trim()
+      comment.mentions = normalizedMentions.map((mention) => ({
         userId: mention.userId,
         userName: mention.userName
       }))
+
+      comment.notificationsSent = [
+        ...(Array.isArray(comment.notificationsSent) ? comment.notificationsSent : []),
+        ...newlyAddedMentions.map((mention) => ({
+          userId: mention.userId,
+          sentAt: new Date(),
+          method: "in-app",
+          status: "pending"
+        }))
+      ]
+
+      if (newlyAddedMentions.length > 0) {
+        try {
+          for (const mention of newlyAddedMentions) {
+            await sendMentionNotifications({
+              userId: mention.userId,
+              type: "mention",
+              taskId,
+              commentId,
+              mentionedByUser: {
+                id: user._id.toString(),
+                name: user.name,
+                email: user.email,
+                avatar: user.avatar
+              },
+              taskTitle: task.title,
+              commentText: text.trim(),
+              methods: ["in-app", "email"]
+            })
+          }
+        } catch (error) {
+          console.error("Error sending notifications:", error)
+        }
+      }
     }
 
     await task.save()
@@ -246,7 +286,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       taskId,
       commentId,
       author: user.name,
-      mentions: mentions.length
+      mentions: normalizedMentions.length
     })
 
     return NextResponse.json({ comment: updatedComment })

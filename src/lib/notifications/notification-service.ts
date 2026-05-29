@@ -68,12 +68,15 @@ export async function sendMentionNotifications(
 
     await connectToDatabase()
     const recipient = await UserModel.findById(payload.userId)
-      .select("name email notificationEmail avatar")
+      .select("name email notificationEmail avatar preferences.emailNotifications")
       .lean()
 
     if (!recipient) {
       throw new Error("Mention recipient not found")
     }
+
+    const recipientEmail = getNotificationEmail(recipient)
+    const shouldSendEmail = payload.methods.includes("email") && Boolean(recipientEmail)
 
     const commentPreview =
       payload.commentText.length > 160
@@ -92,10 +95,10 @@ export async function sendMentionNotifications(
         name: payload.mentionedByUser.name,
         avatar: payload.mentionedByUser.avatar
       },
-      email: payload.methods.includes("email")
+      email: shouldSendEmail
         ? {
-            recipientEmail: getNotificationEmail(recipient as any),
-            recipientName: (recipient as any).name ?? (recipient as any).email,
+            recipientEmail,
+            recipientName: recipient.name ?? recipient.email,
             taskTitle: payload.taskTitle,
             taskDescription: payload.commentText,
             actionLabel: "Open Task Discussion →"
@@ -104,7 +107,7 @@ export async function sendMentionNotifications(
     })
 
     results.inApp.status = payload.methods.includes("in-app") ? "sent" : "pending"
-    results.email.status = payload.methods.includes("email") ? "sent" : "pending"
+    results.email.status = shouldSendEmail ? "sent" : "pending"
 
     if (notificationLog) {
       await notificationLog({
